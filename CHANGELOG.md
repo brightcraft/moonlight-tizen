@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## v1.10.2
+
+### Changed
+- Updated QR code in the 'Support' dialog that redirects to the correct Wiki page
+
+### Fixed
+- Fixed issue where SDB and other Tizen Studio tools were removed during Docker image cleanup
+
 ## v1.10.1
 
 ### Changed
