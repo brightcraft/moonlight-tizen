@@ -90,8 +90,6 @@ RUN rm -rf \
 	build \
 	moonlight-tizen \
 	web-cli_Tizen_Studio_6.1_ubuntu-64.bin \
-	tizen-studio \
-	tizen-studio-data \
 	tizen-package-expect.sh \
 	.package-manager \
 	emscripten-1.39.4.7-linux64.zip \
@@ -110,3 +108,6 @@ FROM ubuntu:22.04
 COPY --from=base / /
 USER moonlight
 WORKDIR /home/moonlight
+
+# Add Tizen Studio tools to PATH environment variable
+ENV PATH=/home/moonlight/tizen-studio/tools/ide/bin:/home/moonlight/tizen-studio/tools:${PATH}
