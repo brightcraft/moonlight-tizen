@@ -105,6 +105,7 @@ function NvHTTP(address, clientUid, userEnteredAddress = '', macAddress) {
   this.serverState = '';
   this.gputype = '';
   this.supportedDisplayModes = {}; // key: y-resolution:x-resolution, value: array of supported frame rates
+  this.serverCommands = [];
 
   _self = this;
 };
@@ -377,8 +378,12 @@ NvHTTP.prototype = {
           this.supportedDisplayModes[yres + ':' + xres] = [];
         }
         if (!this.supportedDisplayModes[yres + ':' + xres].includes(fps)) {
-          this.supportedDisplayModes[yres + ':' + xres].push(fps);
+            this.supportedDisplayModes[yres + ':' + xres].push(fps); supportedDisplayModes
         }
+
+        this.serverCommands = $root.find("ServerCommand").map(function () {
+            return $(this).text().trim();
+        }).get();
       }.bind(this));
     } catch (err) {
       // We don't need this data, so no error handling necessary

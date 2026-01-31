@@ -122,6 +122,8 @@ class MoonlightInstance {
   void OnConnectionStarted(uint32_t error);
   void StopConnection();
 
+  void SendExecServerCmd(int cmdId);
+
   static uint32_t ProfilerGetPackedMillis();
   static uint64_t ProfilerGetMillis();
   static uint64_t ProfilerUnpackTime(uint32_t packedTime);

@@ -95,6 +95,10 @@ void MoonlightInstance::StopConnection() {
   OnConnectionStopped(0);
 }
 
+void MoonlightInstance::SendExecServerCmd(int cmdId) {
+  LiSendExecServerCmd(cmdId);
+}
+
 void* MoonlightInstance::StopThreadFunc(void* context) {
   // We must join the connection thread first, because LiStopConnection must
   // not be invoked during LiStartConnection.
@@ -516,6 +520,10 @@ void wakeOnLan(int callbackId, std::string macAddress) {
   g_Instance->WakeOnLan(callbackId, macAddress);
 }
 
+void sendExecServerCmd(int cmdId) {
+    g_Instance->SendExecServerCmd(cmdId);
+}
+
 void PostToJs(std::string msg) {
   MAIN_THREAD_EM_ASM({
     const msg = UTF8ToString($0);
@@ -554,4 +562,5 @@ EMSCRIPTEN_BINDINGS(handle_message) {
   emscripten::function("stun", &stun);
   emscripten::function("pair", &pair);
   emscripten::function("wakeOnLan", &wakeOnLan);
+  emscripten::function("sendExecServerCmd", &sendExecServerCmd);
 }

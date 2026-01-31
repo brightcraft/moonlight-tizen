@@ -455,6 +455,12 @@ body {
     font-size: 1.4rem;
     letter-spacing: 0.5px;
 }
+.menu-button-container {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 10px;
+}
 /* =============================
    Hosts Section
 ============================= */
