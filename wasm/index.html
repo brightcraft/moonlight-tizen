@@ -651,19 +651,23 @@
         </dialog>
     </div>
     <div id="gameMenuOverlay" class="dialog-overlay">
-        <dialog id="gameMenuDialog" class="mdl-dialog">
+        <dialog id="gameMenuDialog" class="mdl-dialog" tabindex="-1">
             <h3 id="gameMenuTitle" class="mdl-dialog__title">Game Menu</h3>
             <div class="mdl-dialog__content">
                 <div class="menu-button-container">
-                    <button type="button" id="gameMenuDisconnect"
+                    <button type="button" id="gameMenuSendEscape" tabindex="0"
+                            class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect">
+                        Send ESC
+                    </button>
+                    <button type="button" id="gameMenuDisconnect" tabindex="0"
                             class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect">
                         Disconnect
                     </button>
-                    <button type="button" id="gameMenuQuitSession"
+                    <button type="button" id="gameMenuQuitSession" tabindex="0"
                             class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect">
                         Quit Session
                     </button>
-                    <button type="button" id="gameMenuCancel"
+                    <button type="button" id="gameMenuCancel" tabindex="0"
                             class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect">
                         Cancel
                     </button>
