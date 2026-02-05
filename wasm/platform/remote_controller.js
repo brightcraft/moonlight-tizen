@@ -1,10 +1,5 @@
 function remoteControllerHandler(e)
 {
-  if (isDialogOpen)
-  {
-      e.preventDefault();
-      return;
-  }
   const keyCode = e.keyCode;
 
   switch (keyCode) {

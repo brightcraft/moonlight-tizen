@@ -1626,12 +1626,16 @@ function gameMenuDialog() {
     });
 
     $('#gameMenuDisconnect').off('click').on('click', function () {
-        console.log('%c[GameMenu]', 'color: orange;', 'Disconnect pressed.');
+        if (isInGame === true) {
+            Module.stopStream();
+        }
         closeGameMenu();
     });
 
     $('#gameMenuQuitSession').off('click').on('click', function () {
-        console.log('%c[GameMenu]', 'color: red;', 'Quit Session pressed.');
+        if (isInGame === true) {
+            Module.stopStream();
+        }
         closeGameMenu();
     });
 
