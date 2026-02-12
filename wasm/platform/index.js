@@ -1643,22 +1643,23 @@ function gameMenuDialog() {
         console.log('%c[GameMenu]', 'color: green;', 'Cancel pressed.');
         closeGameMenu();
     });
+}
 
-    function closeGameMenu() {
-        gameMenuOverlay.style.display = "none";
-        gameMenuDialog.close();
-        isDialogOpen = false;
-        Navigation.pop();
-        Navigation.switch();
+function closeGameMenu()
+{
+    gameMenuOverlay.style.display = "none";
+    gameMenuDialog.close();
+    isDialogOpen = false;
+    Navigation.pop();
+    Navigation.switch();
 
-        var videoElement = document.getElementById('wasm_module');
-        videoElement.focus();
+    var videoElement = document.getElementById('wasm_module');
+    videoElement.focus();
 
-        // Smart-TV Focus-Fix
-        videoElement.dispatchEvent(new MouseEvent('mousedown', {
-            bubbles: true, cancelable: true, view: window, clientX: 0, clientY: 0
-        }));
-    }
+    // Smart-TV Focus-Fix
+    videoElement.dispatchEvent(new MouseEvent('mousedown', {
+        bubbles: true, cancelable: true, view: window, clientX: 0, clientY: 0
+    }));
 }
 
 // Restart the application
@@ -3072,23 +3073,29 @@ function initSamsungKeys() {
 }
 
 function initSpecialKeys() {
-    console.log('%c[index.js, initSpecialKeys]', 'color: green;', 'Initializing special TV input keys...');
+    console.log('[initSpecialKeys] Initializing special TV input keys...');
 
     var videoElement = document.getElementById('wasm_module');
-    videoElement.addEventListener('keydown', function (e) {
-        if (isDialogOpen) {
+
+    videoElement.addEventListener('keydown', function (e)
+    {
+        if (e.key === 'XF86Back' && isInGame === true) {
             e.preventDefault();
             e.stopPropagation();
-            return;
-        }
 
-        if (e.key === 'XF86Back' && isInGame === true) {
-            console.log('%c[SpecialKeys]', 'color: cyan;', 'BACK pressed → opening GameMenu');
-            e.preventDefault();
-            gameMenuDialog();
+            if (isDialogOpen)
+            {
+                closeGameMenu();
+            } else
+            {
+                gameMenuDialog();
+            }
+
+            return;
         }
     });
 }
+
 
 function loadSystemInfo() {
   console.log('%c[index.js, loadSystemInfo]', 'color: green;', 'Loading system information...');
