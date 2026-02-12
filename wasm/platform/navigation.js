@@ -1521,6 +1521,42 @@ const Views = {
       unmark(this.view.current());
     },
   },
+  GameMenu: {
+        view: new ListView(() => [
+            'gameMenuSendEscape',
+            'gameMenuDisconnect',
+            'gameMenuQuitSession',
+            'gameMenuCancel'
+        ]),
+        up() {
+            this.view.prevOption();
+            document.getElementById(this.view.current()).focus();
+        },
+        down() {
+            this.view.nextOption();
+            document.getElementById(this.view.current()).focus();
+        },
+        left() { },
+        right() { },
+        select() {
+            document.getElementById(this.view.current()).click();
+        },
+        accept() {
+            document.getElementById(this.view.current()).click();
+        },
+        back() {
+            document.getElementById('gameMenuCancel').click();
+        },
+        switch() {
+            document.getElementById(this.view.current()).focus();
+        },
+        enter() {
+            mark(this.view.current());
+        },
+        leave() {
+            unmark(this.view.current());
+        },
+    },
 };
 
 const Navigation = (function() {

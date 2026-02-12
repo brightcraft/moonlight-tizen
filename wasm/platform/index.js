@@ -1605,6 +1605,63 @@ function warningDialog(title, message) {
   });
 }
 
+function gameMenuDialog() {
+    var gameMenuOverlay = document.querySelector('#gameMenuOverlay');
+    var gameMenuDialog = document.querySelector('#gameMenuDialog');
+
+    gameMenuOverlay.style.display = 'flex';
+    gameMenuDialog.showModal();
+    isDialogOpen = true;
+    Navigation.push(Views.GameMenu);
+
+    document.activeElement.blur();
+    var escapeButton = document.getElementById("gameMenuSendEscape");
+    escapeButton.setAttribute("tabindex", "0");
+    escapeButton.focus();
+
+    // --- Button handlers ---
+    $('#gameMenuSendEscape').off('click').on('click', function () {
+        sendEscapeKeyToHost();
+        closeGameMenu();
+    });
+
+    $('#gameMenuDisconnect').off('click').on('click', function () {
+        if (isInGame === true) {
+            Module.stopStream();
+        }
+        closeGameMenu();
+    });
+
+    $('#gameMenuQuitSession').off('click').on('click', function () {
+        if (isInGame === true) {
+            Module.stopStream();
+        }
+        closeGameMenu();
+    });
+
+    $('#gameMenuCancel').off('click').on('click', function () {
+        console.log('%c[GameMenu]', 'color: green;', 'Cancel pressed.');
+        closeGameMenu();
+    });
+}
+
+function closeGameMenu()
+{
+    gameMenuOverlay.style.display = "none";
+    gameMenuDialog.close();
+    isDialogOpen = false;
+    Navigation.pop();
+    Navigation.switch();
+
+    var videoElement = document.getElementById('wasm_module');
+    videoElement.focus();
+
+    // Smart-TV Focus-Fix
+    videoElement.dispatchEvent(new MouseEvent('mousedown', {
+        bubbles: true, cancelable: true, view: window, clientX: 0, clientY: 0
+    }));
+}
+
 // Restart the application
 function restartApplication() {
   var restartApplication = window.location;
@@ -3016,24 +3073,29 @@ function initSamsungKeys() {
 }
 
 function initSpecialKeys() {
-  console.log('%c[index.js, initSpecialKeys]', 'color: green;', 'Initializing special TV input keys...');
+    console.log('[initSpecialKeys] Initializing special TV input keys...');
 
-  // Find the video element that displays the streaming session
-  var videoElement = document.getElementById('wasm_module');
+    var videoElement = document.getElementById('wasm_module');
 
-  // Listen for keydown events on the video element
-  videoElement.addEventListener('keydown', function(e) {
-    // Check if the 'Back' key has been pressed and the streaming is currently active
-    if (e.key === 'XF86Back' && isInGame === true) {
-      // Send the Escape key (ESC) to the host while streaming
-      sendEscapeKeyToHost();
-      // Simulate mouse to move focus back to the streaming session
-      videoElement.dispatchEvent(new MouseEvent('mousedown', {
-        bubbles: true, cancelable: true, view: window, clientX: 0, clientY: 0
-      }));
-    }
-  });
+    videoElement.addEventListener('keydown', function (e)
+    {
+        if (e.key === 'XF86Back' && isInGame === true) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            if (isDialogOpen)
+            {
+                closeGameMenu();
+            } else
+            {
+                gameMenuDialog();
+            }
+
+            return;
+        }
+    });
 }
+
 
 function loadSystemInfo() {
   console.log('%c[index.js, loadSystemInfo]', 'color: green;', 'Loading system information...');
