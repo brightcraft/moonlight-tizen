@@ -1,4 +1,5 @@
-function remoteControllerHandler(e) {
+function remoteControllerHandler(e)
+{
   const keyCode = e.keyCode;
 
   switch (keyCode) {
