@@ -12,7 +12,7 @@ body:
     attributes:
       label: Moonlight Version
       description: What is the version of Moonlight you are using?
-      placeholder: "Example: 1.5.0"
+      placeholder: "Example: 1.10.0"
     validations:
       required: true
   - type: dropdown
@@ -20,23 +20,23 @@ body:
       label: Installation Type
       description: What is the method you used to install Moonlight on your device?
       options:
+        - Jellyfin2Samsung
         - Tizen Studio
-        - Docker image
-        - USB drive
+        - Docker
     validations:
       required: true
   - type: input
     attributes:
       label: Device Model
       description: What is the model of your device?
-      placeholder: "Example: Samsung S90D or QN55S90DDF"
+      placeholder: "Example: UAU7000 or UE55AU7172UXXH"
     validations:
       required: true
   - type: input
     attributes:
       label: Device OS
       description: What is the OS version of your device?
-      placeholder: "Example: Tizen 8"
+      placeholder: "Example: Tizen 6.0"
     validations:
       required: true
   - type: markdown
@@ -59,12 +59,13 @@ body:
       description: What streaming software are you using?
       options:
         - Sunshine
+        - Apollo
         - GeForce Experience
   - type: textarea
     attributes:
       label: Host Setup
       description: What is the hardware and software setup of your computer?
-      placeholder: "Example: Intel Core i7-12700K, NVIDIA GeForce RTX 3080, 16GB RAM DDR4, 144Hz Monitor, Windows 11 Pro 23H2"
+      placeholder: "Example: Intel Core i7-14700K, NVIDIA GeForce RTX 4080, 32GB RAM DDR4, 240Hz Monitor, Windows 11 Pro 25H2."
   - type: markdown
     attributes:
       value: |
@@ -75,7 +76,7 @@ body:
     attributes:
       label: Bug Description
       description: What kind of incorrect behavior did you see?
-      placeholder: "Example: I can't see video output when I start streaming"
+      placeholder: "Example: I can't see video output when I start streaming!"
     validations:
       required: true
   - type: textarea
@@ -84,12 +85,22 @@ body:
       description: Can you reproduce the issue? If so, please share below as steps.
       placeholder: |
         Example: 
-        1. Select computer
-        2. Open "Desktop" in the apps list
-        3. Wait for the connection to be established
-        4. Seeing black screen without video
+        1. Select computer.
+        2. Open "Desktop" in the apps list.
+        3. Wait for the connection to be established.
+        4. Seeing black screen without video.
   - type: textarea
     attributes:
       label: Expected Behavior
       description: What is the correct behavior do you think?
-      placeholder: "Seeing video output of my computer screen"
+      placeholder: "Example: Seeing video output of my computer screen!"
+  - type: textarea
+    attributes:
+      label: Log Files
+      description: Provide any relevant logs to help us diagnose the issue.
+      placeholder: "Drag and drop the Moonlight and/or Sunshine log files here or click to upload."
+  - type: textarea
+    attributes:
+      label: Screenshots
+      description: Provide any relevant screenshots to help us troubleshoot the issue.
+      placeholder: "Drag and drop any relevant screenshots here or click to upload."

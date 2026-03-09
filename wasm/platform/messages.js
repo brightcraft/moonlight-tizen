@@ -194,9 +194,14 @@ function handleMessage(msg) {
     // Show transient message as notification
     snackbarLogLong(translateBackendMessage(msg.replace('TransientMsg: ', '')));
   } else if (msg.indexOf('DialogMsg: ') === 0) {
+<<<<<<< feat/translation
     // Show dialog message as notification
     // FIXME: Really use a dialog
     snackbarLogLong(translateBackendMessage(msg.replace('DialogMsg: ', '')));
+=======
+    // Show dialog message using the warning dialog
+    warningDialog('Warning', msg.replace('DialogMsg: ', ''));
+>>>>>>> master
   } else if (msg === 'displayVideo') {
     // Show the video stream now
     $('#listener').addClass('fullscreen');

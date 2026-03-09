@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## v1.10.3
+
+### Added
+- Added the Patreon platform for project support
+
+### Changed
+- Refactored Dockerfile to remove unused dependencies and steps
+- Disabled monthly USB package release schedule and enabled manual trigger
+- Replaced the snackbar with a proper dialog in DialogMsg and ignored .DS_Store
+- Optimized Dockerfile to cache backend build layers during frontend changes
+- Improved issue templates and included 'Discussions' link for quick interaction
+
 ## v1.10.2
 
 ### Changed

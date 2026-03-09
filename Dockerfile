@@ -12,10 +12,6 @@ RUN apt-get update && apt-get install -y \
 	python2 \
 	unzip \
 	wget \
-	# nodejs \
-	# npm \
-	# zip \
-	default-jre \
 	&& rm -rf /var/lib/apt/lists/*
 
 # Some of the Samsung Tizen scripts refer to `python`, but Ubuntu only provides `/usr/bin/python2`
@@ -29,7 +25,7 @@ WORKDIR /home/moonlight
 # Install Tizen Studio CLI and configure the toolchain path
 RUN wget -nv -O web-cli_Tizen_Studio_6.1_ubuntu-64.bin 'https://download.tizen.org/sdk/Installer/tizen-studio_6.1/web-cli_Tizen_Studio_6.1_ubuntu-64.bin'
 RUN chmod a+x web-cli_Tizen_Studio_6.1_ubuntu-64.bin
-RUN ./web-cli_Tizen_Studio_6.1_ubuntu-64.bin --accept-license --no-java-check /home/moonlight/tizen-studio
+RUN ./web-cli_Tizen_Studio_6.1_ubuntu-64.bin --accept-license /home/moonlight/tizen-studio
 ENV PATH=/home/moonlight/tizen-studio/tools/ide/bin:/home/moonlight/tizen-studio/tools:${PATH}
 
 # Prepare the Tizen certificate and security profiles for signing the application package
@@ -53,17 +49,33 @@ RUN wget -nv -O emscripten-1.39.4.7-linux64.zip 'https://developer.samsung.com/s
 RUN unzip emscripten-1.39.4.7-linux64.zip
 WORKDIR emscripten-release-bundle/emsdk
 RUN ./emsdk activate latest-fastcomp
-RUN echo 'JAVA = "/usr/bin/java"' >> /home/moonlight/.emscripten
 
-# Compile the source code and prepare the widget directory
+# Copy only the backend files required for compiling the application
 WORKDIR /home/moonlight
-COPY --chown=moonlight . ./moonlight-tizen
+COPY --chown=moonlight CMakeLists.txt ./moonlight-tizen/
+COPY --chown=moonlight h264bitstream ./moonlight-tizen/h264bitstream/
+COPY --chown=moonlight libgamestream ./moonlight-tizen/libgamestream/
+COPY --chown=moonlight moonlight-common-c ./moonlight-tizen/moonlight-common-c/
+COPY --chown=moonlight opus ./moonlight-tizen/opus/
+COPY --chown=moonlight ports ./moonlight-tizen/ports/ 
+COPY --chown=moonlight wasm/*.c ./moonlight-tizen/wasm/
+COPY --chown=moonlight wasm/*.cpp ./moonlight-tizen/wasm/
+COPY --chown=moonlight wasm/*.hpp ./moonlight-tizen/wasm/
+COPY --chown=moonlight wasm/dispatcher ./moonlight-tizen/wasm/dispatcher/
+
 RUN cmake \
 	-DCMAKE_TOOLCHAIN_FILE=/home/moonlight/emscripten-release-bundle/emsdk/fastcomp/emscripten/cmake/Modules/Platform/Emscripten.cmake \
 	-G Ninja \
 	-S moonlight-tizen \
 	-B build
 RUN cmake --build build
+
+# Copy the remaining frontend files required for packaging the application
+COPY --chown=moonlight res/ ./moonlight-tizen/res/
+COPY --chown=moonlight wasm/index.html ./moonlight-tizen/wasm/
+COPY --chown=moonlight wasm/platform/ ./moonlight-tizen/wasm/platform/
+COPY --chown=moonlight wasm/static/ ./moonlight-tizen/wasm/static/
+
 RUN cmake --install build --prefix build
 RUN cp moonlight-tizen/res/icon.png build/widget/
 
@@ -79,12 +91,6 @@ RUN echo \
 | expect
 RUN mv build/widget/Moonlight.wgt .
 
-# Create USB installation package from the WGT file using `wgt-to-usb`
-# RUN git clone https://github.com/fingerartur/wgt-to-usb.git
-# RUN cd /home/moonlight/wgt-to-usb/ && npm install
-# RUN npm exec wgt-to-usb /home/moonlight/Moonlight.wgt
-# RUN cd /home/moonlight/ && zip -r MoonlightUSB.zip ./userwidget
-
 # Clean up unnecessary files to reduce image size
 RUN rm -rf \
 	build \
@@ -99,8 +105,6 @@ RUN rm -rf \
 	.emscripten_cache.lock \
 	.emscripten_ports \
 	.emscripten_sanity \
-	# .npm \
-	# wgt-to-usb \
 	.wget-hsts
 
 # Use a multi-stage build to reclaim space from deleted files

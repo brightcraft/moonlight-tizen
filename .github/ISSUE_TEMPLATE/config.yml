@@ -1,1 +1,5 @@
 blank_issues_enabled: false
+contact_links:
+  - name: Discussions Board
+    url: https://github.com/brightcraft/moonlight-tizen/discussions
+    about: General questions, ideas, and conversations
