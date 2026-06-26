@@ -1,8 +1,6 @@
 name: i18n CI
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
   push:
     branches:
       - main
@@ -11,14 +9,11 @@ permissions:
   contents: write
 
 jobs:
-  sync-locales:
-    if: github.event_name == 'pull_request'
+  sync-locales-and-push-to-tms:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -33,22 +28,6 @@ jobs:
         with:
           commit_message: "chore(i18n): sync locale source-of-truth"
           file_pattern: "wasm/static/locales/*.json"
-          branch: ${{ github.head_ref }}
-
-  push-sources-to-tms:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Sync locale files
-        run: node wasm/static/js/i18n-sync.js
 
       # TMS example (Crowdin) - intentionally commented
       # - name: Install Crowdin CLI
