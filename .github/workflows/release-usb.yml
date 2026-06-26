@@ -134,13 +134,14 @@ jobs:
           body: |
             # Moonlight Tizen USB v${{ env.VERSION }}
 
-            - Ensure your Samsung TV is running Tizen OS version 5.5 or higher.
-            - Choose the recommended [installation method](https://github.com/brightcraft/moonlight-tizen#installation) based on your Tizen OS version.
-            - Follow the detailed instructions from the installation guide to successfully install the **Moonlight** app on your TV.
+            - Ensure your setup meets the necessary [requirements](https://github.com/brightcraft/moonlight-tizen#%EF%B8%8F-prerequisites) for the best possible streaming experience.
+            - Download `MoonlightUSB.zip` from the release assets.
+            - Follow the instructions from the recommended [installation method](https://github.com/brightcraft/moonlight-tizen/wiki/Installation-Guide#installation-using-usb) to install the application on your TV.
 
             > [!NOTE]
-            > This installation method only works for **30 days** due to Samsung certificate restrictions.
-            > After this period, you will need to reinstall the latest USB package to continue using the app.
+            > This package is based on the stable release and includes all the latest changes.
+            > The USB installation method is valid for 30 days due to Samsung certificate restrictions.
+            > After this period, you must reinstall the latest USB package to continue using the application.
           draft: false
           prerelease: true
       # Uploads the MoonlightUSB.zip file as a release asset in the newly created GitHub pre-release.

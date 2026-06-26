@@ -1,0 +1,34 @@
+# No Response (https://github.com/lee-dohm/no-response)
+
+# This workflow automatically closes issues where the original author doesn't respond to a request for more information.
+name: Bot (No Response)
+# Both `issue_comment` and `schedule` event types are required for this Action to work properly.
+on:
+  issue_comment:
+    types: [created]
+  schedule:
+    # Schedule to run once daily at midnight UTC.
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+# By specifying the access of one of the scopes, all of those that are not specified are set to 'none'.
+permissions:
+  issues: write
+# There is a single job in this workflow. It's configured to run on the latest available version of Ubuntu.
+jobs:
+  noResponse:
+    runs-on: ubuntu-latest
+    if: ${{ github.repository == 'brightcraft/moonlight-tizen' }}
+    # Close issues that have been labeled with "need more info" and have not received a response from the issue opener within 7 days.
+    steps:
+      - name: Close issue with no response
+        uses: lee-dohm/no-response@v0.5.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # Number of days of inactivity before an issue is closed for lack of response.
+          daysUntilClose: 7
+          # Label indicating that a response from the original author is required.
+          responseRequiredLabel: 'need more info'
+          # Comment to post when closing an Issue for lack of response. Set to `false` to disable.
+          closeComment: >
+            This issue has been automatically closed because there was no response to a request for more information from the issue opener.
+            Please leave a comment or open a new issue if you have additional information related to this issue.

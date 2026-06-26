@@ -207,12 +207,12 @@ static void HexStringToBytes(const char* str, char* output) {
   }
 }
 
-MessageResult MoonlightInstance::StartStream(std::string host, std::string width, std::string height, std::string fps, std::string bitrate,
+MessageResult MoonlightInstance::StartStream(std::string host, int httpPort, std::string width, std::string height, std::string fps, std::string bitrate,
   std::string rikey, std::string rikeyid, std::string appversion, std::string gfeversion, std::string rtspurl, int serverCodecModeSupport,
   bool framePacing, bool optimizeGames, bool rumbleFeedback, bool mouseEmulation, bool flipABfaceButtons, bool flipXYfaceButtons,
   std::string audioConfig, bool audioSync, bool playHostAudio, std::string videoCodec, bool hdrMode, bool fullRange, bool gameMode,
   bool disableWarnings, bool performanceStats) {
-  PostToJs("Setting the Host address to: " + host);
+  PostToJs("Setting the Host address to: " + host + ":" + std::to_string(httpPort));
   PostToJs("Setting the Video resolution to: " + width + "x" + height);
   PostToJs("Setting the Video frame rate to: " + fps + " FPS");
   PostToJs("Setting the Video bitrate to: " + bitrate + " Kbps");
@@ -330,6 +330,7 @@ MessageResult MoonlightInstance::StartStream(std::string host, std::string width
 
   // Store the parameters from the start message
   m_Host = host;
+  m_HttpPort = httpPort;
   m_AppVersion = appversion;
   m_GfeVersion = gfeversion;
   m_RtspUrl = rtspurl;
@@ -383,22 +384,22 @@ void MoonlightInstance::STUN(int callbackId) {
   m_Dispatcher.post_job(std::bind(&MoonlightInstance::STUN_private, this, callbackId), false);
 }
 
-void MoonlightInstance::Pair_private(int callbackId, std::string serverMajorVersion, std::string address, std::string randomNumber) {
+void MoonlightInstance::Pair_private(int callbackId, std::string serverMajorVersion, std::string address, int httpPort, std::string randomNumber) {
   char* ppkstr;
-  int err = gs_pair(atoi(serverMajorVersion.c_str()), address.c_str(), randomNumber.c_str(), &ppkstr);
+  int err = gs_pair(atoi(serverMajorVersion.c_str()), address.c_str(), (unsigned short)httpPort, randomNumber.c_str(), &ppkstr);
 
-  ClLogMessage("Paired host address: %s using PIN: %s with result: %d\n", address.c_str(), randomNumber.c_str(), err);
+  ClLogMessage("Paired host address: %s:%d using PIN: %s with result: %d\n", address.c_str(), httpPort, randomNumber.c_str(), err);
   if (err == 0) {
-    free(ppkstr);
     PostPromiseMessage(callbackId, "resolve", ppkstr);
+    free(ppkstr);
   } else {
     PostPromiseMessage(callbackId, "reject", std::to_string(err));
   }
 }
 
-void MoonlightInstance::Pair(int callbackId, std::string serverMajorVersion, std::string address, std::string randomNumber) {
-  ClLogMessage("%s with host address: %s\n", __func__, address.c_str());
-  m_Dispatcher.post_job(std::bind(&MoonlightInstance::Pair_private, this, callbackId, serverMajorVersion, address, randomNumber), false);
+void MoonlightInstance::Pair(int callbackId, std::string serverMajorVersion, std::string address, int httpPort, std::string randomNumber) {
+  ClLogMessage("%s with host address: %s:%d\n", __func__, address.c_str(), httpPort);
+  m_Dispatcher.post_job(std::bind(&MoonlightInstance::Pair_private, this, callbackId, serverMajorVersion, address, httpPort, randomNumber), false);
 }
 
 void MoonlightInstance::WakeOnLan(int callbackId, std::string macAddress) {
@@ -484,13 +485,13 @@ int main(int argc, char** argv) {
   RAND_seed(buffer, 128);
 }
 
-MessageResult startStream(std::string host, std::string width, std::string height, std::string fps, std::string bitrate,
+MessageResult startStream(std::string host, int httpPort, std::string width, std::string height, std::string fps, std::string bitrate,
   std::string rikey, std::string rikeyid, std::string appversion, std::string gfeversion, std::string rtspurl, int serverCodecModeSupport,
   bool framePacing, bool optimizeGames, bool rumbleFeedback, bool mouseEmulation, bool flipABfaceButtons, bool flipXYfaceButtons,
   std::string audioConfig, bool audioSync, bool playHostAudio, std::string videoCodec, bool hdrMode, bool fullRange, bool gameMode,
   bool disableWarnings, bool performanceStats) {
   PostToJs("Starting the streaming session...");
-  return g_Instance->StartStream(host, width, height, fps, bitrate, rikey, rikeyid, appversion, gfeversion, rtspurl, serverCodecModeSupport,
+  return g_Instance->StartStream(host, httpPort, width, height, fps, bitrate, rikey, rikeyid, appversion, gfeversion, rtspurl, serverCodecModeSupport,
   framePacing, optimizeGames, rumbleFeedback, mouseEmulation, flipABfaceButtons, flipXYfaceButtons, audioConfig,
   audioSync, playHostAudio, videoCodec, hdrMode, fullRange, gameMode, disableWarnings, performanceStats);
 }
@@ -508,8 +509,8 @@ void stun(int callbackId) {
   g_Instance->STUN(callbackId);
 }
 
-void pair(int callbackId, std::string serverMajorVersion, std::string address, std::string randomNumber) {
-  g_Instance->Pair(callbackId, serverMajorVersion, address, randomNumber);
+void pair(int callbackId, std::string serverMajorVersion, std::string address, int httpPort, std::string randomNumber) {
+  g_Instance->Pair(callbackId, serverMajorVersion, address, httpPort, randomNumber);
 }
 
 void wakeOnLan(int callbackId, std::string macAddress) {

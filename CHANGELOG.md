@@ -2,6 +2,57 @@
 
 All notable changes to this project will be documented in this file.
 
+## v1.12.0
+
+### Added
+- Introduced a new 'Optimize bitrate presets' setting to calculate optimal bitrate values
+- Implemented handling of standard and optimized bitrate presets based on toggle state
+
+### Changed
+- Improved release notes extraction and formatting for better readability
+- Updated 'System info' placeholder and reduced redundant API calls across the codebase
+- Updated versioning logic to inject build metadata for identifying pre-releases
+- Disabled 'Game mode' setting for Tizen 5.5 due to lack of support from WASM player
+- Updated bot-stale workflow to restrict exempted issue labels
+- Configured workflow to close issues if the author does not respond to a request for more information
+
+### Fixed
+- Fixed broken OpenSSL download URL in Emscripten SDK ports
+- Fixed an issue where multiple elements could remain focused during navigation
+
+## v1.11.1
+
+### Added
+- Added helper functions to resolve DOM elements from various target types
+- Added helpers for resolving element ID and safely handling focus and blur
+- Added helper for safely clicking elements with disabled state checks
+
+### Changed
+- Refactored mark and unmark to use resolve element function and removed duplication
+- Applying DOM helper utilities across views and improve navigation behavior
+- Enhanced MDL dropdown menu handling for selection and closing
+- Improved navigation and UI behavior in 'Add Host' dialog and applied style fixes
+- Unifying gamepad and remote control selection logic using a single view handler
+
+### Fixed
+- Fixed toggle switch behavior and ensured consistent handling across Tizen versions
+
+## v1.11.0
+
+### Added
+- Added support for custom ports when connecting and pairing with a host
+- Added HTTP port sanitization and fallback to default on invalid values
+- Added input validation for IP address and optional port in the text field
+
+### Changed
+- Fallback to default port when entering an IP address using numeric fields
+
+### Fixed
+- Fixed host polling execution in background after deletion
+- Fixed navigation index out of bounds upon host deletion
+- Fixed navigation input being active during loading screens
+- Fixed a bug in the pairing process that was causing random pairing failures
+
 ## v1.10.3
 
 ### Added

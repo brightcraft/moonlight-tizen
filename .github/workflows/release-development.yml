@@ -37,6 +37,12 @@ jobs:
         uses: docker/metadata-action@v4
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+      # This step injects build metadata (build type and short commit SHA) into the system information field by replacing placeholders in the `wasm/platform/index.js` file. This allows the application to display build information on development builds.
+      - name: Inject build metadata into system information
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          sed -i "s/__BUILD_TYPE__/development/g" wasm/platform/index.js
+          sed -i "s/__BUILD_COMMIT__/$SHORT_SHA/g" wasm/platform/index.js
       # This step uses the `docker/build-push-action` action to build the image, based on your repository's `Dockerfile`. If the build succeeds, it pushes the image to GitHub Packages.
       # It uses the `context` parameter to define the build's context as the set of files located in the specified path. For more information, see "[Usage](https://github.com/docker/build-push-action#usage)" in the README of the `docker/build-push-action` repository.
       # It uses the `tags` and `labels` parameters to tag and label the image with the output from the "meta" step.
@@ -117,10 +123,6 @@ jobs:
       - name: Run Docker container
         run: |
           docker run -d --name temp_container $IMAGE_TAG
-      # Copies the built Moonlight.wgt and MoonlightUSB.zip files from the Docker container.
-      # - name: Copy artifacts from Docker container
-      #   run: |
-      #     docker cp temp_container:/home/moonlight/Moonlight.wgt . && docker cp temp_container:/home/moonlight/MoonlightUSB.zip .
       # Copies the built Moonlight.wgt file from the Docker container.
       - name: Copy artifacts from Docker container
         run: |
@@ -141,17 +143,20 @@ jobs:
           body: |
             # Moonlight Tizen v${{ env.TIMESTAMP }}
 
-            - Ensure your Samsung TV is running Tizen OS version 5.5 or higher.
-            - Choose the recommended [installation method](https://github.com/brightcraft/moonlight-tizen#installation) based on your Tizen OS version.
-            - Follow the detailed instructions from the installation guide to successfully install the **Moonlight** app on your TV.
+            - Ensure your setup meets the necessary [requirements](https://github.com/brightcraft/moonlight-tizen#%EF%B8%8F-prerequisites) for the best possible streaming experience.
+            - Download `Moonlight.wgt` from the release assets.
+            - Follow the instructions from one of the recommended [installation methods](https://github.com/brightcraft/moonlight-tizen/wiki/Installation-Guide) to install the application on your TV.
 
             ## What's Changed:
 
-            - Add all the changes you made to this version using bullet points.
+            - No release notes have been provided for this pre-release yet.
+
+            **Full Changelog**: https://github.com/brightcraft/moonlight-tizen/compare/vX.X.X...vX.X.X
 
             > [!WARNING]
-            > This is a **pre-release** version intended for development and testing purposes.
-            > It may include experimental features and bug fixes, but could be less stable than official releases.
+            > This is a pre-release build intended for development and testing only.
+            > Experimental features, bug fixes, and improvements may be unstable or incomplete.
+            > Please report any unexpected behavior and provide feedback to help improve future releases.
           draft: false
           prerelease: true
       # Uploads the Moonlight.wgt file as a release asset in the newly created GitHub pre-release.
@@ -164,13 +169,3 @@ jobs:
           asset_path: ./Moonlight.wgt
           asset_name: Moonlight.wgt
           asset_content_type: application/octet-stream
-      # Uploads the MoonlightUSB.zip file as a release asset in the newly created GitHub pre-release.
-      # - name: Upload the package file to GitHub pre-release
-      #   uses: actions/upload-release-asset@v1
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      #   with:
-      #     upload_url: ${{ steps.create_prerelease.outputs.upload_url }}
-      #     asset_path: ./MoonlightUSB.zip
-      #     asset_name: MoonlightUSB.zip
-      #     asset_content_type: application/octet-stream

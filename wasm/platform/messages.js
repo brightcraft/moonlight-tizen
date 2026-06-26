@@ -5,7 +5,7 @@ const SyncFunctions = {
   'makeCert': (...args) => Module.makeCert(...args),
   // cert, privateKey, myUniqueid
   'httpInit': (...args) => Module.httpInit(...args),
-  /* host, width, height, fps, bitrate, rikey, rikeyid, appversion, gfeversion, rtspurl, serverCodecModeSupport,
+  /* host, httpPort, width, height, fps, bitrate, rikey, rikeyid, appversion, gfeversion, rtspurl, serverCodecModeSupport,
   framePacing, optimizeGames, rumbleFeedback, mouseEmulation, flipABfaceButtons, flipXYfaceButtons, audioConfig,
   audioSync, playHostAudio, videoCodec, hdrMode, fullRange, gameMode, disableWarnings, performanceStats */
   'startRequest': (...args) => Module.startStream(...args),
@@ -20,7 +20,7 @@ const AsyncFunctions = {
   'openUrl': (...args) => Module.openUrl(...args),
   // no parameters
   'STUN': (...args) => Module.STUN(...args),
-  // serverMajorVersion, address, randomNumber
+  // serverMajorVersion, address, httpPort, randomNumber
   'pair': (...args) => Module.pair(...args),
   // macAddress
   'wakeOnLan': (...args) => Module.wakeOnLan(...args),

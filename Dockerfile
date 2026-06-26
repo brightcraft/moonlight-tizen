@@ -47,6 +47,14 @@ RUN sed -i 's|/home/moonlight/tizen-studio-data/tools/certificate-generator/cert
 # Install Samsung Emscripten SDK and configure Java path for closure compiler
 RUN wget -nv -O emscripten-1.39.4.7-linux64.zip 'https://developer.samsung.com/smarttv/file/a5013a65-af11-4b59-844f-2d34f14d19a9'
 RUN unzip emscripten-1.39.4.7-linux64.zip
+
+# Replace deprecated OpenSSL download URL in Emscripten SDK ports to prevent build failure caused by invalid upstream path
+RUN sed -i 's|https://www.openssl.org/source/old/1.1.1/openssl-|https://github.com/openssl/openssl/releases/download/OpenSSL_1_1_1d/openssl-|g' \
+/home/moonlight/emscripten-release-bundle/emsdk/fastcomp/emscripten/tools/ports/tizen/ssl.py
+RUN sed -i 's|https://www.openssl.org/source/old/1.1.1/openssl-|https://github.com/openssl/openssl/releases/download/OpenSSL_1_1_1d/openssl-|g' \
+/home/moonlight/emscripten-release-bundle/emsdk/fastcomp/emscripten/tools/ports/tizen/crypto.py
+
+# Activate the Emscripten SDK to set up the environment variables for compiling the application
 WORKDIR emscripten-release-bundle/emsdk
 RUN ./emsdk activate latest-fastcomp
 

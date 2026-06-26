@@ -88,7 +88,7 @@ class MoonlightInstance {
   public:
   explicit MoonlightInstance();
 
-  MessageResult StartStream(std::string host, std::string width, std::string height, std::string fps, std::string bitrate,
+  MessageResult StartStream(std::string host, int httpPort, std::string width, std::string height, std::string fps, std::string bitrate,
     std::string rikey, std::string rikeyid, std::string appversion, std::string gfeversion, std::string rtspurl, int serverCodecModeSupport,
     bool framePacing, bool optimizeGames, bool rumbleFeedback, bool mouseEmulation, bool flipABfaceButtons, bool flipXYfaceButtons,
     std::string audioConfig, bool audioSync, bool playHostAudio, std::string videoCodec, bool hdrMode, bool fullRange, bool gameMode,
@@ -96,7 +96,7 @@ class MoonlightInstance {
   MessageResult StopStream();
 
   void STUN(int callbackId);
-  void Pair(int callbackId, std::string serverMajorVersion, std::string address, std::string randomNumber);
+  void Pair(int callbackId, std::string serverMajorVersion, std::string address, int httpPort, std::string randomNumber);
   void WakeOnLan(int callbackId, std::string macAddress);
 
   virtual ~MoonlightInstance();
@@ -205,7 +205,7 @@ class MoonlightInstance {
 
   void OpenUrl_private(int callbackId, std::string url, std::string ppk, bool binaryResponse);
   void STUN_private(int callbackId);
-  void Pair_private(int callbackId, std::string serverMajorVersion, std::string address, std::string randomNumber);
+  void Pair_private(int callbackId, std::string serverMajorVersion, std::string address, int httpPort, std::string randomNumber);
 
   void LockMouse();
   void UnlockMouse();
@@ -215,6 +215,7 @@ class MoonlightInstance {
   static AUDIO_RENDERER_CALLBACKS s_ArCallbacks;
 
   std::string m_Host;
+  int m_HttpPort;
   std::string m_AppVersion;
   std::string m_GfeVersion;
   std::string m_RtspUrl;
@@ -286,7 +287,7 @@ MessageResult makeCert();
 MessageResult httpInit(std::string cert, std::string privateKey, std::string myUniqueId);
 void openUrl(int callbackId, std::string url, emscripten::val ppk, bool binaryResponse);
 
-MessageResult startStream(std::string host, std::string width, std::string height, std::string fps, std::string bitrate,
+MessageResult startStream(std::string host, int httpPort, std::string width, std::string height, std::string fps, std::string bitrate,
   std::string rikey, std::string rikeyid, std::string appversion, std::string gfeversion, std::string rtspurl, int serverCodecModeSupport,
   bool framePacing, bool optimizeGames, bool rumbleFeedback, bool mouseEmulation, bool flipABfaceButtons, bool flipXYfaceButtons,
   std::string audioConfig, bool audioSync, bool playHostAudio, std::string videoCodec, bool hdrMode, bool fullRange, bool gameMode,
@@ -295,7 +296,7 @@ MessageResult stopStream();
 
 void toggleStats();
 void stun(int callbackId);
-void pair(int callbackId, std::string serverMajorVersion, std::string address, std::string randomNumber);
+void pair(int callbackId, std::string serverMajorVersion, std::string address, int httpPort, std::string randomNumber);
 void wakeOnLan(int callbackId, std::string macAddress);
 
 EM_BOOL handleKeyDown(int eventType, const EmscriptenKeyboardEvent* keyEvent, void* userData);

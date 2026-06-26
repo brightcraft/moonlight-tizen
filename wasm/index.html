@@ -352,6 +352,18 @@
               </div>
             </div>
             <div class="setting-option">
+              <label data-i18n="Optimize bitrate presets">Optimize bitrate presets</label>
+              <span class="mdl-list__item-text-body" data-i18n="- Calculates bitrate based on selected resolution, frame rate, codec, and HDR settings to determine the optimal value.">
+                 - Calculates bitrate based on selected resolution, frame rate, codec, and HDR settings to determine the optimal value.
+              </span>
+              <div id="optimizeBitrateMenu">
+                <label id="optimizeBitrateBtn" class="mdl-switch mdl-js-switch mdl-js-ripple-effect" for="optimizeBitrateSwitch">
+                  <input type="checkbox" id="optimizeBitrateSwitch" class="mdl-switch__input">
+                  <span class="mdl-switch__label" data-i18n="Optimize bitrate to balance stream quality, performance, and bandwidth usage">Optimize bitrate to balance stream quality, performance, and bandwidth usage</span>
+                </label>
+              </div>
+            </div>
+            <div class="setting-option">
               <label data-i18n="Connection warnings">Connection warnings</label>
               <span class="mdl-list__item-text-body"></span>
               <div id="connectionWarningsMenu">
@@ -452,7 +464,7 @@
       <div id="ipAddressInputField" class="mdl-dialog__content">
         <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label">
           <label class="mdl-textfield__label" for="ipAddressTextInput" data-i18n="IP address of host PC">IP address of host PC</label>
-          <input type="text" id="ipAddressTextInput" class="mdl-textfield__input" maxlength="15" pattern="[0-9.]*" placeholder="Enter the IP address..." data-i18n-placeholder="Enter the IP address...">
+          <input type="text" id="ipAddressTextInput" class="mdl-textfield__input" maxlength="21" placeholder="Enter IP or IP:Port..." data-i18n-placeholder="Enter IP or IP:Port...">
         </div>
       </div>
       <div id="ipAddressSelectFields" class="mdl-dialog__content">

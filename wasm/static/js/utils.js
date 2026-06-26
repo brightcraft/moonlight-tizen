@@ -88,6 +88,7 @@ function NvHTTP(address, clientUid, userEnteredAddress = '', macAddress) {
   this.externalIP = '';
   this.macAddress = macAddress;
   this.httpsPort = 0;
+  this.httpPort = 0;
   this.externalPort = 0;
   this.clientUid = clientUid;
   this.serverUid = '';
@@ -175,20 +176,20 @@ NvHTTP.prototype = {
     if (this.ppkstr == null) {
       // Use HTTP if we have no pinned cert
       return sendMessage('openUrl', [
-        'http://' + givenAddress + ':47989' + '/serverinfo?' + this._buildUidStr(), this.ppkstr, false
+        'http://' + givenAddress + ':' + this.httpPort + '/serverinfo?' + this._buildUidStr(), this.ppkstr, false
       ]).then(function(retHttp) {
         return this._parseServerInfo(retHttp);
       }.bind(this));
     }
     // Try HTTPS first
     return sendMessage('openUrl', [
-      'https://' + givenAddress + ':47984' + '/serverinfo?' + this._buildUidStr(), this.ppkstr, false
+      'https://' + givenAddress + ':' + this.httpsPort + '/serverinfo?' + this._buildUidStr(), this.ppkstr, false
     ]).then(function(ret) {
       if (!this._parseServerInfo(ret)) { // If that fails
         console.error('%c[utils.js, refreshServerInfoAtAddress]', 'color: gray;', 'Error: Failed to parse server info from HTTPS, falling back to HTTP...');
         // Try HTTP as a failover. Useful to clients who aren't paired yet
         return sendMessage('openUrl', [
-          'http://' + givenAddress + ':47989' + '/serverinfo?' + this._buildUidStr(), this.ppkstr, false
+          'http://' + givenAddress + ':' + this.httpPort + '/serverinfo?' + this._buildUidStr(), this.ppkstr, false
         ]).then(function(retHttp) {
           return this._parseServerInfo(retHttp);
         }.bind(this));
@@ -198,7 +199,7 @@ NvHTTP.prototype = {
         // Retry over HTTP
         console.warn('%c[utils.js, refreshServerInfoAtAddress]', 'color: gray;', 'Warning: Certificate mismatch. Retrying over HTTP...', this);
         return sendMessage('openUrl', [
-          'http://' + givenAddress + ':47989' + '/serverinfo?' + this._buildUidStr(), this.ppkstr, false
+          'http://' + givenAddress + ':' + this.httpPort + '/serverinfo?' + this._buildUidStr(), this.ppkstr, false
         ]).then(function(retHttp) {
           return this._parseServerInfo(retHttp);
         }.bind(this));
@@ -226,8 +227,8 @@ NvHTTP.prototype = {
     this.selectServerAddress(function(successfulAddress) {
       // Successfully determined server address. Update base URL
       this.address = successfulAddress;
-      this._baseUrlHttps = 'https://' + successfulAddress + ':47984';
-      this._baseUrlHttp = 'http://' + successfulAddress + ':47989';
+      this._baseUrlHttps = 'https://' + successfulAddress + ':' + this.httpsPort;
+      this._baseUrlHttp = 'http://' + successfulAddress + ':' + this.httpPort;
 
       // Poll for updated mac address only on first successful server info poll
       if (this.paired && this._pollCount === 0) {
@@ -292,6 +293,7 @@ NvHTTP.prototype = {
     string += 'external IP: ' + this.externalIP + '\r\n';
     string += 'mac address: ' + this.macAddress + '\r\n';
     string += 'https port: ' + this.httpsPort + '\r\n';
+    string += 'http port: ' + this.httpPort + '\r\n';
     string += 'external port: ' + this.externalPort + '\r\n';
     string += 'client UID: ' + this.clientUid + '\r\n';
     string += 'server UID: ' + this.serverUid + '\r\n';
@@ -590,7 +592,7 @@ NvHTTP.prototype = {
         return true;
       }
       return sendMessage('pair', [
-        this.serverMajorVersion.toString(), this.address, randomNumber
+        this.serverMajorVersion.toString(), this.address, this.httpPort, randomNumber
       ]).then(function(ppkstr) {
         this.ppkstr = ppkstr;
         return sendMessage('openUrl', [

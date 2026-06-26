@@ -96,19 +96,23 @@ jobs:
           body: |
             # Moonlight Tizen v${{ env.VERSION }}
 
-            - Ensure your Samsung TV is running Tizen OS version 5.5 or higher.
-            - Choose the recommended [installation method](https://github.com/brightcraft/moonlight-tizen#installation) based on your Tizen OS version.
-            - Follow the detailed instructions from the installation guide to successfully install the **Moonlight** app on your TV.
+            - Ensure your setup meets the necessary [requirements](https://github.com/brightcraft/moonlight-tizen#%EF%B8%8F-prerequisites) for the best possible streaming experience.
+            - Choose the appropriate variant from the release assets:
+              - **Tizen 5.5 or higher:** Download `Moonlight.wgt` (recommended for most users).
+              - **Tizen 9.0 (experimental):** Download `Moonlight-ForceGM.wgt`, which includes the required Game Mode metadata to force Game Mode. See the [documentation](https://github.com/brightcraft/moonlight-tizen/wiki/Known-Issues-&-Limitations#streaming-issues-when-game-mode-is-enabled-tizen-90) for more details about using this variant and its limitations.
+            - Follow the instructions from one of the recommended [installation methods](https://github.com/brightcraft/moonlight-tizen/wiki/Installation-Guide) to install the application on your TV.
 
             ## What's Changed:
 
-            - Add all the changes you made to this version using bullet points.
+            - No release notes have been provided for this release yet.
 
-            ## Project Contributors:
+            **Full Changelog**: https://github.com/brightcraft/moonlight-tizen/compare/vX.X.X...vX.X.X
 
-            Thanks to the following contributors for this release:
+            ## Support the Project:
 
-            @contributor-name
+            If you find this project useful and would like to support its continued development, including new features, bug fixes, maintenance, and ongoing improvements, consider becoming a supporter. For more information on how you can help, please visit [this page](https://www.patreon.com/posts/how-to-support-151822385).
+
+            [![Patreon](https://img.shields.io/badge/Support_me_on_Patreon-F96854?style=for-the-badge&logo=patreon&logoColor=white)](https://www.patreon.com/cw/BrightCraft/membership)
           draft: false
           prerelease: false
       # Uploads the Moonlight.wgt file as a release asset in the newly created GitHub release.

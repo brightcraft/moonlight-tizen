@@ -1,4 +1,5 @@
 function remoteControllerHandler(e) {
+  isGamepadActive = false;
   const keyCode = e.keyCode;
 
   switch (keyCode) {
@@ -21,7 +22,7 @@ function remoteControllerHandler(e) {
     case tvKey.KEY_ENTER:
     case tvKey.KEY_REMOTE_ENTER:
       // Select the current item
-      Navigation.select();
+      Navigation.accept();
       break;
     case tvKey.KEY_RETURN:
       // Go back or cancel the operation

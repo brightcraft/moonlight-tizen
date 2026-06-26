@@ -25,6 +25,7 @@
 #include <sys/stat.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <openssl/sha.h>
 #include <openssl/aes.h>
@@ -211,32 +212,45 @@ static char* x509_to_curl_ppk_string(X509* x509) {
     return ret;
 }
 
-int gs_unpair(const char* address) {
+static unsigned short sanitize_http_port(unsigned short httpPort) {
+  if (httpPort == 0) {
+    return 47989;
+  }
+
+  if (httpPort <= 5 || httpPort > 65514) {
+    return 47989;
+  }
+
+  return httpPort;
+}
+
+int gs_unpair(const char* address, unsigned short httpPort) {
   int ret = GS_OK;
   char url[4096];
+  unsigned short sanitizedHttpPort = sanitize_http_port(httpPort);
   PHTTP_DATA data = http_create_data();
   if (data == NULL)
     return GS_OUT_OF_MEMORY;
 
-  snprintf(url, sizeof(url), "http://%s:47989/unpair?uniqueid=%s", address, g_UniqueId);
+  snprintf(url, sizeof(url), "http://%s:%u/unpair?uniqueid=%s", address, sanitizedHttpPort, g_UniqueId);
   ret = http_request(url, NULL, data);
 
   http_free_data(data);
   return ret;
 }
 
-int gs_pair(int serverMajorVersion, const char* address, const char* pin, char** curl_ppk_string) {
+int gs_pair(int serverMajorVersion, const char* address, unsigned short httpPort, const char* pin, char** curl_ppk_string) {
   int ret = GS_OK;
   char* result = NULL;
   X509* server_cert = NULL;
   char url[4096];
-  
+  unsigned short sanitizedHttpPort = sanitize_http_port(httpPort);
   unsigned char salt_data[16];
   char salt_hex[33];
   RAND_bytes(salt_data, 16);
   bytes_to_hex(salt_data, salt_hex, 16);
 
-  snprintf(url, sizeof(url), "http://%s:47989/pair?uniqueid=%s&devicename=roth&updateState=1&phrase=getservercert&salt=%s&clientcert=%s", address, g_UniqueId, salt_hex, g_CertHex);
+  snprintf(url, sizeof(url), "http://%s:%u/pair?uniqueid=%s&devicename=roth&updateState=1&phrase=getservercert&salt=%s&clientcert=%s", address, sanitizedHttpPort, g_UniqueId, salt_hex, g_CertHex);
   PHTTP_DATA data = http_create_data();
   if (data == NULL)
     return GS_OUT_OF_MEMORY;
@@ -281,7 +295,7 @@ int gs_pair(int serverMajorVersion, const char* address, const char* pin, char**
   AES_encrypt(challenge_data, challenge_enc, &enc_key);
   bytes_to_hex(challenge_enc, challenge_hex, 16);
 
-  snprintf(url, sizeof(url), "http://%s:47989/pair?uniqueid=%s&devicename=roth&updateState=1&clientchallenge=%s", address, g_UniqueId, challenge_hex);
+  snprintf(url, sizeof(url), "http://%s:%u/pair?uniqueid=%s&devicename=roth&updateState=1&clientchallenge=%s", address, sanitizedHttpPort, g_UniqueId, challenge_hex);
   if ((ret = http_request(url, NULL, data)) != GS_OK)
     goto cleanup;
 
@@ -335,7 +349,7 @@ int gs_pair(int serverMajorVersion, const char* address, const char* pin, char**
   }
   bytes_to_hex(challenge_response_hash_enc, challenge_response_hex, 32);
 
-  snprintf(url, sizeof(url), "http://%s:47989/pair?uniqueid=%s&devicename=roth&updateState=1&serverchallengeresp=%s", address, g_UniqueId, challenge_response_hex);
+  snprintf(url, sizeof(url), "http://%s:%u/pair?uniqueid=%s&devicename=roth&updateState=1&serverchallengeresp=%s", address, sanitizedHttpPort, g_UniqueId, challenge_response_hex);
   if ((ret = http_request(url, NULL, data)) != GS_OK)
     goto cleanup;
 
@@ -379,7 +393,7 @@ int gs_pair(int serverMajorVersion, const char* address, const char* pin, char**
   memcpy(client_pairing_secret + 16, signature, 256);
   bytes_to_hex(client_pairing_secret, client_pairing_secret_hex, 16 + 256);
 
-  snprintf(url, sizeof(url), "http://%s:47989/pair?uniqueid=%s&devicename=roth&updateState=1&clientpairingsecret=%s", address, g_UniqueId, client_pairing_secret_hex);
+  snprintf(url, sizeof(url), "http://%s:%u/pair?uniqueid=%s&devicename=roth&updateState=1&clientpairingsecret=%s", address, sanitizedHttpPort, g_UniqueId, client_pairing_secret_hex);
   if ((ret = http_request(url, NULL, data)) != GS_OK)
     goto cleanup;
 
@@ -397,7 +411,7 @@ int gs_pair(int serverMajorVersion, const char* address, const char* pin, char**
 
   cleanup:
   if (ret != GS_OK)
-    gs_unpair(address);
+    gs_unpair(address, sanitizedHttpPort);
   
   if (result != NULL)
     free(result);

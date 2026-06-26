@@ -273,7 +273,7 @@ body {
     letter-spacing: 0.5px;
 }
 .mdl-textfield__input {
-    width: 178%;
+    width: 175%;
     height: 32px;
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 6px;
@@ -298,16 +298,13 @@ body {
 }
 .select-option-field {
     position: relative;
-    display: inline-block;
-    width: 105%;
-    max-width: max-content;
-    margin: 0;
-    padding: 20px 0;
+    width: 100%;
+    padding: 22px 0;
     font-size: 1rem;
-    box-sizing: border-box;
 }
 .select-option-field-floating-label .mdl-textfield__label {
     color: #00A3C6;
+    width: 100%;
     font-size: 1.65rem;
     font-weight: 200;
     letter-spacing: 0.5px;
@@ -316,10 +313,11 @@ body {
     top: -12px;
 }
 .ip-address-select-field {
-    width: 131px;
-    height: 36px;
+    width: 125px;
+    height: 38px;
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 6px;
+    margin: 0 2px 0 2px !important;
     font-size: 1.45rem;
     letter-spacing: 0.5px;
     text-indent: 10px;
@@ -881,8 +879,8 @@ body {
 #selectLanguage, #selectResolution, #selectFramerate, #selectBitrate, #framePacingBtn, #ipAddressFieldModeBtn,
 #sortAppsListBtn, #optimizeGamesBtn, #removeAllHostsBtn, #rumbleFeedbackBtn, #mouseEmulationBtn,
 #flipABfaceButtonsBtn, #flipXYfaceButtonsBtn, #selectAudio, #audioSyncBtn, #playHostAudioBtn,
-#selectCodec, #hdrModeBtn, #fullRangeBtn, #gameModeBtn, #unlockAllFpsBtn, #disableWarningsBtn,
-#performanceStatsBtn, #navigationGuideBtn, #checkUpdatesBtn, #restartAppBtn {
+#selectCodec, #hdrModeBtn, #fullRangeBtn, #gameModeBtn, #unlockAllFpsBtn, #optimizeBitrateBtn,
+#disableWarningsBtn, #performanceStatsBtn, #navigationGuideBtn, #checkUpdatesBtn, #restartAppBtn {
     color: #ececec;
     background-color: #404354;
     width: 100%;
@@ -905,6 +903,11 @@ body {
     text-align: left;
     white-space: pre-line;
     box-sizing: border-box;
+}
+#gameModeBtn.is-disabled.hovered, #gameModeBtn.is-disabled:hover,
+#gameModeBtn.is-disabled:focus, #gameModeBtn.is-disabled:active {
+    box-shadow: 0 0 2px 3px rgba(170, 170, 170, 1) !important;
+    cursor: not-allowed;
 }
 .mdl-menu__outline {
     color: #fff;
@@ -996,9 +999,10 @@ body {
 #rumbleFeedbackBtn:focus, #mouseEmulationBtn:hover, #mouseEmulationBtn:focus, #flipABfaceButtonsBtn:hover, #flipABfaceButtonsBtn:focus,
 #flipXYfaceButtonsBtn:hover, #flipXYfaceButtonsBtn:focus, #selectAudio:hover, #selectAudio:focus, #audioSyncBtn:hover, #audioSyncBtn:focus,
 #playHostAudioBtn:hover, #playHostAudioBtn:focus, #selectCodec:hover, #selectCodec:focus, #hdrModeBtn:hover, #hdrModeBtn:focus, #fullRangeBtn:hover,
-#fullRangeBtn:focus, #gameModeBtn:hover, #gameModeBtn:focus, #unlockAllFpsBtn:hover, #unlockAllFpsBtn:focus, #disableWarningsBtn:hover,
-#disableWarningsBtn:focus, #performanceStatsBtn:hover, #performanceStatsBtn:focus, #systemInfoBtn:hover, #systemInfoBtn:focus, #navigationGuideBtn:hover,
-#navigationGuideBtn:focus, #checkUpdatesBtn:hover, #checkUpdatesBtn:focus, #restartAppBtn:hover, #restartAppBtn:focus {
+#fullRangeBtn:focus, #gameModeBtn:hover, #gameModeBtn:focus, #unlockAllFpsBtn:hover, #unlockAllFpsBtn:focus, #optimizeBitrateBtn:hover,
+#optimizeBitrateBtn:focus, #disableWarningsBtn:hover, #disableWarningsBtn:focus, #performanceStatsBtn:hover, #performanceStatsBtn:focus,
+#systemInfoBtn:hover, #systemInfoBtn:focus, #navigationGuideBtn:hover, #navigationGuideBtn:focus, #checkUpdatesBtn:hover, #checkUpdatesBtn:focus,
+#restartAppBtn:hover, #restartAppBtn:focus {
     background-color: #404354;
     box-shadow: 0 0 2px 3px rgba(0, 163, 198, 1);
 }

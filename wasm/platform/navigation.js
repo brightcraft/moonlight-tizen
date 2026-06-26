@@ -1,59 +1,256 @@
 const hoveredClassName = 'hovered';
 
-function markElement(element) {
+// Check if the provided object is an HTML element
+function isHtmlElement(el) {
+  return (typeof HTMLElement !== 'undefined') && el instanceof HTMLElement;
+}
+
+// Resolve various target types to an actual HTML element
+function resolveElement(target) {
+  // If no target is provided, return null
+  if (!target) {
+    console.error('%c[navigation.js, resolveElement]', 'color: gray;', 'No target element is provided!', target);
+    return null;
+  }
+  // If the target is already an HTML element, return it directly
+  if (isHtmlElement(target)) {
+    return target;
+  }
+  // If the target is a string, treat it as an element ID
+  if (typeof target === 'string') {
+    return document.getElementById(target);
+  }
+  // If the target is an array-like object, return the first element
+  if (target && target[0] && target[0].nodeType === 1) {
+    return target[0];
+  }
+  // If the target is a DOM node, return it directly
+  if (target && target.nodeType === 1) {
+    return target;
+  }
+  // If the target is a wrapper object exposing an 'element' property, return that
+  if (target && target.element && isHtmlElement(target.element)) {
+    return target.element;
+  }
+  // If the target is a wrapper object exposing an 'el' property, return that
+  if (target && target.el && isHtmlElement(target.el)) {
+    return target.el;
+  }
+  // If the target is a string containing an element ID, retrieve the element by that ID
+  if (target && typeof target.id === 'string') {
+    return document.getElementById(target.id);
+  }
+  // If the target cannot be resolved to an element, return null
+  console.warn('%c[navigation.js, resolveElement]', 'color: gray;', 'Target element cannot be resolved:', target);
+  return null;
+}
+
+// Click the target element from the resolved element
+function clickElement(target) {
+  const element = resolveElement(target);
+  // Check if the element exists before clicking
+  if (!element) {
+    console.error('%c[navigation.js, clickElement]', 'color: gray;', 'Cannot click the unresolved target:', target);
+    return;
+  }
+  // Prevent clicking if the element is disabled based on common disabled states
+  if (element.disabled || element.getAttribute('aria-disabled') === 'true' || element.classList.contains('is-disabled')) {
+    console.warn('%c[navigation.js, clickElement]', 'color: gray;', 'Cannot click the disabled target element:', element);
+    // Check if the disabled element is the Game Mode switch
+    if (element.id === 'gameModeBtn' && parseFloat(platformVer) === 5.5) {
+      // Show a warning message when attempting to enable game mode on Tizen 5.5 platform
+      setTimeout(() => {
+        warningDialog('Unsupported Feature',
+          'Game Mode (Ultra Low Latency) is not supported on Tizen ' + platformVer + ' due to platform limitations and lack of support from the WASM player. Attempting to enable this option will have no effect, as the decoder will force a fallback to standard Low Latency mode to maintain streaming stability.<br><br>' +
+          'Since the Game Mode cannot be enabled, you may experience slightly higher latency while streaming. To further reduce latency, it is highly recommended to open your TV\'s Picture Settings menu and disable post-processing features such as <b>Picture Clarity</b>, <b>Contrast Enhancer</b>, and other video enhancements.'
+        );
+      }, 250);
+    }
+    return;
+  }
+  // If inside an MDL menu, use the menu item itself for proper behavior
+  const menuItem = element.closest ? element.closest('.mdl-menu__item') : null;
+  // If a clickable menu item is found, use it instead of the container
+  if (menuItem && typeof menuItem.click === 'function') {
+    menuItem.click();
+    return;
+  }
+  // Search for common toggle switch child elements within the target element
+  const toggleSwitch = element.querySelector('input[type="checkbox"], .mdl-switch__input, [role="switch"], [aria-pressed]');
+  // If a clickable child element is found, use it instead of the container
+  if (toggleSwitch && typeof toggleSwitch.click === 'function') {
+    // Dispatching events
+    const eventOptions = { view: window, bubbles: true, cancelable: true };
+    toggleSwitch.dispatchEvent(new MouseEvent('mousedown', eventOptions));
+    toggleSwitch.dispatchEvent(new MouseEvent('mouseup', eventOptions));
+    toggleSwitch.dispatchEvent(new MouseEvent('click', eventOptions));
+    setTimeout(() => focusElement(toggleSwitch), 250);
+    return;
+  }
+  // Click the resolved element itself if it supports click event
+  if (typeof element.click === 'function') {
+    isGamepadActive ? element.click() : target.click();
+  }
+}
+
+// Mark an element based on various target types
+function mark(target) {
+  const element = resolveElement(target);
+  // Check if the element exists before marking
   if (element) {
+    // Add the hovered class and dispatch the event
     element.classList.add(hoveredClassName);
     element.dispatchEvent(new Event('mouseenter'));
+  } else {
+    console.error('%c[navigation.js, mark]', 'color: gray;', 'Cannot mark the unresolved target:', target);
   }
 }
 
-function markElementById(id) {
-  markElement(document.getElementById(id));
-}
-
-function mark(value) {
-  if (typeof value === 'string') {
-    markElementById(value);
-  } else if (typeof value === 'object') {
-    markElement(value);
-  }
-}
-
-function unmarkElement(element) {
+// Unmark an element based on various target types
+function unmark(target) {
+  const element = resolveElement(target);
+  // Check if the element exists before un-marking
   if (element) {
+    // Remove the hovered class and dispatch the event
     element.classList.remove(hoveredClassName);
     element.dispatchEvent(new Event('mouseleave'));
+  } else {
+    console.error('%c[navigation.js, unmark]', 'color: gray;', 'Cannot unmark the unresolved target:', target);
   }
 }
 
-function unmarkElementById(id) {
-  unmarkElement(document.getElementById(id));
+// Get the current ID of a target element
+function elementId(target) {
+  const element = resolveElement(target);
+  // Check if the element exists and has an ID
+  if (element && element.id) {
+    return element.id;
+  }
+  // If the target is a string, return it directly
+  return typeof target === 'string' ? target : '';
 }
 
-function unmark(value) {
-  if (typeof value === 'string') {
-    unmarkElementById(value);
-  } else if (typeof value === 'object') {
-    unmarkElement(value);
+// Safely add focus to an element
+function focusElement(target) {
+  const element = resolveElement(target);
+  const listener = document.getElementById('listener');
+  // Remove focus from the currently focused element first
+  blurElement(document.activeElement);
+  // Check if the element exists before adding focus
+  if (!element) {
+    console.error('%c[navigation.js, focusElement]', 'color: gray;', 'Cannot focus the unresolved target:', target);
+    return;
+  }
+  // Check if the element is a SELECT dropdown
+  if (element.tagName === 'SELECT') {
+    // Delegate focus to the hidden listener element
+    if (listener && typeof listener.focus === 'function') {
+      listener.focus();
+    }
+    return;
+  }
+  // If the element supports focus, add focus to it
+  if (typeof element.focus === 'function') {
+    element.focus();
   }
 }
 
-function isPopupActive(id) {
-  return document
-    .getElementById(id)
-    .parentNode
-    .children[3]
-    .classList
-    .contains('is-visible');
+// Safely remove focus from an element
+function blurElement(target) {
+  const element = resolveElement(target);
+  // Check if the element exists before removing focus
+  if (!element) {
+    console.error('%c[navigation.js, blurElement]', 'color: gray;', 'Cannot blur the unresolved target:', target);
+    return;
+  }
+  // If the element supports blur, remove focus from it
+  if (typeof element.blur === 'function') {
+    element.blur();
+  }
 }
 
-function changeIpAddressFieldValue(adjust) {
-  const currentItem = this.view.current();
+// Determine if a popup menu container is active
+function isPopupMenuActive(id) {
+  const element = resolveElement(id);
+  const parent = element ? element.parentNode : null;
+  const container = parent && parent.querySelector ? parent.querySelector('.mdl-menu__container') : null;
+  // Check if the container exists and is visible
+  return !!(container && container.classList.contains('is-visible'));
+}
+
+// Close any active visible menu containers
+function closeActiveVisibleMenu() {
+  const visibleMenuContainer = document.querySelectorAll('.mdl-menu__container.is-visible');
+  // If no visible menus are found, return false
+  if (!visibleMenuContainer || visibleMenuContainer.length === 0) {
+    return false;
+  }
+  // Hide each visible menu using its MaterialMenu instance
+  visibleMenuContainer.forEach((menu) => {
+    const visibleMenu = menu.querySelector('.mdl-menu');
+    // Ensure the menu and its MaterialMenu instance exist before hiding
+    if (visibleMenu && visibleMenu.MaterialMenu && typeof visibleMenu.MaterialMenu.hide === 'function') {
+      visibleMenu.MaterialMenu.hide();
+    }
+  });
+  // Simulate an Escape key press to close menus that rely on it
+  document.dispatchEvent(new KeyboardEvent('keydown', {
+    key: 'Escape', keyCode: 27, which: 27, bubbles: true
+  }));
+  // Trigger a click on the body to ensure menus are closed
+  if (document.body) {
+    document.body.click();
+  }
+  Navigation.pop();
+  return true;
+}
+
+// Close a specific popup menu container by its ID
+function closePopupMenu(id) {
+  // If the specified menu is active, click its opener to close it
+  if (isPopupMenuActive(id)) {
+    // Close the popup menu by clicking its opener element
+    clickElement(id);
+    return true;
+  }
+  return closeActiveVisibleMenu();
+}
+
+// Handle the state of the IP address text input field
+function handleIpTextFieldState(enabled) {
+  const listener = document.getElementById('listener');
+  const textInput = document.getElementById('ipAddressTextInput');
+  // Check if the element exists before modifying
+  if (!textInput) {
+    console.error('%c[navigation.js, handleIpTextFieldState]', 'color: gray;', 'Cannot find the IP address text input element!', textInput);
+    return;
+  }
+  textInput.readOnly = !enabled;
+  // Set or remove focus based on the enabled state
+  if (enabled) {
+    textInput.focus();
+    // Trigger a click to open the virtual keyboard on Tizen devices
+    if (typeof textInput.click === 'function') {
+      textInput.click();
+    }
+  } else {
+    textInput.blur();
+    // In case of blur, set focus back to the hidden listener element
+    if (typeof listener.focus === 'function') {
+      listener.focus();
+    }
+  }
+}
+
+// Change the value of the IP address numeric field
+function changeIpNumericFieldValue(adjust) {
+  const currentItem = elementId(this.view.current());
   if (currentItem.startsWith('ipAddressField')) {
     const digitElement = document.getElementById(currentItem);
     let currentValue = parseInt(digitElement.value, 10);
     currentValue = (currentValue + adjust + 256) % 256;
     digitElement.value = currentValue;
+    digitElement.dispatchEvent(new Event('change', { bubbles: true }));
   }
 }
 
@@ -219,6 +416,10 @@ class ListView {
       });
     }
   }
+
+  reset() {
+    this.index = 0;
+  }
 };
 
 const Views = {
@@ -227,45 +428,38 @@ const Views = {
     up: function() {
       // If there are more rows behind, then go to the previous row
       if (this.view.prevCardRow(5)) {
-        document.getElementById(this.view.current()).focus();
+        focusElement(this.view.current());
       } else {
         // If there are no more rows, navigate to the HostsNav view
         Navigation.change(Views.HostsNav);
         // Set focus on the first navigation item in HostsNav view when transitioning from Hosts view
-        const navItem = document.getElementById(Views.HostsNav.view.current());
-        if (navItem) {
-          navItem.focus();
-        }
+        focusElement(Views.HostsNav.view.current());
       }
     },
     down: function() {
       // If there are more rows after, then go to the next row
       if (this.view.nextCardRow(5)) {
-        document.getElementById(this.view.current()).focus();
+        focusElement(this.view.current());
       }
     },
     left: function() {
       this.view.prevCard(5);
-      document.getElementById(this.view.current()).focus();
+      focusElement(this.view.current());
     },
     right: function() {
       this.view.nextCard(5);
-      document.getElementById(this.view.current()).focus();
-    },
-    select: function() {
-      const currentItem = this.view.current();
-      if (currentItem.id === 'addHostContainer') {
-        currentItem.click();
-      } else {
-        currentItem.children[0].click();
-      }
+      focusElement(this.view.current());
     },
     accept: function() {
-      const currentItem = this.view.current();
-      if (currentItem.id === 'addHostContainer') {
-        currentItem.click();
+      const currentItem = resolveElement(this.view.current());
+      // Check if the current item is the Add Host container
+      if (currentItem && currentItem.id === 'addHostContainer') {
+        // Click the Add Host container itself to open the Add Host dialog
+        clickElement(currentItem);
       } else {
-        currentItem.children[0].click();
+        // If the current item has children, click the first child element (the host card)
+        const hostCard = currentItem.children ? currentItem.children[0] : null;
+        clickElement(hostCard);
       }
     },
     back: function() {
@@ -273,24 +467,34 @@ const Views = {
       exitAppDialog();
     },
     press: function() {
-      const currentItem = this.view.current();
-      if (currentItem.id !== 'addHostContainer') {
-        currentItem.children[1].focus();
-        // Show the Host Menu dialog and push the view
-        setTimeout(() => currentItem.children[1].click(), 600);
+      const currentItem = resolveElement(this.view.current());
+      // Check if the current item is not the Add Host container
+      if (currentItem && currentItem.id !== 'addHostContainer') {
+        // If the current item has children, set focus on the second child element (the menu button)
+        const menuButton = currentItem.children ? currentItem.children[1] : null;
+        focusElement(menuButton);
+        // Click the Host Menu button, show the Host Menu dialog and push the view
+        setTimeout(() => clickElement(menuButton), 250);
       }
     },
     switch: function() {
-      const currentItem = this.view.current();
-      if (currentItem.id === 'addHostContainer') {
-        currentItem.focus();
+      const currentItem = resolveElement(this.view.current());
+      // Check if the current item is the Add Host container
+      if (currentItem && currentItem.id === 'addHostContainer') {
+        // Set focus on the Add Host container itself
+        focusElement(currentItem);
       } else {
+        // Scroll to the current Host card row to ensure is visible when switching back from another view
         this.view.currentCardRow(5);
-        currentItem.children[0].focus();
+        // If the current item has children, set focus on the first child element (the host card)
+        const hostCard = currentItem.children ? currentItem.children[0] : null;
+        focusElement(hostCard);
       }
     },
     enter: function() {
       mark(this.view.current());
+      // Disable the IP address text input field when entering the Hosts view
+      handleIpTextFieldState(false);
     },
     leave: function() {
       unmark(this.view.current());
@@ -306,39 +510,31 @@ const Views = {
     }),
     up: function() {},
     down: function() {
-      // Remove focus from the current element before changing the view
-      document.getElementById(this.view.current()).blur();
       // Navigate to the Hosts view
       Navigation.change(Views.Hosts);
       // Set focus on the first navigation item in Hosts view when transitioning from HostsNav view
-      const navItem = document.getElementById(Views.Hosts.view.current());
-      if (navItem) {
-        navItem.focus();
-      }
+      focusElement(Views.Hosts.view.current());
     },
     left: function() {
       this.view.prev();
-      document.getElementById(this.view.current()).focus();
+      focusElement(this.view.current());
     },
     right: function() {
       this.view.next();
-      document.getElementById(this.view.current()).focus();
-    },
-    select: function() {
-      this.view.current().click();
+      focusElement(this.view.current());
     },
     accept: function() {
-      document.getElementById(this.view.current()).click();
+      clickElement(this.view.current());
     },
     back: function() {
-      // Remove focus from the current element before changing the view
-      document.getElementById(this.view.current()).blur();
       // Navigate to the Hosts view
       Navigation.change(Views.Hosts);
+      // Set focus on the first navigation item in Hosts view when transitioning from HostsNav view
+      focusElement(Views.Hosts.view.current());
     },
     press: function() {},
     switch: function() {
-      document.getElementById(this.view.current()).focus();
+      focusElement(this.view.current());
     },
     enter: function() {
       mark(this.view.current());
@@ -356,72 +552,83 @@ const Views = {
       }
     }),
     up: function() {
-      if (document.getElementById('ipAddressFieldModeSwitch').checked) {
-        changeIpAddressFieldValue.call(this, 1);
+      const currentItem = elementId(this.view.current());
+      const ipAddressFieldModeSwitch = document.getElementById('ipAddressFieldModeSwitch');
+      // If the IP address field mode is enabled and the current item is an IP address numeric field
+      if (ipAddressFieldModeSwitch.checked && currentItem.startsWith('ipAddressField')) {
+        // Increase the value of the current IP address numeric field
+        changeIpNumericFieldValue.call(this, 1);
+      } else {
+        // Go to the first item in the list (ipAddressTextInput)
+        this.view.index = 0;
+        focusElement(this.view.current());
       }
     },
     down: function() {
-      if (document.getElementById('ipAddressFieldModeSwitch').checked) {
-        changeIpAddressFieldValue.call(this, -1);
+      const currentItem = elementId(this.view.current());
+      const ipAddressFieldModeSwitch = document.getElementById('ipAddressFieldModeSwitch');
+      // If the IP address field mode switch is enabled and the current item is an IP address numeric field
+      if (ipAddressFieldModeSwitch.checked && currentItem.startsWith('ipAddressField')) {
+        // Decrease the value of the current IP address numeric field
+        changeIpNumericFieldValue.call(this, -1);
+      } else {
+        // Go to the second item in the list (continueAddHost)
+        this.view.index = 1;
+        focusElement(this.view.current());
       }
     },
     left: function() {
-      if (document.getElementById('ipAddressFieldModeSwitch').checked) {
-        const currentItem = this.view.current();
-        if (currentItem.startsWith('ipAddressField') && currentItem !== 'continueAddHost' || currentItem !== 'cancelAddHost') {
-          // Remove focus from any currently focused item element
-          document.getElementById(currentItem).blur();
-          document.getElementById(this.view.prev());
-        } else {
-          document.getElementById(this.view.prev()).focus();
-        }
-      } else {
-        this.view.prev();
-        document.getElementById(this.view.current()).focus();
-      }
+      this.view.prev();
+      focusElement(this.view.current());
     },
     right: function() {
-      if (document.getElementById('ipAddressFieldModeSwitch').checked) {
-        const currentItem = this.view.current();
-        if (currentItem.startsWith('ipAddressField') && currentItem !== 'ipAddressField4') {
-          // Remove focus from any currently focused item element
-          document.getElementById(currentItem).blur();
-          document.getElementById(this.view.next());
-        } else {
-          document.getElementById(this.view.next()).focus();
-        }
-      } else {
-        this.view.next();
-        document.getElementById(this.view.current()).focus();
-      }
-    },
-    select: function() {
-      this.view.current().click();
+      this.view.next();
+      focusElement(this.view.current());
     },
     accept: function() {
-      document.getElementById(this.view.current()).click();
+      const currentItem = elementId(this.view.current());
+      // Check if the current item is the IP address text input field
+      if (currentItem === 'ipAddressTextInput') {
+        // Enable the text input field and set focus to it to open the virtual keyboard
+        handleIpTextFieldState(true);
+        return;
+      } else {
+        // Disable the text input field and set focus back to the hidden listener element
+        handleIpTextFieldState(false);
+        clickElement(this.view.current());
+      }
     },
     back: function() {
-      document.getElementById('cancelAddHost').click();
+      const currentItem = document.activeElement;
+      // Check if the current item is the IP address text input field and it is not read-only
+      if (currentItem && currentItem.id === 'ipAddressTextInput' && !currentItem.readOnly) {
+        // Disable the text input field and set focus back to the hidden listener element
+        handleIpTextFieldState(false);
+        return;
+      } else {
+        // Otherwise, click the Cancel button to close the dialog
+        resolveElement('cancelAddHost').click();
+      }
     },
-    press: function() {
-      document.getElementById('ipAddressFieldModeSwitch').click();
-    },
+    press: function() {},
     switch: function() {
-      const currentItem = this.view.current();
-      if (currentItem === 'continueAddHost' || currentItem === 'cancelAddHost') {
+      const currentItem = resolveElement(this.view.current());
+      // Check if the current item is either the Continue or Cancel button
+      if (currentItem && (currentItem.id === 'continueAddHost' || currentItem.id === 'cancelAddHost')) {
         // Set focus only on the Continue or Cancel button element
-        document.getElementById(currentItem).focus();
+        focusElement(currentItem);
       } else {
         // Remove focus from any other focused item element
-        document.getElementById(currentItem).blur();
+        blurElement(currentItem);
       }
     },
     enter: function() {
       mark(this.view.current());
+      setTimeout(() => focusElement(this.view.current()), 100);
     },
     leave: function() {
       unmark(this.view.current());
+      setTimeout(() => blurElement(this.view.current()), 100);
     },
   },
   PairingDialog: {
@@ -429,29 +636,30 @@ const Views = {
       'cancelPairing'
     ]),
     up: function() {
-      document.getElementById('cancelPairing').blur();
+      blurElement('cancelPairing');
     },
     down: function() {
-      document.getElementById('cancelPairing').focus();
+      focusElement('cancelPairing');
     },
     left: function() {},
     right: function() {},
-    select: function() {
-      this.view.current().click();
-    },
     accept: function() {
-      document.getElementById(this.view.current()).click();
+      clickElement(this.view.current());
     },
     back: function() {
-      document.getElementById('cancelPairing').click();
+      resolveElement('cancelPairing').click();
     },
     press: function() {},
-    switch: function() {},
+    switch: function() {
+      focusElement(this.view.current());
+    },
     enter: function() {
       mark(this.view.current());
+      setTimeout(() => focusElement(this.view.current()), 100);
     },
     leave: function() {
       unmark(this.view.current());
+      setTimeout(() => blurElement(this.view.current()), 100);
     },
   },
   HostMenuDialog: {
@@ -461,32 +669,30 @@ const Views = {
     }),
     up: function() {
       this.view.prevOption();
-      document.getElementById(this.view.current()).focus();
+      focusElement(this.view.current());
     },
     down: function() {
       this.view.nextOption();
-      document.getElementById(this.view.current()).focus();
+      focusElement(this.view.current());
     },
     left: function() {},
     right: function() {},
-    select: function() {
-      this.view.current().click();
-    },
     accept: function() {
-      document.getElementById(this.view.current()).click();
+      clickElement(this.view.current());
     },
     back: function() {
-      document.getElementById('closeHostMenu').click();
+      resolveElement('closeHostMenu').click();
     },
-    press: function() {},
-    switch: function() {
-      document.getElementById(this.view.current()).focus();
+    press: function() {
+      focusElement(this.view.current());
     },
     enter: function() {
       mark(this.view.current());
+      setTimeout(() => focusElement(this.view.current()), 100);
     },
     leave: function() {
       unmark(this.view.current());
+      setTimeout(() => blurElement(this.view.current()), 100);
     },
   },
   DeleteHostDialog: {
@@ -498,28 +704,29 @@ const Views = {
     down: function() {},
     left: function() {
       this.view.prev();
-      document.getElementById('continueDeleteHost').focus();
+      focusElement('continueDeleteHost');
     },
     right: function() {
       this.view.next();
-      document.getElementById('cancelDeleteHost').focus();
-    },
-    select: function() {
-      this.view.current().click();
+      focusElement('cancelDeleteHost');
     },
     accept: function() {
-      document.getElementById(this.view.current()).click();
+      clickElement(this.view.current());
     },
     back: function() {
-      document.getElementById('cancelDeleteHost').click();
+      resolveElement('cancelDeleteHost').click();
     },
     press: function() {},
-    switch: function() {},
+    switch: function() {
+      focusElement(this.view.current());
+    },
     enter: function() {
       mark(this.view.current());
+      setTimeout(() => focusElement(this.view.current()), 100);
     },
     leave: function() {
       unmark(this.view.current());
+      setTimeout(() => blurElement(this.view.current()), 100);
     },
   },
   HostDetailsDialog: {
@@ -527,31 +734,30 @@ const Views = {
       'closeHostDetails'
     ]),
     up: function() {
-      document.getElementById('closeHostDetails').blur();
+      blurElement('closeHostDetails');
     },
     down: function() {
-      document.getElementById('closeHostDetails').focus();
+      focusElement('closeHostDetails');
     },
     left: function() {},
     right: function() {},
-    select: function() {
-      this.view.current().click();
-    },
     accept: function() {
-      document.getElementById(this.view.current()).click();
+      clickElement(this.view.current());
     },
     back: function() {
-      document.getElementById('closeHostDetails').click();
+      resolveElement('closeHostDetails').click();
     },
     press: function() {},
     switch: function() {
-      document.getElementById(this.view.current()).focus();
+      focusElement(this.view.current());
     },
     enter: function() {
       mark(this.view.current());
+      setTimeout(() => focusElement(this.view.current()), 100);
     },
     leave: function() {
       unmark(this.view.current());
+      setTimeout(() => blurElement(this.view.current()), 100);
     },
   },
   MoonlightSupportDialog: {
@@ -559,29 +765,30 @@ const Views = {
       'closeAppSupport'
     ]),
     up: function() {
-      document.getElementById('closeAppSupport').blur();
+      blurElement('closeAppSupport');
     },
     down: function() {
-      document.getElementById('closeAppSupport').focus();
+      focusElement('closeAppSupport');
     },
     left: function() {},
     right: function() {},
-    select: function() {
-      this.view.current().click();
-    },
     accept: function() {
-      document.getElementById(this.view.current()).click();
+      clickElement(this.view.current());
     },
     back: function() {
-      document.getElementById('closeAppSupport').click();
+      resolveElement('closeAppSupport').click();
     },
     press: function() {},
-    switch: function() {},
+    switch: function() {
+      focusElement(this.view.current());
+    },
     enter: function() {
       mark(this.view.current());
+      setTimeout(() => focusElement(this.view.current()), 100);
     },
     leave: function() {
       unmark(this.view.current());
+      setTimeout(() => blurElement(this.view.current()), 100);
     },
   },
   Settings: {
@@ -589,40 +796,34 @@ const Views = {
     up: function() {
       // If there are more categories behind, then go to the previous category
       if (this.view.prevCategory()) {
-        document.getElementById(this.view.current()).focus();
+        focusElement(this.view.current());
       } else {
         // If there are no more categories, navigate to the SettingsNav view
         Navigation.change(Views.SettingsNav);
         // Set focus on the first navigation item in SettingsNav view when transitioning from Settings view
-        const navItem = document.getElementById(Views.SettingsNav.view.current());
-        if (navItem) {
-          navItem.focus();
-        }
+        focusElement(Views.SettingsNav.view.current());
       }
     },
     down: function() {
       // If there are more categories after, then go to the next category
       if (this.view.nextCategory()) {
-        document.getElementById(this.view.current()).focus();
+        focusElement(this.view.current());
       }
     },
     left: function() {},
     right: function() {},
-    select: function() {
-      this.view.current().click();
-    },
     accept: function() {
-      this.view.current().click();
+      clickElement(this.view.current());
     },
     back: function() {
-      document.getElementById('goBackBtn').click();
+      resolveElement('goBackBtn').click();
       // Navigate to the HostsNav view
       Navigation.change(Views.HostsNav);
-      document.getElementById('settingsBtn').focus();
+      focusElement('settingsBtn');
     },
     press: function() {},
     switch: function() {
-      this.view.current().focus();
+      focusElement(this.view.current());
     },
     enter: function() {
       mark(this.view.current());
@@ -641,50 +842,38 @@ const Views = {
       // Navigate to the Settings view
       Navigation.change(Views.Settings);
       // Set focus on the first navigation item in Settings view when transitioning from SettingsNav view
-      const navItem = document.getElementById(Views.Settings.view.current());
-      if (navItem) {
-        navItem.focus();
-      }
+      focusElement(Views.Settings.view.current());
     },
     left: function() {
       this.view.prev();
-      document.getElementById(this.view.current()).focus();
+      focusElement(this.view.current());
     },
     right: function() {
       this.view.next();
-      document.getElementById(this.view.current()).focus();
-    },
-    select: function() {
-      const currentItem = this.view.current();
-      if (currentItem.id === 'goBackBtn') {
-        currentItem.click();
-        // Navigate to the HostsNav view
-        Navigation.change(Views.HostsNav);
-        document.getElementById('settingsBtn').focus();
-      } else {
-        this.view.current().click();
-      }
+      focusElement(this.view.current());
     },
     accept: function() {
-      const currentItem = document.getElementById(this.view.current());
-      if (currentItem.id === 'goBackBtn') {
-        currentItem.click();
+      const currentItem = resolveElement(this.view.current());
+      if (currentItem && currentItem.id === 'goBackBtn') {
+        clickElement(currentItem);
         // Navigate to the HostsNav view
         Navigation.change(Views.HostsNav);
-        document.getElementById('settingsBtn').focus();
+        // Set focus to the "Settings" button after navigating to the HostsNav view
+        focusElement('settingsBtn');
       } else {
-        document.getElementById(this.view.current()).click();
+        clickElement(this.view.current());
       }
     },
     back: function() {
-      document.getElementById('goBackBtn').click();
+      resolveElement('goBackBtn').click();
       // Navigate to the HostsNav view
       Navigation.change(Views.HostsNav);
-      document.getElementById('settingsBtn').focus();
+      // Set focus to the "Settings" button after navigating to the HostsNav view
+      focusElement('settingsBtn');
     },
     press: function() {},
     switch: function() {
-      document.getElementById(this.view.current()).focus();
+      focusElement(this.view.current());
     },
     enter: function() {
       mark(this.view.current());
@@ -703,36 +892,30 @@ const Views = {
     ]),
     up: function() {
       this.view.prevOption();
-      document.getElementById(this.view.current()).focus();
+      focusElement(this.view.current());
     },
     down: function() {
       this.view.nextOption();
-      document.getElementById(this.view.current()).focus();
+      focusElement(this.view.current());
     },
     left: function() {},
     right: function() {},
-    select: function() {
-      this.view.current().click();
-    },
     accept: function() {
-      document.getElementById(this.view.current()).click();
+      clickElement(this.view.current());
     },
     back: function() {
       // Remove focus from the current element before changing the view
-      document.getElementById(this.view.current()).blur();
+      blurElement(this.view.current());
       // Reset the current settings view before navigating to the next settings view
       resetSettingsView();
       // Navigate to the Settings view
       Navigation.change(Views.Settings);
       // Set focus on the category item in Settings view when transitioning from BasicSettings view
-      const navItem = document.getElementById(Views.Settings.view.current());
-      if (navItem) {
-        navItem.focus();
-      }
+      focusElement(Views.Settings.view.current());
     },
     press: function() {},
     switch: function() {
-      document.getElementById(this.view.current()).focus();
+      focusElement(this.view.current());
     },
     enter: function() {
       mark(this.view.current());
@@ -742,32 +925,27 @@ const Views = {
     },
   },
   SelectResolutionMenu: {
-    isActive: () => isPopupActive('videoResolutionMenu'),
+    isActive: () => isPopupMenuActive('videoResolutionMenu'),
     view: new ListView(() => 
       document.getElementById('videoResolutionMenu')
       .parentNode.children[3].children[1].children),
     up: function() {
       this.view.prevOption();
-      document.getElementById(this.view.current()).focus();
     },
     down: function() {
       this.view.nextOption();
-      document.getElementById(this.view.current()).focus();
     },
     left: function() {},
     right: function() {},
-    select: function() {
-      this.view.current().click();
-      document.getElementById('selectResolution').focus();
-    },
     accept: function() {
-      this.view.current().click();
-      Navigation.pop();
-      document.getElementById('selectResolution').focus();
+      clickElement(this.view.current());
+      closeActiveVisibleMenu();
+      setTimeout(() => focusElement('selectResolution'), 250);
     },
     back: function() {
-      document.getElementById('selectResolution').click();
-      document.getElementById('selectResolution').focus();
+      closePopupMenu('selectResolution');
+      closeActiveVisibleMenu();
+      focusElement('selectResolution');
     },
     press: function() {},
     switch: function() {},
@@ -779,32 +957,27 @@ const Views = {
     },
   },
   SelectFramerateMenu: {
-    isActive: () => isPopupActive('videoFramerateMenu'),
+    isActive: () => isPopupMenuActive('videoFramerateMenu'),
     view: new ListView(() => 
       document.getElementById('videoFramerateMenu')
       .parentNode.children[3].children[1].children),
     up: function() {
       this.view.prevOption();
-      document.getElementById(this.view.current()).focus();
     },
     down: function() {
       this.view.nextOption();
-      document.getElementById(this.view.current()).focus();
     },
     left: function() {},
     right: function() {},
-    select: function() {
-      this.view.current().click();
-      document.getElementById('selectFramerate').focus();
-    },
     accept: function() {
-      this.view.current().click();
-      Navigation.pop();
-      document.getElementById('selectFramerate').focus();
+      clickElement(this.view.current());
+      closeActiveVisibleMenu();
+      setTimeout(() => focusElement('selectFramerate'), 250);
     },
     back: function() {
-      document.getElementById('selectFramerate').click();
-      document.getElementById('selectFramerate').focus();
+      closePopupMenu('selectFramerate');
+      closeActiveVisibleMenu();
+      focusElement('selectFramerate');
     },
     press: function() {},
     switch: function() {},
@@ -853,7 +1026,7 @@ const Views = {
     },
   },
   SelectBitrateMenu: {
-    isActive: () => isPopupActive('videoBitrateMenu'),
+    isActive: () => isPopupMenuActive('videoBitrateMenu'),
     view: new ListView(() => 
       document.getElementById('videoBitrateMenu')
       .parentNode.children[3].children[1].children),
@@ -867,17 +1040,15 @@ const Views = {
       bitrateSlider.stepUp();
       bitrateSlider.dispatchEvent(new Event('input'));
     },
-    select: function() {
-      this.view.current().click();
-      document.getElementById('selectBitrate').focus();
-    },
     accept: function() {
-      document.getElementById('selectBitrate').click();
-      document.getElementById('selectBitrate').focus();
+      clickElement(this.view.current());
+      closeActiveVisibleMenu();
+      setTimeout(() => focusElement('selectBitrate'), 250);
     },
     back: function() {
-      document.getElementById('selectBitrate').click();
-      document.getElementById('selectBitrate').focus();
+      closePopupMenu('selectBitrate');
+      closeActiveVisibleMenu();
+      focusElement('selectBitrate');
     },
     press: function() {},
     switch: function() {},
@@ -897,36 +1068,30 @@ const Views = {
     ]),
     up: function() {
       this.view.prevOption();
-      document.getElementById(this.view.current()).focus();
+      focusElement(this.view.current());
     },
     down: function() {
       this.view.nextOption();
-      document.getElementById(this.view.current()).focus();
+      focusElement(this.view.current());
     },
     left: function() {},
     right: function() {},
-    select: function() {
-      this.view.current().click();
-    },
     accept: function() {
-      document.getElementById(this.view.current()).click();
+      clickElement(this.view.current());
     },
     back: function() {
       // Remove focus from the current element before changing the view
-      document.getElementById(this.view.current()).blur();
+      blurElement(this.view.current());
       // Reset the current settings view before navigating to the next settings view
       resetSettingsView();
       // Navigate to the Settings view
       Navigation.change(Views.Settings);
       // Set focus on the category item in Settings view when transitioning from HostSettings view
-      const navItem = document.getElementById(Views.Settings.view.current());
-      if (navItem) {
-        navItem.focus();
-      }
+      focusElement(Views.Settings.view.current());
     },
     press: function() {},
     switch: function() {
-      document.getElementById(this.view.current()).focus();
+      focusElement(this.view.current());
     },
     enter: function() {
       mark(this.view.current());
@@ -944,36 +1109,30 @@ const Views = {
     ]),
     up: function() {
       this.view.prevOption();
-      document.getElementById(this.view.current()).focus();
+      focusElement(this.view.current());
     },
     down: function() {
       this.view.nextOption();
-      document.getElementById(this.view.current()).focus();
+      focusElement(this.view.current());
     },
     left: function() {},
     right: function() {},
-    select: function() {
-      this.view.current().click();
-    },
     accept: function() {
-      document.getElementById(this.view.current()).click();
+      clickElement(this.view.current());
     },
     back: function() {
       // Remove focus from the current element before changing the view
-      document.getElementById(this.view.current()).blur();
+      blurElement(this.view.current());
       // Reset the current settings view before navigating to the next settings view
       resetSettingsView();
       // Navigate to the Settings view
       Navigation.change(Views.Settings);
       // Set focus on the category item in Settings view when transitioning from InputSettings view
-      const navItem = document.getElementById(Views.Settings.view.current());
-      if (navItem) {
-        navItem.focus();
-      }
+      focusElement(Views.Settings.view.current());
     },
     press: function() {},
     switch: function() {
-      document.getElementById(this.view.current()).focus();
+      focusElement(this.view.current());
     },
     enter: function() {
       mark(this.view.current());
@@ -990,36 +1149,30 @@ const Views = {
     ]),
     up: function() {
       this.view.prevOption();
-      document.getElementById(this.view.current()).focus();
+      focusElement(this.view.current());
     },
     down: function() {
       this.view.nextOption();
-      document.getElementById(this.view.current()).focus();
+      focusElement(this.view.current());
     },
     left: function() {},
     right: function() {},
-    select: function() {
-      this.view.current().click();
-    },
     accept: function() {
-      document.getElementById(this.view.current()).click();
+      clickElement(this.view.current());
     },
     back: function() {
       // Remove focus from the current element before changing the view
-      document.getElementById(this.view.current()).blur();
+      blurElement(this.view.current());
       // Reset the current settings view before navigating to the next settings view
       resetSettingsView();
       // Navigate to the Settings view
       Navigation.change(Views.Settings);
       // Set focus on the category item in Settings view when transitioning from AudioSettings view
-      const navItem = document.getElementById(Views.Settings.view.current());
-      if (navItem) {
-        navItem.focus();
-      }
+      focusElement(Views.Settings.view.current());
     },
     press: function() {},
     switch: function() {
-      document.getElementById(this.view.current()).focus();
+      focusElement(this.view.current());
     },
     enter: function() {
       mark(this.view.current());
@@ -1029,32 +1182,27 @@ const Views = {
     },
   },
   SelectAudioMenu: {
-    isActive: () => isPopupActive('audioConfigMenu'),
+    isActive: () => isPopupMenuActive('audioConfigMenu'),
     view: new ListView(() => 
       document.getElementById('audioConfigMenu')
       .parentNode.children[3].children[1].children),
     up: function() {
       this.view.prevOption();
-      document.getElementById(this.view.current()).focus();
     },
     down: function() {
       this.view.nextOption();
-      document.getElementById(this.view.current()).focus();
     },
     left: function() {},
     right: function() {},
-    select: function() {
-      this.view.current().click();
-      document.getElementById('selectAudio').focus();
-    },
     accept: function() {
-      this.view.current().click();
-      Navigation.pop();
-      document.getElementById('selectAudio').focus();
+      clickElement(this.view.current());
+      closeActiveVisibleMenu();
+      setTimeout(() => focusElement('selectAudio'), 250);
     },
     back: function() {
-      document.getElementById('selectAudio').click();
-      document.getElementById('selectAudio').focus();
+      closePopupMenu('selectAudio');
+      closeActiveVisibleMenu();
+      focusElement('selectAudio');
     },
     press: function() {},
     switch: function() {},
@@ -1074,36 +1222,30 @@ const Views = {
     ]),
     up: function() {
       this.view.prevOption();
-      document.getElementById(this.view.current()).focus();
+      focusElement(this.view.current());
     },
     down: function() {
       this.view.nextOption();
-      document.getElementById(this.view.current()).focus();
+      focusElement(this.view.current());
     },
     left: function() {},
     right: function() {},
-    select: function() {
-      this.view.current().click();
-    },
     accept: function() {
-      document.getElementById(this.view.current()).click();
+      clickElement(this.view.current());
     },
     back: function() {
       // Remove focus from the current element before changing the view
-      document.getElementById(this.view.current()).blur();
+      blurElement(this.view.current());
       // Reset the current settings view before navigating to the next settings view
       resetSettingsView();
       // Navigate to the Settings view
       Navigation.change(Views.Settings);
       // Set focus on the category item in Settings view when transitioning from VideoSettings view
-      const navItem = document.getElementById(Views.Settings.view.current());
-      if (navItem) {
-        navItem.focus();
-      }
+      focusElement(Views.Settings.view.current());
     },
     press: function() {},
     switch: function() {
-      document.getElementById(this.view.current()).focus();
+      focusElement(this.view.current());
     },
     enter: function() {
       mark(this.view.current());
@@ -1113,32 +1255,27 @@ const Views = {
     },
   },
   SelectCodecMenu: {
-    isActive: () => isPopupActive('videoCodecMenu'),
+    isActive: () => isPopupMenuActive('videoCodecMenu'),
     view: new ListView(() => 
       document.getElementById('videoCodecMenu')
       .parentNode.children[3].children[1].children),
     up: function() {
       this.view.prevOption();
-      document.getElementById(this.view.current()).focus();
     },
     down: function() {
       this.view.nextOption();
-      document.getElementById(this.view.current()).focus();
     },
     left: function() {},
     right: function() {},
-    select: function() {
-      this.view.current().click();
-      document.getElementById('selectCodec').focus();
-    },
     accept: function() {
-      this.view.current().click();
-      Navigation.pop();
-      document.getElementById('selectCodec').focus();
+      clickElement(this.view.current());
+      closeActiveVisibleMenu();
+      setTimeout(() => focusElement('selectCodec'), 250);
     },
     back: function() {
-      document.getElementById('selectCodec').click();
-      document.getElementById('selectCodec').focus();
+      closePopupMenu('selectCodec');
+      closeActiveVisibleMenu();
+      focusElement('selectCodec');
     },
     press: function() {},
     switch: function() {},
@@ -1152,41 +1289,36 @@ const Views = {
   AdvancedSettings: {
     view: new ListView(() => [
       'unlockAllFpsBtn',
+      'optimizeBitrateBtn',
       'disableWarningsBtn',
       'performanceStatsBtn'
     ]),
     up: function() {
       this.view.prevOption();
-      document.getElementById(this.view.current()).focus();
+      focusElement(this.view.current());
     },
     down: function() {
       this.view.nextOption();
-      document.getElementById(this.view.current()).focus();
+      focusElement(this.view.current());
     },
     left: function() {},
     right: function() {},
-    select: function() {
-      this.view.current().click();
-    },
     accept: function() {
-      document.getElementById(this.view.current()).click();
+      clickElement(this.view.current());
     },
     back: function() {
       // Remove focus from the current element before changing the view
-      document.getElementById(this.view.current()).blur();
+      blurElement(this.view.current());
       // Reset the current settings view before navigating to the next settings view
       resetSettingsView();
       // Navigate to the Settings view
       Navigation.change(Views.Settings);
       // Set focus on the category item in Settings view when transitioning from AdvancedSettings view
-      const navItem = document.getElementById(Views.Settings.view.current());
-      if (navItem) {
-        navItem.focus();
-      }
+      focusElement(Views.Settings.view.current());
     },
     press: function() {},
     switch: function() {
-      document.getElementById(this.view.current()).focus();
+      focusElement(this.view.current());
     },
     enter: function() {
       mark(this.view.current());
@@ -1204,36 +1336,30 @@ const Views = {
     ]),
     up: function() {
       this.view.prevOption();
-      document.getElementById(this.view.current()).focus();
+      focusElement(this.view.current());
     },
     down: function() {
       this.view.nextOption();
-      document.getElementById(this.view.current()).focus();
+      focusElement(this.view.current());
     },
     left: function() {},
     right: function() {},
-    select: function() {
-      this.view.current().click();
-    },
     accept: function() {
-      document.getElementById(this.view.current()).click();
+      clickElement(this.view.current());
     },
     back: function() {
       // Remove focus from the current element before changing the view
-      document.getElementById(this.view.current()).blur();
+      blurElement(this.view.current());
       // Reset the current settings view before navigating to the next settings view
       resetSettingsView();
       // Navigate to the Settings view
       Navigation.change(Views.Settings);
       // Set focus on the category item in Settings view when transitioning from AboutSettings view
-      const navItem = document.getElementById(Views.Settings.view.current());
-      if (navItem) {
-        navItem.focus();
-      }
+      focusElement(Views.Settings.view.current());
     },
     press: function() {},
     switch: function() {
-      document.getElementById(this.view.current()).focus();
+      focusElement(this.view.current());
     },
     enter: function() {
       mark(this.view.current());
@@ -1247,29 +1373,30 @@ const Views = {
       'closeNavGuide'
     ]),
     up: function() {
-      document.getElementById('closeNavGuide').blur();
+      blurElement('closeNavGuide');
     },
     down: function() {
-      document.getElementById('closeNavGuide').focus();
+      focusElement('closeNavGuide');
     },
     left: function() {},
     right: function() {},
-    select: function() {
-      this.view.current().click();
-    },
     accept: function() {
-      document.getElementById(this.view.current()).click();
+      clickElement(this.view.current());
     },
     back: function() {
-      document.getElementById('closeNavGuide').click();
+      resolveElement('closeNavGuide').click();
     },
     press: function() {},
-    switch: function() {},
+    switch: function() {
+      focusElement(this.view.current());
+    },
     enter: function() {
       mark(this.view.current());
+      setTimeout(() => focusElement(this.view.current()), 100);
     },
     leave: function() {
       unmark(this.view.current());
+      setTimeout(() => blurElement(this.view.current()), 100);
     },
   },
   UpdateMoonlightDialog: {
@@ -1277,31 +1404,30 @@ const Views = {
       'closeUpdateApp'
     ]),
     up: function() {
-      document.getElementById('closeUpdateApp').blur();
+      blurElement('closeUpdateApp');
     },
     down: function() {
-      document.getElementById('closeUpdateApp').focus();
+      focusElement('closeUpdateApp');
     },
     left: function() {},
     right: function() {},
-    select: function() {
-      this.view.current().click();
-    },
     accept: function() {
-      document.getElementById(this.view.current()).click();
+      clickElement(this.view.current());
     },
     back: function() {
-      document.getElementById('closeUpdateApp').click();
+      resolveElement('closeUpdateApp').click();
     },
     press: function() {},
     switch: function() {
-      document.getElementById(this.view.current()).focus();
+      focusElement(this.view.current());
     },
     enter: function() {
       mark(this.view.current());
+      setTimeout(() => focusElement(this.view.current()), 100);
     },
     leave: function() {
       unmark(this.view.current());
+      setTimeout(() => blurElement(this.view.current()), 100);
     },
   },
   RestoreDefaultsDialog: {
@@ -1313,28 +1439,29 @@ const Views = {
     down: function() {},
     left: function() {
       this.view.prev();
-      document.getElementById('continueRestoreDefaults').focus();
+      focusElement('continueRestoreDefaults');
     },
     right: function() {
       this.view.next();
-      document.getElementById('cancelRestoreDefaults').focus();
-    },
-    select: function() {
-      this.view.current().click();
+      focusElement('cancelRestoreDefaults');
     },
     accept: function() {
-      document.getElementById(this.view.current()).click();
+      clickElement(this.view.current());
     },
     back: function() {
-      document.getElementById('cancelRestoreDefaults').click();
+      resolveElement('cancelRestoreDefaults').click();
     },
     press: function() {},
-    switch: function() {},
+    switch: function() {
+      focusElement(this.view.current());
+    },
     enter: function() {
       mark(this.view.current());
+      setTimeout(() => focusElement(this.view.current()), 100);
     },
     leave: function() {
       unmark(this.view.current());
+      setTimeout(() => blurElement(this.view.current()), 100);
     },
   },
   Apps: {
@@ -1342,39 +1469,33 @@ const Views = {
     up: function() {
       // If there are more rows behind, then go to the previous row
       if (this.view.prevCardRow(6)) {
-        document.getElementById(this.view.current()).focus();
+        focusElement(this.view.current());
       } else {
         // If there are no more rows, navigate to the AppsNav view
         Navigation.change(Views.AppsNav);
         // Set focus on the first navigation item in AppsNav view when transitioning from Apps view
-        const navItem = document.getElementById(Views.AppsNav.view.current());
-        if (navItem) {
-          navItem.focus();
-        }
+        focusElement(Views.AppsNav.view.current());
       }
     },
     down: function() {
       // If there are more rows after, then go to the next row
       if (this.view.nextCardRow(6)) {
-        document.getElementById(this.view.current()).focus();
+        focusElement(this.view.current());
       }
     },
     left: function() {
       this.view.prevCard(6);
-      document.getElementById(this.view.current()).focus();
+      focusElement(this.view.current());
     },
     right: function() {
       this.view.nextCard(6);
-      document.getElementById(this.view.current()).focus();
-    },
-    select: function() {
-      this.view.current().click();
+      focusElement(this.view.current());
     },
     accept: function() {
-      this.view.current().click();
+      clickElement(this.view.current());
     },
     back: function() {
-      document.getElementById('goBackBtn').click();
+      resolveElement('goBackBtn').click();
     },
     press: function() {},
     switch: function() {
@@ -1397,31 +1518,25 @@ const Views = {
       // Navigate to the Apps view
       Navigation.change(Views.Apps);
       // Set focus on the first navigation item in Apps view when transitioning from AppsNav view
-      const navItem = document.getElementById(Views.Apps.view.current());
-      if (navItem) {
-        navItem.focus();
-      }
+      focusElement(Views.Apps.view.current());
     },
     left: function() {
       this.view.prev();
-      document.getElementById(this.view.current()).focus();
+      focusElement(this.view.current());
     },
     right: function() {
       this.view.next();
-      document.getElementById(this.view.current()).focus();
-    },
-    select: function() {
-      this.view.current().click();
+      focusElement(this.view.current());
     },
     accept: function() {
-      document.getElementById(this.view.current()).click();
+      clickElement(this.view.current());
     },
     back: function() {
-      document.getElementById('goBackBtn').click();
+      resolveElement('goBackBtn').click();
     },
     press: function() {},
     switch: function() {
-      document.getElementById(this.view.current()).focus();
+      focusElement(this.view.current());
     },
     enter: function() {
       mark(this.view.current());
@@ -1439,28 +1554,29 @@ const Views = {
     down: function() {},
     left: function() {
       this.view.prev();
-      document.getElementById('continueQuitApp').focus();
+      focusElement('continueQuitApp');
     },
     right: function() {
       this.view.next();
-      document.getElementById('cancelQuitApp').focus();
-    },
-    select: function() {
-      this.view.current().click();
+      focusElement('cancelQuitApp');
     },
     accept: function() {
-      document.getElementById(this.view.current()).click();
+      clickElement(this.view.current());
     },
     back: function() {
-      document.getElementById('cancelQuitApp').click();
+      resolveElement('cancelQuitApp').click();
     },
     press: function() {},
-    switch: function() {},
+    switch: function() {
+      focusElement(this.view.current());
+    },
     enter: function() {
       mark(this.view.current());
+      setTimeout(() => focusElement(this.view.current()), 100);
     },
     leave: function() {
       unmark(this.view.current());
+      setTimeout(() => blurElement(this.view.current()), 100);
     },
   },
   WarningDialog: {
@@ -1468,29 +1584,30 @@ const Views = {
       'closeWarning'
     ]),
     up: function() {
-      document.getElementById('closeWarning').blur();
+      blurElement('closeWarning');
     },
     down: function() {
-      document.getElementById('closeWarning').focus();
+      focusElement('closeWarning');
     },
     left: function() {},
     right: function() {},
-    select: function() {
-      this.view.current().click();
-    },
     accept: function() {
-      document.getElementById(this.view.current()).click();
+      clickElement(this.view.current());
     },
     back: function() {
-      document.getElementById('closeWarning').click();
+      resolveElement('closeWarning').click();
     },
     press: function() {},
-    switch: function() {},
+    switch: function() {
+      focusElement(this.view.current());
+    },
     enter: function() {
       mark(this.view.current());
+      setTimeout(() => focusElement(this.view.current()), 100);
     },
     leave: function() {
       unmark(this.view.current());
+      setTimeout(() => blurElement(this.view.current()), 100);
     },
   },
   RestartMoonlightDialog: {
@@ -1502,28 +1619,29 @@ const Views = {
     down: function() {},
     left: function() {
       this.view.prev();
-      document.getElementById('continueRestartApp').focus();
+      focusElement('continueRestartApp');
     },
     right: function() {
       this.view.next();
-      document.getElementById('cancelRestartApp').focus();
-    },
-    select: function() {
-      this.view.current().click();
+      focusElement('cancelRestartApp');
     },
     accept: function() {
-      document.getElementById(this.view.current()).click();
+      clickElement(this.view.current());
     },
     back: function() {
-      document.getElementById('cancelRestartApp').click();
+      resolveElement('cancelRestartApp').click();
     },
     press: function() {},
-    switch: function() {},
+    switch: function() {
+      focusElement(this.view.current());
+    },
     enter: function() {
       mark(this.view.current());
+      setTimeout(() => focusElement(this.view.current()), 100);
     },
     leave: function() {
       unmark(this.view.current());
+      setTimeout(() => blurElement(this.view.current()), 100);
     },
   },
   ExitMoonlightDialog: {
@@ -1535,28 +1653,29 @@ const Views = {
     down: function() {},
     left: function() {
       this.view.prev();
-      document.getElementById('continueExitApp').focus();
+      focusElement('continueExitApp');
     },
     right: function() {
       this.view.next();
-      document.getElementById('cancelExitApp').focus();
-    },
-    select: function() {
-      this.view.current().click();
+      focusElement('cancelExitApp');
     },
     accept: function() {
-      document.getElementById(this.view.current()).click();
+      clickElement(this.view.current());
     },
     back: function() {
-      document.getElementById('cancelExitApp').click();
+      resolveElement('cancelExitApp').click();
     },
     press: function() {},
-    switch: function() {},
+    switch: function() {
+      focusElement(this.view.current());
+    },
     enter: function() {
       mark(this.view.current());
+      setTimeout(() => focusElement(this.view.current()), 100);
     },
     leave: function() {
       unmark(this.view.current());
+      setTimeout(() => blurElement(this.view.current()), 100);
     },
   },
 };
@@ -1669,7 +1788,6 @@ const Navigation = (function() {
     down: runOp('down'),
     left: runOp('left'),
     right: runOp('right'),
-    select: runOp('select'),
     accept: runOp('accept'),
     back: runOp('back'),
     press: runOp('press'),

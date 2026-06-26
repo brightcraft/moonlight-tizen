@@ -20,7 +20,7 @@ body:
       label: Installation Type
       description: What is the method you used to install Moonlight on your device?
       options:
-        - Jellyfin2Samsung
+        - Apps2Samsung
         - Tizen Studio
         - Docker
     validations:
@@ -59,7 +59,6 @@ body:
       description: What streaming software are you using?
       options:
         - Sunshine
-        - Apollo
         - GeForce Experience
   - type: textarea
     attributes:

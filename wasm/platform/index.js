@@ -1,12 +1,19 @@
 // Initialize global variables and constants
+var appInfo = tizen.application.getAppInfo(); // Retrieve the application information
+var platformVer = tizen.systeminfo.getCapability("http://tizen.org/feature/platform.version"); // Retrieve the device platform version
+var modelSeries = webapis.productinfo.getModel(); // Retrieve the device model series
+var modelName = webapis.productinfo.getRealModel(); // Retrieve the device model name
+var modelGroup = webapis.productinfo.getModelCode(); // Retrieve the device model group
+var is4kPanel = webapis.productinfo.isUdPanelSupported(); // Check if the device supports 4K panel
+var isHdrCapable = webapis.avinfo.isHdrTvSupport(); // Check if the device supports HDR
 var hosts = {}; // Hosts is an associative array of NvHTTP objects, keyed by server UID
 var activePolls = {}; // Hosts currently being polled. An associated array of polling IDs, keyed by server UID
 var pairingCert; // Loads the generated certificate
 var myUniqueid = '0123456789ABCDEF'; // Use the same UID as other Moonlight clients to allow them to quit each other's games
 var api; // The `api` should only be set if we're in a host-specific screen, on the initial screen it should always be null
-var isPlatformVer = parseFloat(tizen.systeminfo.getCapability("http://tizen.org/feature/platform.version")); // Retrieve the Tizen platform version
 var isInGame = false; // Flag indicating whether the game has started, initial value is false
 var isDialogOpen = false; // Flag indicating whether the dialog is open, initial value is false
+var isGamepadActive = false; // Flag indicating whether the gamepad input is active, initial value is false
 var isClickPrevented = false; // Flag indicating whether the click event should be prevented, initial value is false
 var resFpsWarning = false; // Flag indicating whether the video resolution and frame rate warning message has shown, initial value is false
 var bitrateWarning = false; // Flag indicating whether the video bitrate warning message has shown, initial value is false
@@ -16,6 +23,8 @@ var repeatAction = null; // Flag indicating whether the repeat action is set, in
 var lastInvokeTime = 0; // Flag indicating the last invoke time, initial value is 0
 var repeatTimeout = null; // Flag indicating whether the repeat timeout is set, initial value is null
 var navigationTimeout = null; // Flag indicating whether the navigation timeout is set, initial value is null
+const BUILD_TYPE = '__BUILD_TYPE__'; // Placeholder for build type, which should be replaced during the build process
+const BUILD_COMMIT = '__BUILD_COMMIT__'; // Placeholder for build commit, which should be replaced during the build process
 const REPEAT_DELAY = 350; // Repeat delay set to 350ms (milliseconds)
 const REPEAT_INTERVAL = 100; // Repeat interval set to 100ms (milliseconds)
 const ACTION_THRESHOLD = 0.5; // Threshold for initial navigation set to 0.5
@@ -50,6 +59,7 @@ function attachListeners() {
   $('#bitrateSlider').on('input', saveBitrate);
   $('#framePacingSwitch').on('click', saveFramePacing);
   $('#ipAddressFieldModeSwitch').on('click', saveIpAddressFieldMode);
+  $('#ipAddressTextInput').on('input', updateIpAddressInputValidationState);
   $('#sortAppsListSwitch').on('click', saveSortAppsList);
   $('#optimizeGamesSwitch').on('click', saveOptimizeGames);
   $('#removeAllHostsBtn').on('click', deleteAllHostsDialog);
@@ -65,6 +75,7 @@ function attachListeners() {
   $('#fullRangeSwitch').on('click', saveFullRange);
   $('#gameModeSwitch').on('click', saveGameMode);
   $('#unlockAllFpsSwitch').on('click', saveUnlockAllFps);
+  $('#optimizeBitrateSwitch').on('click', saveOptimizeBitrate);
   $('#disableWarningsSwitch').on('click', saveDisableWarnings);
   $('#performanceStatsSwitch').on('click', savePerformanceStats);
   $('#navigationGuideBtn').on('click', navigationGuideDialog);
@@ -92,6 +103,7 @@ function attachListeners() {
 
   Controller.startWatching();
   window.addEventListener('gamepadinputchanged', (e) => {
+    isGamepadActive = true;
     const changes = e.detail.changes;
     // Iterate through each change in the gamepad input
     changes.forEach((change) => {
@@ -160,6 +172,16 @@ function changeUiModeForWasmLoad() {
 
 function moduleDidLoad() {
   loadHTTPCerts();
+}
+
+// Formats the build version string based on the build type and commit information
+function getBuildVersion(version) {
+  // Append pre-release identifier and short commit SHA to the version number for development builds
+  if (BUILD_TYPE === 'development' && BUILD_COMMIT) {
+    return `${version} (pre-${BUILD_COMMIT})`;
+  }
+  // Return only the version number without any additional metadata for production builds
+  return version;
 }
 
 // Handles repeated execution of the current action based on a specified interval
@@ -306,6 +328,9 @@ function showHostsMode() {
 
 // Show the Hosts grid
 function showHosts() {
+  // Stop navigation before showing the loading screen
+  Navigation.stop();
+
   // Hide the main header and content before showing a loading screen
   $('#main-header').children().hide();
   $('#main-header').css({'backgroundColor': 'transparent', 'boxShadow': 'none'});
@@ -333,6 +358,9 @@ function showHosts() {
 }
 
 function restoreUiAfterWasmLoad() {
+  // Stop navigation before showing the loading screen
+  Navigation.stop();
+
   $('#main-header').children().not('#goBackBtn, #restoreDefaultsBtn, #quitRunningAppBtn').show();
   $('#main-content').children().not('#listener, #wasmSpinner, #settings-list, #game-grid').show();
   $('#wasmSpinner').hide();
@@ -427,16 +455,23 @@ function handleIpAddressFieldMode() {
   const ipAddressFieldModeSwitch = document.getElementById('ipAddressFieldModeSwitch');
   const ipAddressInputField = document.getElementById('ipAddressInputField');
   const ipAddressSelectFields = document.getElementById('ipAddressSelectFields');
+  const ipAddressInput = document.getElementById('ipAddressTextInput');
+  const textField = ipAddressInput ? ipAddressInput.closest('.mdl-textfield') : null;
 
   // Checks if the IP address field mode switch is checked
   if (ipAddressFieldModeSwitch.checked) {
     // Hides the input field and shows the select field
     ipAddressInputField.style.display = 'none';
     ipAddressSelectFields.style.display = 'block';
+    if (ipAddressInput && textField) {
+      ipAddressInput.setCustomValidity('');
+      textField.classList.remove('is-invalid');
+    }
   } else {
     // Shows the input field and hides the select field
     ipAddressInputField.style.display = 'block';
     ipAddressSelectFields.style.display = 'none';
+    updateIpAddressInputValidationState();
   }
 }
 
@@ -476,6 +511,149 @@ function initIpAddressFields() {
   });
 }
 
+function isValidPort(port) {
+  return Number.isInteger(port) && port > 0 && port <= 65535;
+}
+
+function isValidIpv4Address(address) {
+  if (!address) {
+    return false;
+  }
+
+  const octets = address.split('.');
+  if (octets.length !== 4) {
+    return false;
+  }
+
+  for (const octet of octets) {
+    if (!/^\d{1,3}$/.test(octet)) {
+      return false;
+    }
+
+    const octetValue = parseInt(octet, 10);
+    if (octetValue < 0 || octetValue > 255) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function isPotentialIpv4AddressWithOptionalPort(rawInput) {
+  const input = (rawInput || '').trim();
+  if (!input) {
+    return true;
+  }
+
+  const rawParts = input.split(':');
+  if (rawParts.length > 2) {
+    return false;
+  }
+
+  const addrPart = rawParts[0];
+  const portPart = rawParts.length === 2 ? rawParts[1] : null;
+
+  if (!/^\d{0,3}(\.\d{0,3}){0,3}$/.test(addrPart)) {
+    return false;
+  }
+
+  const octets = addrPart.split('.');
+  if (octets.length > 4) {
+    return false;
+  }
+
+  for (const octet of octets) {
+    if (!octet) {
+      continue;
+    }
+
+    const octetValue = parseInt(octet, 10);
+    if (octetValue < 0 || octetValue > 255) {
+      return false;
+    }
+  }
+
+  if (portPart != null) {
+    if (!/^\d{0,5}$/.test(portPart)) {
+      return false;
+    }
+
+    if (portPart.length > 0) {
+      const parsedPort = parseInt(portPart, 10);
+      if (!isValidPort(parsedPort)) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+function updateIpAddressInputValidationState() {
+  const ipAddressInput = document.getElementById('ipAddressTextInput');
+  const textField = ipAddressInput ? ipAddressInput.closest('.mdl-textfield') : null;
+  const usingSelectFields = $('#ipAddressFieldModeSwitch').prop('checked');
+
+  if (!ipAddressInput || !textField || usingSelectFields) {
+    return;
+  }
+
+  const inputValue = ipAddressInput.value;
+  const isPotentialValue = isPotentialIpv4AddressWithOptionalPort(inputValue);
+
+  if (!inputValue.trim()) {
+    ipAddressInput.setCustomValidity('');
+    textField.classList.remove('is-invalid');
+    return;
+  }
+
+  if (isPotentialValue) {
+    ipAddressInput.setCustomValidity('');
+    textField.classList.remove('is-invalid');
+  } else {
+    ipAddressInput.setCustomValidity('invalid-host');
+    textField.classList.add('is-invalid');
+  }
+}
+
+function parseHostAndPortInput(rawInput) {
+  const input = (rawInput || '').trim();
+
+  if (!input) {
+    return { valid: false, error: 'Please enter a valid host IP address!' };
+  }
+
+  const firstColon = input.indexOf(':');
+  const lastColon = input.lastIndexOf(':');
+  if (firstColon > 0 && firstColon === lastColon) {
+    const hostPart = input.substring(0, firstColon).trim();
+    const portPart = input.substring(firstColon + 1).trim();
+
+    if (!hostPart) {
+      return { valid: false, error: 'Please enter a valid host IP address!' };
+    }
+    if (!isValidIpv4Address(hostPart)) {
+      return { valid: false, error: 'Please enter a valid host IPv4 address!' };
+    }
+    if (!/^\d{1,5}$/.test(portPart)) {
+      return { valid: false, error: 'Port must be a numeric value between 1 and 65535!' };
+    }
+
+    const parsedPort = parseInt(portPart, 10);
+    if (!isValidPort(parsedPort)) {
+      return { valid: false, error: 'Please enter a valid port number between 1 and 65535!' };
+    }
+
+    return { valid: true, addr: hostPart, port: parsedPort };
+  }
+
+  if (!isValidIpv4Address(input)) {
+    return { valid: false, error: 'Please enter a valid host IPv4 address!' };
+  }
+
+  return { valid: true, addr: input, port: 47989 };
+}
+
 // If the `Add Host +` is selected on the host grid, then show the 
 // Add Host dialog to enter the connection details for the host PC
 function addHostDialog() {
@@ -488,15 +666,9 @@ function addHostDialog() {
   addHostDialog.showModal();
   isDialogOpen = true;
   Navigation.push(Views.AddHostDialog);
-
-  // Checks if the IP address field mode switch is checked
-  if ($('#ipAddressFieldModeSwitch').prop('checked')) {
-    // Remove focus from any currently focused element
-    document.activeElement.blur();
-  } else {
-    // Set focus to the currently active element
-    document.activeElement.focus();
-  }
+  updateIpAddressInputValidationState();
+  // Remove focus from any current active element
+  document.activeElement.blur();
 
   // Cancel the operation if the Cancel button is pressed
   $('#cancelAddHost').off('click');
@@ -510,6 +682,7 @@ function addHostDialog() {
     $('#continueAddHost').removeClass('mdl-button--disabled').prop('disabled', false);
     // Clear the input field after canceling the operation
     $('#ipAddressTextInput').val('');
+    updateIpAddressInputValidationState();
     initIpAddressFields();
   });
 
@@ -517,6 +690,30 @@ function addHostDialog() {
   $('#continueAddHost').off('click');
   $('#continueAddHost').on('click', function() {
     console.log('%c[index.js, addHostDialog]', 'color: green;', 'Adding host, closing app dialog, and returning.');
+    // Get the IP address value from the input field or select fields
+    var inputHost;
+    if ($('#ipAddressFieldModeSwitch').prop('checked')) {
+      var ipAddressField1 = $('#ipAddressField1').val();
+      var ipAddressField2 = $('#ipAddressField2').val();
+      var ipAddressField3 = $('#ipAddressField3').val();
+      var ipAddressField4 = $('#ipAddressField4').val();
+      inputHost = ipAddressField1 + '.' + ipAddressField2 + '.' + ipAddressField3 + '.' + ipAddressField4;
+    } else {
+      inputHost = $('#ipAddressTextInput').val();
+    }
+    // Get the IP address and port from the input and validate them
+    var parsedHostInput;
+    if ($('#ipAddressFieldModeSwitch').prop('checked')) {
+      // Select fields only provide IP octets, so always use default HTTP port
+      parsedHostInput = { valid: true, addr: inputHost, port: 47989 };
+    } else {
+      parsedHostInput = parseHostAndPortInput(inputHost);
+    }
+    // If the input is invalid, show an error message and return early
+    if (!parsedHostInput.valid) {
+      snackbarLog(parsedHostInput.error);
+      return;
+    }
     // Disable the Continue button to prevent multiple connection requests
     setTimeout(() => {
       // Add disabled state after 2 seconds
@@ -528,21 +725,11 @@ function addHostDialog() {
         Navigation.switch();
       }, 12000);
     }, 2000);
-    // Get the IP address value from the input field
-    var inputHost;
-    if ($('#ipAddressFieldModeSwitch').prop('checked')) {
-      var ipAddressField1 = $('#ipAddressField1').val();
-      var ipAddressField2 = $('#ipAddressField2').val();
-      var ipAddressField3 = $('#ipAddressField3').val();
-      var ipAddressField4 = $('#ipAddressField4').val();
-      inputHost = ipAddressField1 + '.' + ipAddressField2 + '.' + ipAddressField3 + '.' + ipAddressField4;
-    } else {
-      inputHost = $('#ipAddressTextInput').val();
-    }
     // Send a connection request to the Host object based on the given IP address
-    var _nvhttpHost = new NvHTTP(inputHost, myUniqueid, inputHost);
+    var _nvhttpHost = new NvHTTP(parsedHostInput.addr, myUniqueid, parsedHostInput.addr);
+    _nvhttpHost.httpPort = parsedHostInput.port;
     console.log('%c[index.js, addHostDialog]', 'color: green;', 'Sending connection request to host address ' + _nvhttpHost.hostname);
-    _nvhttpHost.refreshServerInfoAtAddress(inputHost).then(function(success) {
+    _nvhttpHost.refreshServerInfoAtAddress(parsedHostInput.addr).then(function(success) {
       snackbarLog(t('Connecting to %1$s...', _nvhttpHost.hostname));
       // Close the dialog if the user has provided the IP address
       console.log('%c[index.js, addHostDialog]', 'color: green;', 'Closing app dialog and returning.');
@@ -556,6 +743,7 @@ function addHostDialog() {
         // Update the addresses
         hosts[_nvhttpHost.serverUid].address = _nvhttpHost.address;
         hosts[_nvhttpHost.serverUid].userEnteredAddress = _nvhttpHost.userEnteredAddress;
+        hosts[_nvhttpHost.serverUid].httpPort = _nvhttpHost.httpPort;
         // Use the host in the array directly to ensure the PPK propagates after pairing
         pairingDialog(hosts[_nvhttpHost.serverUid], function() {
           saveHosts();
@@ -572,6 +760,7 @@ function addHostDialog() {
       $('#continueAddHost').removeClass('mdl-button--disabled').prop('disabled', false);
       // Clear the input field after successful processing
       $('#ipAddressTextInput').val('');
+      updateIpAddressInputValidationState();
       initIpAddressFields();
     }.bind(this), function(failure) {
       console.error('%c[index.js, addHostDialog]', 'color: green;', 'Error: Failed API object:\n', _nvhttpHost, '\n' + _nvhttpHost.toString()); // Logging both object (for console) and toString-ed object (for text logs)
@@ -580,6 +769,7 @@ function addHostDialog() {
       $('#continueAddHost').removeClass('mdl-button--disabled').prop('disabled', false);
       // Clear the input field after failure processing
       $('#ipAddressTextInput').val('');
+      updateIpAddressInputValidationState();
       initIpAddressFields();
     }.bind(this));
   });
@@ -939,6 +1129,8 @@ function deleteHostDialog(host) {
     console.log('%c[index.js, deleteHostDialog]', 'color: green;', 'Removing host, closing app dialog, and returning.');
     // Remove the host container from the grid
     $('#host-container-' + host.serverUid).remove();
+    // Stop background polling for removed host
+    endBackgroundPollingOfHost(host);
     // Remove the host from the hosts object
     delete hosts[host.serverUid];
     // Save the updated hosts
@@ -949,7 +1141,9 @@ function deleteHostDialog(host) {
     deleteHostDialog.close();
     isDialogOpen = false;
     Navigation.pop();
-    Navigation.left();
+    // Reset the Hosts view navigation index to prevent possible out-of-bounds errors
+    Views.Hosts.view.reset();
+    Navigation.switch();
   });
 }
 
@@ -989,6 +1183,8 @@ function deleteAllHostsDialog() {
     $('#continueDeleteHost').off('click');
     $('#continueDeleteHost').on('click', function() {
       console.log('%c[index.js, deleteAllHostsDialog]', 'color: green;', 'Removing all hosts, closing app dialog, and returning.');
+      // Stop background polling for all hosts before removing them
+      stopPollingHosts();
       // Iterate through all hosts and remove them
       for (var serverUid in hosts) {
         if (hosts.hasOwnProperty(serverUid)) {
@@ -1007,6 +1203,8 @@ function deleteAllHostsDialog() {
       deleteHostDialog.close();
       isDialogOpen = false;
       Navigation.pop();
+      // Reset the Hosts view navigation index to prevent possible out-of-bounds errors
+      Views.Hosts.view.reset();
       Navigation.switch();
     });
   }
@@ -1051,6 +1249,7 @@ function hostDetailsDialog(host) {
       t('MAC Address: %1$s', host.macAddress ? host.macAddress : t('NULL')),
       t('Pair State: %1$s', host.paired ? t('PAIRED') : t('UNPAIRED')),
       t('Running Game ID: %1$s', host.currentGame),
+      t('HTTP Port: %1$s', host.httpPort ? host.httpPort : t('NULL')),
       t('HTTPS Port: %1$s', host.httpsPort ? host.httpsPort : t('NULL'))
     ].join('<br>')
   }).appendTo(hostDetailsDialogContent);
@@ -1143,6 +1342,9 @@ function showSettingsMode() {
 
 // Show the Settings list
 function showSettings() {
+  // Stop navigation before showing the loading screen
+  Navigation.stop();
+
   // Hide the main header and content before showing a loading screen
   $('#main-header').children().hide();
   $('#main-header').css({'backgroundColor': 'transparent', 'boxShadow': 'none'});
@@ -1174,11 +1376,6 @@ function showSettings() {
 
 // Reset the current settings view by clearing the selection and hiding the right pane
 function resetSettingsView() {
-  // Remove the 'hovered' and 'is-focused' classes from all toggle switches
-  document.querySelectorAll('.mdl-switch').forEach(function(toggleSwitch) {
-    toggleSwitch.classList.remove('hovered', 'is-focused');
-  });
-
   // Hide all settings options from the right pane
   document.querySelectorAll('.settings-options').forEach(function(settingsOption) {
     settingsOption.style.display = 'none';
@@ -1194,7 +1391,7 @@ function resetSettingsView() {
 function navigateSettingsView(view) {
   Navigation.pop();
   Navigation.push(view);
-  setTimeout(() => Navigation.switch(), 5);
+  setTimeout(() => Navigation.switch(), 250);
 }
 
 // Handle category selection, display appropriate options, and navigate to the provided settings pane
@@ -1293,7 +1490,7 @@ function fetchLatestRelease() {
   }).then(data => {
     // Get the latest version and release notes from the released update
     let latestVersion = data.tag_name.startsWith('v') ? data.tag_name.slice(1) : data.tag_name;
-    const releaseNotes = extractReleaseNotes(data.body) || 'No relevant changes found.';
+    const releaseNotes = extractReleaseNotes(data.body) || '• No relevant changes found.';
     return { latestVersion, releaseNotes };
   });
 }
@@ -1319,8 +1516,25 @@ function checkVersionUpdate(currentVersion, latestVersion) {
 
 // Extract only the release notes section from the released update
 function extractReleaseNotes(releaseNotes) {
+  // Extract the "What's Changed" section and exclude everything after "Full Changelog"
   const match = releaseNotes.match(/## What's Changed:\r?\n\r?\n([\s\S]+?)(?:\r?\n\r?\n\*\*Full Changelog\*\*|$)/);
-  return match ? match[1].split('\n').map(line => line.replace(/^-\s/, '• ')).join('<br>') : null;
+  // Return null if release notes section is not found or does not match expected format
+  if (!match) {
+    return null;
+  }
+  // Clean and format each release note line into a user-friendly bullet list
+  return match[1].split('\n').map(line => {
+	  let cleaned = line.trim();
+	  // Remove contributor attribution and PR references
+	  cleaned = cleaned.replace(/\s+by\s+@[^]+$/i, '');
+	  // Convert list item to bullet point
+	  cleaned = cleaned.replace(/^-\s*/, '• ');
+	  // Add trailing period if missing
+	  if (cleaned && !cleaned.endsWith('.')) {
+	    cleaned += '.';
+	  }
+	  return cleaned;
+  }).filter(line => line !== '').join('<br>');
 }
 
 // Format the update timestamp into a readable string as "dd/mm/yyyy hh:mm"
@@ -1383,15 +1597,12 @@ function updateAppButton(latestVersion) {
   // Attach the click event listener to the Update App button
   updateAppBtn.off('click');
   updateAppBtn.on('click', function() {
-    // Get current app version
-    const currentVersion = tizen.application.getAppInfo().version;
-
     console.log('%c[index.js, updateAppButton]', 'color: green;', 'Checking for new update release notes...');
     // Fetch the latest release data from the GitHub API
     fetchLatestRelease().then(({ latestVersion, releaseNotes }) => {
       setTimeout(() => {
         // Check if a new version update is available
-        if (checkVersionUpdate(currentVersion, latestVersion)) {
+        if (checkVersionUpdate(appInfo.version, latestVersion)) {
           // Show the Update Moonlight dialog with new version and release notes to inform user to update the app
           updateAppDialog(latestVersion, releaseNotes);
         }
@@ -1477,16 +1688,13 @@ function updateAppDialog(latestVersion, releaseNotes) {
 
 // Check for updates when the Check for Updates button is pressed
 function checkForAppUpdates() {
-  // Get current app version
-  const currentVersion = tizen.application.getAppInfo().version;
-
   console.log('%c[index.js, checkForAppUpdates]', 'color: green;', 'Checking for new application updates...');
   snackbarLog('Checking for available Moonlight updates...');
   // Fetch the latest release data from the GitHub API
   fetchLatestRelease().then(({ latestVersion, releaseNotes }) => {
     setTimeout(() => {
       // Check if a new version update is available
-      if (checkVersionUpdate(currentVersion, latestVersion)) {
+      if (checkVersionUpdate(appInfo.version, latestVersion)) {
         // Show the Update Moonlight dialog with new version and release notes to inform user to update the app
         updateAppDialog(latestVersion, releaseNotes);
       } else {
@@ -1513,15 +1721,12 @@ function checkForAppUpdatesAtStartup() {
 
     // Check if enough time has passed since the last update check
     if (!lastChecked || currentTime - lastChecked > UPDATE_INTERVAL) {
-      // Get current app version
-      const currentVersion = tizen.application.getAppInfo().version;
-
       console.log('%c[index.js, checkForAppUpdatesAtStartup]', 'color: green;', 'Performing auto-check for new application updates...');
       // Fetch the latest release data from the GitHub API
       fetchLatestRelease().then(({ latestVersion }) => {
         setTimeout(() => {
           // Check if a new version update is available
-          if (checkVersionUpdate(currentVersion, latestVersion)) {
+          if (checkVersionUpdate(appInfo.version, latestVersion)) {
             // Show snackbar message with new version to inform user to update the app
             snackbarLogLong(t('🚀 Version %1$s is now available! Check out the latest features & improvements.', latestVersion));
             // Create and display the Update App button with tooltip and additional layout spacer
@@ -1838,6 +2043,9 @@ function showApps(host) {
   } else {
     console.log('%c[index.js, showApps]', 'color: green;', 'Current host object: \n', host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
   }
+
+  // Stop navigation before showing the loading screen
+  Navigation.stop();
 
   // Hide the main header before showing a loading screen
   $('#main-header').children().hide();
@@ -2165,7 +2373,7 @@ function startGame(host, appID) {
       const performanceStats = $('#performanceStatsSwitch').parent().hasClass('is-checked') ? 1 : 0;
 
       console.log('%c[index.js, startGame]', 'color: green;', 'startRequest:' + 
-      '\n Host address: ' + host.address + 
+      '\n Host address: ' + host.address + ':' + host.httpPort + 
       '\n Video resolution: ' + streamWidth + 'x' + streamHeight + 
       '\n Video frame rate: ' + frameRate + ' FPS' + 
       '\n Video bitrate: ' + bitrate + ' Kbps' + 
@@ -2222,7 +2430,7 @@ function startGame(host, appID) {
           }
           // Start stream request
           sendMessage('startRequest', [
-            host.address, streamWidth, streamHeight, frameRate, bitrate.toString(), rikey, rikeyid.toString(),
+            host.address, host.httpPort, streamWidth, streamHeight, frameRate, bitrate.toString(), rikey, rikeyid.toString(),
             host.appVersion, host.gfeVersion, $root.find('sessionUrl0').text().trim(), host.serverCodecModeSupport,
             framePacing, optimizeGames, rumbleFeedback, mouseEmulation, flipABfaceButtons, flipXYfaceButtons,
             audioConfig, audioSync, playHostAudio, videoCodec, hdrMode, fullRange, gameMode, disableWarnings,
@@ -2276,7 +2484,7 @@ function startGame(host, appID) {
         }
         // Start stream request
         sendMessage('startRequest', [
-          host.address, streamWidth, streamHeight, frameRate, bitrate.toString(), rikey, rikeyid.toString(),
+          host.address, host.httpPort, streamWidth, streamHeight, frameRate, bitrate.toString(), rikey, rikeyid.toString(),
           host.appVersion, host.gfeVersion, $root.find('sessionUrl0').text().trim(), host.serverCodecModeSupport,
           framePacing, optimizeGames, rumbleFeedback, mouseEmulation, flipABfaceButtons, flipXYfaceButtons,
           audioConfig, audioSync, playHostAudio, videoCodec, hdrMode, fullRange, gameMode, disableWarnings,
@@ -2495,7 +2703,7 @@ function saveResolution() {
   storeData('resolution', chosenResolution, null);
 
   // Update the bitrate value based on the selected resolution
-  setBitratePresetValue();
+  $('#optimizeBitrateSwitch').prop('checked') ? optimizeBitratePresets() : standardBitratePresets();
   // Trigger warning check after changing video resolution
   warnResolutionFramerate();
 }
@@ -2507,7 +2715,7 @@ function saveFramerate() {
   storeData('frameRate', chosenFramerate, null);
 
   // Update the bitrate value based on the selected frame rate
-  setBitratePresetValue();
+  $('#optimizeBitrateSwitch').prop('checked') ? optimizeBitratePresets() : standardBitratePresets();
   // Trigger warning check after changing video frame rate
   warnResolutionFramerate();
 }
@@ -2565,7 +2773,8 @@ function warnBitrate() {
   }
 }
 
-function setBitratePresetValue() {
+function standardBitratePresets() {
+  console.log('%c[index.js, standardBitratePresets]', 'color: green;', 'Applying standard bitrate presets...');
   var res = $('#selectResolution').data('value');
   var frameRate = $('#selectFramerate').data('value').toString();
 
@@ -2634,6 +2843,41 @@ function setBitratePresetValue() {
     // Unrecognized option! In case someone screws with the JS to add custom resolutions.
     $('#bitrateSlider')[0].MaterialSlider.change('10');
   }
+
+  // Update the bitrate value
+  saveBitrate();
+}
+
+function optimizeBitratePresets() {
+  console.log('%c[index.js, optimizeBitratePresets]', 'color: green;', 'Applying optimize bitrate presets...');
+  var width = parseInt($('#selectResolution').data('value').split(':')[0]);
+  var height = parseInt($('#selectResolution').data('value').split(':')[1]);
+  var frameRate = $('#selectFramerate').data('value').toString();
+  var videoCodec = $('#selectCodec').data('value').toString();
+  var hdrMode = $('#hdrModeSwitch').parent().hasClass('is-checked') ? 1 : 0;
+
+  // Multiplier to adjust bitrate based on codec efficiency
+  // Sweet-spot formula reference: https://www.reddit.com/r/MoonlightStreaming/comments/1gg2cdy/sweet_spot_bitrate/
+  var codecMultiplier = {
+    "H264": 1.0,
+    "HEVC": 0.6,
+    "AV1": 0.4
+  }[videoCodec];
+
+  // Bitrate factor depends on HDR state
+  var bitrateFactor = hdrMode ? 6630.5 : 8309;
+
+  // Calculate optimized bitrate based on resolution, framerate, codec efficiency, and HDR state
+  var baseBitrate = width * height * frameRate / bitrateFactor;
+  var finalBitrate = Math.round(baseBitrate * codecMultiplier);
+
+  // Apply the default bitrate value in case of invalid calculation
+  if (finalBitrate <= 0) {
+    finalBitrate = 10;
+  }
+
+  // Set the bitrate slider value based on the calculated optimized bitrate
+  $('#bitrateSlider')[0].MaterialSlider.change(finalBitrate / 1000);
 
   // Update the bitrate value
   saveBitrate();
@@ -2768,6 +3012,10 @@ function updateVideoCodec(chosenCodecId, chosenCodecValue) {
   console.log('%c[index.js, updateVideoCodec]', 'color: green;', 'Saving video codec value: ' + chosenCodecValue);
   storeData('videoCodec', chosenCodecValue, null);
 
+  // Update the bitrate value based on the selected codec
+  if ($('#optimizeBitrateSwitch').prop('checked')) {
+    optimizeBitratePresets();
+  }
   // Trigger warning check after changing video codec
   warnVideoCodec();
 }
@@ -2824,6 +3072,11 @@ function updateHdrMode() {
     const chosenHdrMode = $('#hdrModeSwitch').parent().hasClass('is-checked');
     console.log('%c[index.js, updateHdrMode]', 'color: green;', 'Saving HDR mode state: ' + chosenHdrMode);
     storeData('hdrMode', chosenHdrMode, null);
+
+    // Update the bitrate value based on the selected HDR state
+    if ($('#optimizeBitrateSwitch').prop('checked')) {
+      optimizeBitratePresets();
+    }
   }, 100);
 }
 
@@ -2842,16 +3095,16 @@ function saveGameMode() {
     storeData('gameMode', chosenGameMode, null);
 
     // Warning for Tizen 9.0 platform when enabling game mode
-    if (isPlatformVer === 9.0 && chosenGameMode) {
+    if (parseFloat(platformVer) === 9.0 && chosenGameMode) {
       // Show the Warning dialog and push the view
       setTimeout(() => {
         // Show a warning message when enabling game mode on Tizen 9.0 platform
         warningDialog('Compatibility Warning',
-          'Game Mode (Ultra Low Latency) is not compatible with Tizen ' + isPlatformVer + ' due to platform changes introduced by Samsung. Enabling this option may result in video freezing on the first rendered frame, black screen, unstable performance, and other streaming issues.<br><br>' +
+          'Game Mode (Ultra Low Latency) is not compatible with Tizen ' + platformVer + ' due to platform changes introduced by Samsung. Enabling this option may result in video freezing on the first rendered frame, black screen, unstable performance, and other streaming issues.<br><br>' +
           'For more information about this incompatibility, including available workarounds and potential limitations, please refer to the <b>Known Issues &amp; Limitations</b> page on the Wiki.'
         );
       }, 250);
-    } else if (isPlatformVer < 9.0 && !chosenGameMode) { // Warning other Tizen versions when disabling game mode
+    } else if (parseFloat(platformVer) < 9.0 && !chosenGameMode) { // Warning other Tizen versions when disabling game mode
       // Show a warning message when disabling game mode
       snackbarLogLong(t('Warning: Disabling game mode may increase latency and affect your game streaming performance!'));
     }
@@ -2894,9 +3147,20 @@ function handleUnlockAllFps() {
       console.log('%c[index.js, handleUnlockAllFps]', 'color: green;', 'Resetting framerate value to 60 FPS');
       storeData('frameRate', '60', null);
       // Update the bitrate value based on the selected frame rate
-      setBitratePresetValue();
+      $('#optimizeBitrateSwitch').prop('checked') ? optimizeBitratePresets() : standardBitratePresets();
     }
   }
+}
+
+function saveOptimizeBitrate() {
+  setTimeout(() => {
+    const chosenOptimizeBitrate = $('#optimizeBitrateSwitch').parent().hasClass('is-checked');
+    console.log('%c[index.js, saveOptimizeBitrate]', 'color: green;', 'Saving optimize bitrate state: ' + chosenOptimizeBitrate);
+    storeData('optimizeBitrate', chosenOptimizeBitrate, null);
+
+    // Update the bitrate value based on the selected preset mode
+    chosenOptimizeBitrate ? optimizeBitratePresets() : standardBitratePresets();
+  }, 100);
 }
 
 function saveDisableWarnings() {
@@ -2987,11 +3251,13 @@ function restoreDefaultsSettingsValues() {
   storeData('fullRange', defaultFullRange, null);
 
   // Reset default Game Mode based on Tizen platform version
-  if (isPlatformVer === 9.0) {
+  if (parseFloat(platformVer) === 9.0) {
     // Disable for Tizen 9.0 to avoid compatibility issues
     const incompatibleGameMode = false;
     document.querySelector('#gameModeBtn').MaterialSwitch.off();
     storeData('gameMode', incompatibleGameMode, null);
+  } else if (parseFloat(platformVer) === 5.5) {
+    // Keep disabled for Tizen 5.5 due to lack of support
   } else {
     // Enable for other Tizen platform versions
     const defaultGameMode = true;
@@ -3002,6 +3268,10 @@ function restoreDefaultsSettingsValues() {
   const defaultUnlockAllFps = false;
   document.querySelector('#unlockAllFpsBtn').MaterialSwitch.off();
   storeData('unlockAllFps', defaultUnlockAllFps, null);
+
+  const defaultOptimizeBitrate = false;
+  document.querySelector('#optimizeBitrateBtn').MaterialSwitch.off();
+  storeData('optimizeBitrate', defaultOptimizeBitrate, null);
 
   const defaultDisableWarnings = false;
   document.querySelector('#disableWarningsBtn').MaterialSwitch.off();
@@ -3062,37 +3332,24 @@ function initSpecialKeys() {
 function loadSystemInfo() {
   console.log('%c[index.js, loadSystemInfo]', 'color: green;', 'Loading system information...');
   const systemInfoPlaceholder = document.getElementById('systemInfoBtn');
-  systemInfoPlaceholder.innerText = t('Loading system information...');
+  const buildVer = getBuildVersion(appInfo.version);
 
   // Get the system information from the TV
   if (systemInfoPlaceholder) {
-    var appName = tizen.application.getAppInfo();
-    console.log('%c[index.js, loadSystemInfo]', 'color: green;', 'App Name: ' + (appName.name ? appName.name : 'Unknown') + ' Game Streaming');
-    var appVer = tizen.application.getAppInfo();
-    console.log('%c[index.js, loadSystemInfo]', 'color: green;', 'App Version: ' + (appVer.version ? appVer.version : 'Unknown'));
-    var platformVer = tizen.systeminfo.getCapability("http://tizen.org/feature/platform.version");
+    console.log('%c[index.js, loadSystemInfo]', 'color: green;', 'App Version: ' + appInfo.name + ' v' + buildVer);
     console.log('%c[index.js, loadSystemInfo]', 'color: green;', 'Platform Version: Tizen ' + (platformVer ? platformVer : 'Unknown'));
-    var tvModelName = webapis.productinfo.getModel();
-    console.log('%c[index.js, loadSystemInfo]', 'color: green;', 'TV Model Name: ' + (tvModelName ? tvModelName : 'Unknown'));
-    var tvModelFullName = webapis.productinfo.getRealModel();
-    console.log('%c[index.js, loadSystemInfo]', 'color: green;', 'TV Model Full Name: ' + (tvModelFullName ? tvModelFullName : 'Unknown'));
-    var tvModelCode = webapis.productinfo.getModelCode();
-    console.log('%c[index.js, loadSystemInfo]', 'color: green;', 'TV Model Code: ' + (tvModelCode ? tvModelCode : 'Unknown'));
-    var is4kPanelSupported = webapis.productinfo.isUdPanelSupported();
-    console.log('%c[index.js, loadSystemInfo]', 'color: green;', '4K Panel: ' + (is4kPanelSupported ? 'Supported' : 'Unsupported'));
-    var isHdrCapabilitySupported = webapis.avinfo.isHdrTvSupport();
-    console.log('%c[index.js, loadSystemInfo]', 'color: green;', 'HDR Capability: ' + (isHdrCapabilitySupported ? 'Supported' : 'Unsupported'));
-
+    console.log('%c[index.js, loadSystemInfo]', 'color: green;', 'TV Model Series: ' + (modelSeries ? modelSeries : 'Unknown'));
+    console.log('%c[index.js, loadSystemInfo]', 'color: green;', 'TV Model Name: ' + (modelName ? modelName : 'Unknown'));
+    console.log('%c[index.js, loadSystemInfo]', 'color: green;', 'TV Model Group: ' + (modelGroup ? modelGroup : 'Unknown'));
+    console.log('%c[index.js, loadSystemInfo]', 'color: green;', '4K Panel: ' + (is4kPanel ? 'Yes' : 'No'));
+    console.log('%c[index.js, loadSystemInfo]', 'color: green;', 'HDR Capable: ' + (isHdrCapable ? 'Yes' : 'No'));
     // Insert the system information into the placeholder
     systemInfoPlaceholder.innerText =
-      t('App Name: %1$s %2$s', appName.name ? appName.name : t('Unknown'), t('Game Streaming')) + '\n' +
-      t('App Version: %1$s', appVer.version ? appVer.version : t('Unknown')) + '\n' +
+      t('App Version: %1$s v%2$s', appInfo.name, buildVer + '\n' +
       t('Platform Version: Tizen %1$s', platformVer ? platformVer : t('Unknown')) + '\n' +
-      t('TV Model Name: %1$s', tvModelName ? tvModelName : t('Unknown')) + '\n' +
-      t('TV Model Full Name: %1$s', tvModelFullName ? tvModelFullName : t('Unknown')) + '\n' +
-      t('TV Model Code: %1$s', tvModelCode ? tvModelCode : t('Unknown')) + '\n' +
-      t('4K Panel: %1$s', is4kPanelSupported ? t('Supported') : t('Unsupported')) + '\n' +
-      t('HDR Capability: %1$s', isHdrCapabilitySupported ? t('Supported') : t('Unsupported'));
+      t('TV Model Series: %1$s', modelSeries ? modelSeries : t('Unknown')) + '\n' +
+      t('TV Model Name: %1$s', modelName ? modelName : t('Unknown')) + '\n' +
+      t('TV Model Group: %1$s', modelGroup ? modelGroup : t('Unknown'));
   } else {
     console.error('%c[index.js, loadSystemInfo]', 'color: green;', 'Error: Failed to load system information!');
     systemInfoPlaceholder.innerText = t('Failed to load system information!');
@@ -3328,8 +3585,11 @@ function loadUserDataCb() {
   console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored gameMode preferences.');
   getData('gameMode', function(previousValue) {
     if (previousValue.gameMode == null) {
-      if (isPlatformVer === 9.0) {
+      if (parseFloat(platformVer) === 9.0) {
         document.querySelector('#gameModeBtn').MaterialSwitch.off(); // Disable for Tizen 9.0 to avoid compatibility issues
+      } else if (parseFloat(platformVer) === 5.5) {
+        document.querySelector('#gameModeBtn').MaterialSwitch.off(); // Disable for Tizen 5.5 due to lack of support
+        document.querySelector('#gameModeBtn').MaterialSwitch.disable(); // Disable the switch to prevent user interaction
       } else {
         document.querySelector('#gameModeBtn').MaterialSwitch.on(); // Set the default state
       }
@@ -3337,6 +3597,17 @@ function loadUserDataCb() {
       document.querySelector('#gameModeBtn').MaterialSwitch.off();
     } else {
       document.querySelector('#gameModeBtn').MaterialSwitch.on();
+    }
+  });
+
+  console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored optimizeBitrate preferences.');
+  getData('optimizeBitrate', function(previousValue) {
+    if (previousValue.optimizeBitrate == null) {
+      document.querySelector('#optimizeBitrateBtn').MaterialSwitch.off(); // Set the default state
+    } else if (previousValue.optimizeBitrate == false) {
+      document.querySelector('#optimizeBitrateBtn').MaterialSwitch.off();
+    } else {
+      document.querySelector('#optimizeBitrateBtn').MaterialSwitch.on();
     }
   });
 
@@ -3412,6 +3683,9 @@ function loadHTTPCertsCb() {
         hosts = previousValue.hosts != null ? previousValue.hosts : {};
         for (var hostUID in hosts) { // Programmatically add each new host
           var revivedHost = new NvHTTP(hosts[hostUID].address, myUniqueid, hosts[hostUID].userEnteredAddress, hosts[hostUID].macAddress);
+          revivedHost.httpPort = hosts[hostUID].httpPort || ((hosts[hostUID].httpsPort || 47984) + 5);
+          revivedHost.httpsPort = hosts[hostUID].httpsPort || (revivedHost.httpPort - 5);
+          revivedHost.externalPort = hosts[hostUID].externalPort || revivedHost.httpPort;
           revivedHost.serverUid = hosts[hostUID].serverUid;
           revivedHost.externalIP = hosts[hostUID].externalIP;
           revivedHost.hostname = hosts[hostUID].hostname;
