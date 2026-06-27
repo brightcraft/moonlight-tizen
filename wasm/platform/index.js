@@ -13,6 +13,8 @@ var myUniqueid = '0123456789ABCDEF'; // Use the same UID as other Moonlight clie
 var api; // The `api` should only be set if we're in a host-specific screen, on the initial screen it should always be null
 var isInGame = false; // Flag indicating whether the game has started, initial value is false
 var isDialogOpen = false; // Flag indicating whether the dialog is open, initial value is false
+var isPairingInProgress = false; // Flag indicating whether a pairing process is in progress, initial value is false
+var wasPairingCanceled = false; // Flag indicating whether the current pairing process was canceled by the user, initial value is false
 var isGamepadActive = false; // Flag indicating whether the gamepad input is active, initial value is false
 var isClickPrevented = false; // Flag indicating whether the click event should be prevented, initial value is false
 var resFpsWarning = false; // Flag indicating whether the video resolution and frame rate warning message has shown, initial value is false
@@ -406,6 +408,11 @@ function restoreUiAfterWasmLoad() {
 }
 
 function hostChosen(host) {
+  if (isPairingInProgress) {
+    snackbarLogLong('A pairing request is currently in progress. Please wait for it to timeout or finish before trying again.');
+    return;
+  }
+
   // If the host is already offline or fails to connect, notify the user.
   if (!host.online) {
     // Let the user know what to do to bring the host back online and until then, we'll be back to the previous view.
@@ -823,10 +830,14 @@ function pairingDialog(nvhttpHost, onSuccess, onFailure) {
     isDialogOpen = true;
     Navigation.push(Views.PairingDialog);
 
+    isPairingInProgress = true;
+    wasPairingCanceled = false;
+
     // Cancel the operation if the Cancel button is pressed
     $('#cancelPairing').off('click');
     $('#cancelPairing').on('click', function() {
       console.log('%c[index.js, pairingDialog]', 'color: green;', 'Closing app dialog and returning.');
+      wasPairingCanceled = true;
       pairingOverlay.style.display = 'none';
       pairingDialog.close();
       isDialogOpen = false;
@@ -835,6 +846,7 @@ function pairingDialog(nvhttpHost, onSuccess, onFailure) {
 
     console.log('%c[index.js, pairingDialog]', 'color: green;', 'Sending pairing request to ' + nvhttpHost.hostname + ' with PIN ' + randomNumber);
     nvhttpHost.pair(randomNumber).then(function() {
+      isPairingInProgress = false;
       snackbarLog(t('Successfully paired with %1$s', nvhttpHost.hostname));
       // Close the dialog if the pairing was successful
       console.log('%c[index.js, pairingDialog]', 'color: green;', 'Closing app dialog and returning.');
@@ -844,6 +856,11 @@ function pairingDialog(nvhttpHost, onSuccess, onFailure) {
       Navigation.pop();
       onSuccess();
     }, function(failedPairing) {
+      isPairingInProgress = false;
+      if (wasPairingCanceled) {
+        console.log('%c[index.js, pairingDialog]', 'color: green;', 'Ignored pairing failure due to cancellation.');
+        return;
+      }
       console.error('%c[index.js, pairingDialog]', 'color: green;', 'Error: Failed API object:\n', nvhttpHost, '\n' + nvhttpHost.toString()); // Logging both object (for console) and toString-ed object (for text logs)
       snackbarLog(t('Failed to pair with %1$s', nvhttpHost.hostname));
       // If the host is already in a streaming session or failed during pairing,
