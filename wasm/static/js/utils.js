@@ -1,3 +1,12 @@
+// Safely wraps IPv6 addresses in brackets for URL construction.
+// IPv4 addresses and DNS hostnames do not contain colons, so they are untouched.
+function formatAddressForUrl(address) {
+  if (address && address.indexOf(':') !== -1 && address.indexOf('[') === -1) {
+    return '[' + address + ']';
+  }
+  return address;
+}
+
 function guuid() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
     var r = Math.random() * 16 | 0,
@@ -173,23 +182,24 @@ NvHTTP.prototype = {
 
   // Refreshes the server info using a given address. This is useful for testing whether we can successfully ping a host at a given address
   refreshServerInfoAtAddress: function(givenAddress) {
+    var urlAddr = formatAddressForUrl(givenAddress);
     if (this.ppkstr == null) {
       // Use HTTP if we have no pinned cert
       return sendMessage('openUrl', [
-        'http://' + givenAddress + ':' + this.httpPort + '/serverinfo?' + this._buildUidStr(), this.ppkstr, false
+        'http://' + urlAddr + ':' + this.httpPort + '/serverinfo?' + this._buildUidStr(), this.ppkstr, false
       ]).then(function(retHttp) {
         return this._parseServerInfo(retHttp);
       }.bind(this));
     }
     // Try HTTPS first
     return sendMessage('openUrl', [
-      'https://' + givenAddress + ':' + this.httpsPort + '/serverinfo?' + this._buildUidStr(), this.ppkstr, false
+      'https://' + urlAddr + ':' + this.httpsPort + '/serverinfo?' + this._buildUidStr(), this.ppkstr, false
     ]).then(function(ret) {
       if (!this._parseServerInfo(ret)) { // If that fails
         console.error('%c[utils.js, refreshServerInfoAtAddress]', 'color: gray;', 'Error: Failed to parse server info from HTTPS, falling back to HTTP...');
         // Try HTTP as a failover. Useful to clients who aren't paired yet
         return sendMessage('openUrl', [
-          'http://' + givenAddress + ':' + this.httpPort + '/serverinfo?' + this._buildUidStr(), this.ppkstr, false
+          'http://' + urlAddr + ':' + this.httpPort + '/serverinfo?' + this._buildUidStr(), this.ppkstr, false
         ]).then(function(retHttp) {
           return this._parseServerInfo(retHttp);
         }.bind(this));
@@ -199,7 +209,7 @@ NvHTTP.prototype = {
         // Retry over HTTP
         console.warn('%c[utils.js, refreshServerInfoAtAddress]', 'color: gray;', 'Warning: Certificate mismatch. Retrying over HTTP...', this);
         return sendMessage('openUrl', [
-          'http://' + givenAddress + ':' + this.httpPort + '/serverinfo?' + this._buildUidStr(), this.ppkstr, false
+          'http://' + urlAddr + ':' + this.httpPort + '/serverinfo?' + this._buildUidStr(), this.ppkstr, false
         ]).then(function(retHttp) {
           return this._parseServerInfo(retHttp);
         }.bind(this));
@@ -226,9 +236,10 @@ NvHTTP.prototype = {
 
     this.selectServerAddress(function(successfulAddress) {
       // Successfully determined server address. Update base URL
+      var urlAddr = formatAddressForUrl(successfulAddress);
       this.address = successfulAddress;
-      this._baseUrlHttps = 'https://' + successfulAddress + ':' + this.httpsPort;
-      this._baseUrlHttp = 'http://' + successfulAddress + ':' + this.httpPort;
+      this._baseUrlHttps = 'https://' + urlAddr + ':' + this.httpsPort;
+      this._baseUrlHttp = 'http://' + urlAddr + ':' + this.httpPort;
 
       // Poll for updated mac address only on first successful server info poll
       if (this.paired && this._pollCount === 0) {

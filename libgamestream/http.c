@@ -23,6 +23,10 @@
 #include <string.h>
 #include <curl/curl.h>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 #include <openssl/ssl.h>
 #include <openssl/x509v3.h>
 #include <openssl/pem.h>
@@ -60,6 +64,47 @@ static CURLcode sslctx_function(CURL * curl, void * sslctx, void * parm)
 }
 
 int http_request(const char* url, const char* ppkstr, PHTTP_DATA data) {
+#ifdef __EMSCRIPTEN__
+  // Emscripten's built-in libcurl port uses a buggy regular expression to parse CURLOPT_URL.
+  // It fails to properly extract the host from bracketed IPv6 URLs (e.g. http://[fe80::1]:47989),
+  // instantly returning CURLE_COULDNT_RESOLVE_HOST without even trying to connect.
+  // To bypass this, we use EM_ASM to perform a native, synchronous XMLHttpRequest directly, 
+  // which handles IPv6 literals flawlessly.
+  char* response = (char*) EM_ASM_INT({
+    var url = UTF8ToString($0);
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', url, false); 
+    try {
+      xhr.send();
+      if (xhr.status == 200 || xhr.status == 0) {
+        var respText = xhr.responseText || "";
+        var length = lengthBytesUTF8(respText) + 1;
+        var ptr = _malloc(length);
+        stringToUTF8(respText, ptr, length);
+        return ptr;
+      }
+    } catch(e) {
+      console.error("XHR failed for URL: " + url, e);
+    }
+    return 0;
+  }, url);
+
+  if (response == NULL) {
+    printf("EM_ASM XHR failed for %s\n", url);
+    return GS_FAILED;
+  }
+
+  if (data->memory != NULL) {
+    free(data->memory);
+  }
+  
+  data->memory = response;
+  data->size = strlen(response);
+
+  printf("EM_ASM XHR SUCCESS for %s\n", url);
+  return GS_OK;
+
+#else
   int ret;
   CURL *curl;
 
@@ -116,6 +161,7 @@ int http_request(const char* url, const char* ppkstr, PHTTP_DATA data) {
 cleanup:
   curl_easy_cleanup(curl);
   return ret;
+#endif
 }
 
 PHTTP_DATA http_create_data() {
