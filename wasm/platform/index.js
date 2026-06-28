@@ -345,6 +345,73 @@ function showHosts() {
   setTimeout(() => Navigation.switch(), 500);
 }
 
+// findNvService() — unified host discovery for Tizen.
+//
+// Tizen's WebAssembly sandbox cannot receive mDNS responses:
+//   - UDP multicast on port 5353 is intercepted by the system Avahi daemon and
+//     never delivered to WASM sockets, even with SO_REUSEPORT set.
+//   - Unicast mDNS replies are dropped by Tizen's SMACK stateful firewall because
+//     the query goes to 224.0.0.251 but the reply comes from the host's unicast IP,
+//     so the 5-tuple never matches an established conntrack entry.
+//   - Samsung's Tizen WRT has no mDNS/NetBIOS/local DNS support, making .local
+//     hostnames (e.g. MacBook-Pro.local from /serverinfo's <hostname>) unresolvable.
+//
+// Instead, we perform a fast parallel HTTP scan of the /24 subnet. TCP fetch()
+// correctly establishes conntrack state, so replies are delivered normally.
+// Only port 47989 (Sunshine HTTP) is probed — 47984 (HTTPS/GFE) is skipped to
+// halve the number of parallel requests and avoid TLS certificate errors.
+//
+// If Samsung ever adds native UDP multicast or mDNS support to the Tizen WRT,
+// re-enable the original findNvService() and replace this function with a
+// call to sendMessage('startMdnsDiscovery').
+
+function findNvService(ipString) {
+  // Discovery is IPv4-only: Tizen has no mDNS/NetBIOS/local DNS to resolve
+  // .local hostnames, and the HTTP subnet scanner only produces IPv4 addresses.
+  var ip = ipString.replace('ipv4:', '');
+
+  // Skip hosts we have already registered by this exact IP address
+  for (var hostUID in hosts) {
+    if (hosts[hostUID].address === ip) {
+      return;
+    }
+  }
+
+  var discoveredHost = new NvHTTP(ip, myUniqueid);
+  discoveredHost.httpPort = 47989;
+  discoveredHost.httpsPort = 47984;
+
+  discoveredHost.pollServer(function(returnedDiscoveredHost) {
+    if (!returnedDiscoveredHost.online) {
+      return;
+    }
+
+    if (hosts[returnedDiscoveredHost.serverUid] != null) {
+      // Host already known — update its stored IP if it has changed
+      var existingAddress = hosts[returnedDiscoveredHost.serverUid].address;
+      if (existingAddress !== returnedDiscoveredHost.address) {
+        var isIpv4 = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(existingAddress);
+        // Do not overwrite IPv6 or DNS addresses if they are currently online
+        if (!isIpv4 && hosts[returnedDiscoveredHost.serverUid].online) {
+          console.log('%c[index.js, findNvService]', 'color: gray;',
+            'Keeping existing non-IPv4 address since it is online:', existingAddress);
+        } else {
+          hosts[returnedDiscoveredHost.serverUid].address = returnedDiscoveredHost.address;
+          if (typeof hosts[returnedDiscoveredHost.serverUid].updateExternalAddressIP4 === 'function') {
+            hosts[returnedDiscoveredHost.serverUid].updateExternalAddressIP4();
+          }
+          saveHosts();
+        }
+      }
+    } else {
+      // New host — add to grid and begin background polling
+      addHostToGrid(returnedDiscoveredHost, true);
+      beginBackgroundPollingOfHost(returnedDiscoveredHost);
+      saveHosts();
+    }
+  });
+}
+
 function restoreUiAfterWasmLoad() {
   // Stop navigation before showing the loading screen
   Navigation.stop();
@@ -388,6 +455,58 @@ function restoreUiAfterWasmLoad() {
   //     }
   //   }
   // });
+
+  // Scan the /24 subnet for Sunshine/GFE hosts. For each IP that responds with
+  // HTTP 200 on port 47989, findNvService() runs the full NvHTTP handshake and
+  // registers the host in the UI. See the findNvService() comment above for why
+  // mDNS is not used on Tizen.
+
+  (function startSubnetScanner() {
+    try {
+      var localIp = (typeof webapis !== 'undefined' && webapis.network)
+        ? webapis.network.getIp()
+        : null;
+
+      if (!localIp) {
+        console.warn('%c[index.js, subnetScanner]', 'color: orange;',
+          'Could not determine local IP — skipping auto-discovery.');
+      } else {
+        var parts = localIp.split('.');
+        if (parts.length !== 4) {
+          console.warn('%c[index.js, subnetScanner]', 'color: orange;',
+            'Unexpected IP format:', localIp);
+        } else {
+          var subnet = parts[0] + '.' + parts[1] + '.' + parts[2];
+          console.log('%c[index.js, subnetScanner]', 'color: green;',
+            'Starting /24 scan on', subnet + '.0/24');
+
+          for (var i = 1; i <= 254; i++) {
+            (function(ip) {
+              var abortCtrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+              var timeoutId = setTimeout(function() {
+                if (abortCtrl) abortCtrl.abort();
+              }, 800);
+
+              fetch('http://' + ip + ':47989/serverinfo',
+                abortCtrl ? { signal: abortCtrl.signal } : {}
+              ).then(function(res) {
+                clearTimeout(timeoutId);
+                if (res.ok) {
+                  console.log('%c[index.js, subnetScanner]', 'color: green;',
+                    'Found Sunshine/GFE host at', ip);
+                  findNvService('ipv4:' + ip);
+                }
+              }).catch(function() {
+                clearTimeout(timeoutId);
+              });
+            })(subnet + '.' + i);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('%c[index.js, subnetScanner]', 'color: red;', 'Subnet scanner failed:', e);
+    }
+  })();
 
   // Automatically check for a new update after 10 seconds delay at application startup once every 24 hours
   setTimeout(() => checkForAppUpdatesAtStartup(), 10000);
