@@ -6,6 +6,7 @@ ENV TZ=Etc/UTC
 # Install required packages and dependencies
 RUN apt-get update && apt-get install -y \
 	cmake \
+	ccache \
 	expect \
 	git \
 	ninja-build \
@@ -73,10 +74,15 @@ COPY --chown=moonlight wasm/dispatcher ./moonlight-tizen/wasm/dispatcher/
 
 RUN cmake \
 	-DCMAKE_TOOLCHAIN_FILE=/home/moonlight/emscripten-release-bundle/emsdk/fastcomp/emscripten/cmake/Modules/Platform/Emscripten.cmake \
+	-DCMAKE_C_COMPILER_LAUNCHER=ccache \
+	-DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
 	-G Ninja \
 	-S moonlight-tizen \
 	-B build
-RUN cmake --build build
+RUN --mount=type=cache,target=/home/moonlight/.ccache,uid=1000,gid=1000 \
+	--mount=type=cache,target=/home/moonlight/.emscripten_cache,uid=1000,gid=1000 \
+	--mount=type=cache,target=/home/moonlight/.emscripten_ports,uid=1000,gid=1000 \
+	CCACHE_DIR=/home/moonlight/.ccache cmake --build build
 
 # Copy the remaining frontend files required for packaging the application
 COPY --chown=moonlight res/ ./moonlight-tizen/res/
