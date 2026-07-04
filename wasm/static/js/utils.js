@@ -502,20 +502,30 @@ NvHTTP.prototype = {
         var fileHandleRead = tizen.filesystem.openFile(boxArtDir + '/' + boxArtFileName, 'r');
         var fileContentInBlob = fileHandleRead.readBlob();
         fileHandleRead.close();
+
+        // Guard against empty/corrupt cached files — treat them as a cache miss so we re-fetch from the network
+        if (!fileContentInBlob || fileContentInBlob.size === 0) {
+          throw new Error('Cached box art file is empty, re-fetching from network.');
+        }
+
         console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Returning storage-cached box art: ', appId);
 
+        // Re-wrap with the correct MIME type so the data URL is recognised as an image by the browser
+        var typedBlob = new Blob([fileContentInBlob], { type: 'image/png' });
         var reader = new FileReader();
         reader.onloadend = function() {
           var dataUrl = reader.result;
           resolve(dataUrl);
         };
-        reader.readAsDataURL(fileContentInBlob);
+        reader.readAsDataURL(typedBlob);
       } catch (readError) {
         console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Cannot find or read box art from internal storage: ', readError);
         // Fetch the new box art from the network
         return sendMessage('openUrl', [
           this._baseUrlHttps + '/appasset?' + this._buildUidStr() + '&appid=' + appId + '&AssetType=2&AssetIdx=0', this.ppkstr, true
         ]).then(function(boxArtBuffer) {
+          // Use a Blob (not a raw ArrayBuffer) for writeData — Tizen 5.x may not accept ArrayBuffer
+          var blob = new Blob([boxArtBuffer], { type: 'image/png' });
           var reader = new FileReader();
           reader.onloadend = function() {
             var dataUrl = reader.result;
@@ -525,7 +535,7 @@ NvHTTP.prototype = {
               try { tizen.filesystem.createDirectory(boxArtDir, true); } catch (mkdirErr) {}
               // Save the new box art file directly to documents storage
               var fileHandleWrite = tizen.filesystem.openFile(boxArtDir + '/' + boxArtFileName, 'w');
-              fileHandleWrite.writeData(boxArtBuffer);
+              fileHandleWrite.writeData(blob);
               fileHandleWrite.close();
               console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Returning network-fetched box art: ', appId);
               resolve(dataUrl);
@@ -534,9 +544,6 @@ NvHTTP.prototype = {
               reject(writeError);
             }
           };
-          var blob = new Blob([boxArtBuffer], {
-            type: 'image/png'
-          });
           reader.readAsDataURL(blob);
         }.bind(this), function(error) {
           console.error('%c[utils.js, getBoxArt]', 'color: gray;', 'Error: Failed to retrieve box art from network: ', error);
