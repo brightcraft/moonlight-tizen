@@ -3712,7 +3712,9 @@ function loadHTTPCertsCb() {
           addHostToGrid(revivedHost);
         }
         startPollingHosts();
-        // Update Smart Hub Preview tiles after loading saved hosts
+        // Update Smart Hub Preview tiles after loading saved hosts.
+        // The 2-second delay allows the host polling cycle to complete before
+        // building the tile list, so paired status is up to date.
         setTimeout(updatePreviewData, 2000);
         console.log('%c[index.js, loadHTTPCertsCb]', 'color: green;', 'Loading previously connected hosts...');
       });
@@ -3732,7 +3734,7 @@ function waitForHostAndNavigate(serverUid) {
       hostChosen(hosts[serverUid]);
     } else if (attempts > 30) {
       clearInterval(interval);
-      console.warn('%c[index.js, waitForHostAndNavigate]', 'color: green;', 'Warning: Timed out waiting for host ' + serverUid + ' to load.');
+      console.warn('%c[index.js, waitForHostAndNavigate]', 'color: orange;', 'Warning: Timed out waiting for host ' + serverUid + ' to load.');
     }
   }, 1000);
 }

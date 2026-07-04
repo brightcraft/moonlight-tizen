@@ -68,12 +68,12 @@ function handleDataInRequest() {
 
         if (key === 'Preview') {
           var previewData = value;
-          var previewData2 = JSON.parse(previewData);
+          var parsedPreviewData = JSON.parse(previewData);
           logAndSend('Preview data received: ' + previewData);
 
           try {
             webapis.preview.setPreviewData(
-              JSON.stringify(previewData2),
+              JSON.stringify(parsedPreviewData),
               function() {
                 logAndSend('Preview set successfully.');
                 tizen.application.getCurrentApplication().exit();
