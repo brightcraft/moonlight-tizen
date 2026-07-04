@@ -3845,7 +3845,7 @@ function handleDeepLink() {
         var actionData = JSON.parse(payload.values);
         console.log('%c[index.js, handleDeepLink]', 'color: green;', 'Deep link action data: ', actionData);
 
-        if (actionData.serverUid && actionData.appId != null) {
+        if (actionData.serverUid && actionData.appId !== null && actionData.appId !== undefined) {
           // App-level deep link from a preview tile: navigate to the specific host and app
           waitForHostAndNavigateToApp(actionData.serverUid, actionData.appId);
         } else if (actionData.serverUid) {
