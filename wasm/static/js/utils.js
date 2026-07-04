@@ -531,8 +531,8 @@ NvHTTP.prototype = {
             var dataUrl = reader.result;
             try {
               // Ensure the documents/Moonlight/{hostname} directory tree exists before writing
-              try { tizen.filesystem.createDirectory('documents/Moonlight', true); } catch (mkdirErr) {}
-              try { tizen.filesystem.createDirectory(boxArtDir, true); } catch (mkdirErr) {}
+              try { tizen.filesystem.createDirectory('documents/Moonlight', true); } catch (mkdirErr) { console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Could not create documents/Moonlight directory: ', mkdirErr); }
+              try { tizen.filesystem.createDirectory(boxArtDir, true); } catch (mkdirErr) { console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Could not create box art directory: ', mkdirErr); }
               // Save the new box art file directly to documents storage
               var fileHandleWrite = tizen.filesystem.openFile(boxArtDir + '/' + boxArtFileName, 'w');
               fileHandleWrite.writeData(blob);
