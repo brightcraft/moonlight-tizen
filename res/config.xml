@@ -7,7 +7,7 @@
         <tizen:src name="index.html" reload="disable"/>
         <tizen:operation name="http://samsung.com/appcontrol/operation/eden_resume"/>
     </tizen:app-control>
-    <!-- Remove the tizen:service block for Tizen versions below 4.0, as background services are not supported -->
+    <!-- Remove the tizen:service block for Tizen versions below 3.0, as background services are not supported -->
     <tizen:service id="MoonLightS.service">
         <tizen:content src="service/service.js"/>
         <tizen:name>moonlight_service</tizen:name>
@@ -34,7 +34,7 @@
     <tizen:privilege name="http://tizen.org/privilege/tv.audio"/>
     <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
     <tizen:profile name="tv-samsung"/>
-    <!-- Remove the next two entries for Tizen versions below 4.0, as Smart Hub Preview is not supported -->
+    <!-- Remove the next two entries for Tizen versions below 3.0, as Smart Hub Preview is not supported -->
     <tizen:metadata key="http://samsung.com/tv/metadata/use.preview" value="bg_service"/>
     <tizen:setting screen-orientation="landscape" context-menu="enable" background-support="enable" encryption="disable" install-location="auto" hwkey-event="enable" pointing-device-support="enable"/>
 </widget>
