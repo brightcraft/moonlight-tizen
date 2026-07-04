@@ -524,24 +524,33 @@ NvHTTP.prototype = {
         return sendMessage('openUrl', [
           this._baseUrlHttps + '/appasset?' + this._buildUidStr() + '&appid=' + appId + '&AssetType=2&AssetIdx=0', this.ppkstr, true
         ]).then(function(boxArtBuffer) {
-          // Use a Blob (not a raw ArrayBuffer) for writeData — Tizen 5.x may not accept ArrayBuffer
+          // boxArtBuffer is a Uint8Array from the WASM binary response
           var blob = new Blob([boxArtBuffer], { type: 'image/png' });
           var reader = new FileReader();
           reader.onloadend = function() {
             var dataUrl = reader.result;
+            // Always resolve for UI display regardless of caching outcome.
+            // File caching is only needed for Smart Hub Preview — a write failure
+            // must not prevent the image from appearing in the app list.
+            console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Returning network-fetched box art: ', appId);
+            resolve(dataUrl);
+            // Attempt to cache box art to disk for Smart Hub Preview cross-process access
             try {
               // Ensure the documents/Moonlight/{hostname} directory tree exists before writing
               try { tizen.filesystem.createDirectory('documents/Moonlight', true); } catch (mkdirErr) { console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Could not create documents/Moonlight directory: ', mkdirErr); }
               try { tizen.filesystem.createDirectory(boxArtDir, true); } catch (mkdirErr) { console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Could not create box art directory: ', mkdirErr); }
-              // Save the new box art file directly to documents storage
               var fileHandleWrite = tizen.filesystem.openFile(boxArtDir + '/' + boxArtFileName, 'w');
-              fileHandleWrite.writeData(blob);
+              // Prefer writeBlob (dedicated Blob writer) for reliability on Tizen 5.x;
+              // fall back to writeData if writeBlob is not available.
+              if (typeof fileHandleWrite.writeBlob === 'function') {
+                fileHandleWrite.writeBlob(blob);
+              } else {
+                fileHandleWrite.writeData(blob);
+              }
               fileHandleWrite.close();
-              console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Returning network-fetched box art: ', appId);
-              resolve(dataUrl);
+              console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Box art cached to disk: ', boxArtDir + '/' + boxArtFileName);
             } catch (writeError) {
-              console.error('%c[utils.js, getBoxArt]', 'color: gray;', 'Error: Unable to save or write box art to internal storage: ', writeError);
-              reject(writeError);
+              console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Could not cache box art to disk (Smart Hub Preview may not show image): ', writeError);
             }
           };
           reader.readAsDataURL(blob);
