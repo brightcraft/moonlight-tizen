@@ -544,15 +544,30 @@ NvHTTP.prototype = {
   clearBoxArt: function() {
     return new Promise(function(resolve, reject) {
       var boxArtDir = 'wgt-private/' + this.hostname; // Widget private storage directory is r/w (read/write)
+      var docBoxArtDir = 'documents/Moonlight/' + this.hostname; // Public documents copy for Smart Hub Preview
+      var wgtError = null;
 
-      // Delete the cached box art directory from the storage
+      // Delete the cached box art directory from wgt-private storage
       try {
         tizen.filesystem.deleteDirectory(boxArtDir);
         console.log('%c[utils.js, clearBoxArt]', 'color: gray;', 'Clearing the box art files from ' + boxArtDir);
-        resolve();
       } catch (error) {
         console.error('%c[utils.js, clearBoxArt]', 'color: gray;', 'Error: Failed to clear box art files: ', error);
-        reject(error);
+        wgtError = error;
+      }
+
+      // Best-effort: also delete the documents copy used for Smart Hub Preview
+      try {
+        tizen.filesystem.deleteDirectory(docBoxArtDir);
+        console.log('%c[utils.js, clearBoxArt]', 'color: gray;', 'Clearing the box art files from ' + docBoxArtDir);
+      } catch (docError) {
+        console.warn('%c[utils.js, clearBoxArt]', 'color: gray;', 'Warning: Could not clear box art from documents (may not exist): ', docError);
+      }
+
+      if (wgtError) {
+        reject(wgtError);
+      } else {
+        resolve();
       }
     }.bind(this));
   },
