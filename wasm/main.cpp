@@ -399,6 +399,13 @@ void MoonlightInstance::Pair_private(int callbackId, std::string serverMajorVers
   }
 }
 
+extern "C" void http_cancel_request();
+
+void MoonlightInstance::CancelPair() {
+  ClLogMessage("%s: Canceling any ongoing HTTP request\n", __func__);
+  http_cancel_request();
+}
+
 void MoonlightInstance::Pair(int callbackId, std::string serverMajorVersion, std::string address, int httpPort, std::string randomNumber) {
   ClLogMessage("%s with host address: %s:%d\n", __func__, address.c_str(), httpPort);
   m_Dispatcher.post_job(std::bind(&MoonlightInstance::Pair_private, this, callbackId, serverMajorVersion, address, httpPort, randomNumber), false);
@@ -519,6 +526,10 @@ void pair(int callbackId, std::string serverMajorVersion, std::string address, i
   g_Instance->Pair(callbackId, serverMajorVersion, address, httpPort, randomNumber);
 }
 
+void cancelPair() {
+  g_Instance->CancelPair();
+}
+
 void wakeOnLan(int callbackId, std::string macAddress) {
   g_Instance->WakeOnLan(callbackId, macAddress);
 }
@@ -560,5 +571,6 @@ EMSCRIPTEN_BINDINGS(handle_message) {
   emscripten::function("toggleStats", &toggleStats);
   emscripten::function("stun", &stun);
   emscripten::function("pair", &pair);
+  emscripten::function("cancelPair", &cancelPair);
   emscripten::function("wakeOnLan", &wakeOnLan);
 }
