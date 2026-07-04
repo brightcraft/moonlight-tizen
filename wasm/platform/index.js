@@ -2225,35 +2225,20 @@ function showApps(host) {
         var boxArtPlaceholderImg = new Image();
         host.getBoxArt(app.id).then(function(resolvedPromise) {
           boxArtPlaceholderImg.src = resolvedPromise;
-          // Copy box art to the public documents virtual root for Smart Hub Preview access.
-          // On Tizen 5.0+, sandboxing blocks the Smart Hub rendering process from reading
-          // wgt-private data. Documents storage is accessible cross-process.
-          // Falls back to the wgt-private file URI on older Tizen versions where the copy fails.
+          // Resolve the file URI from documents storage for Smart Hub Preview.
+          // Box art is now saved directly to documents/Moonlight/{hostname}/ by getBoxArt(),
+          // so it is immediately accessible to the Smart Hub rendering process.
           if (_previewApps[host.serverUid]) {
             var appEntry = _previewApps[host.serverUid].apps.find(function(a) { return a.id === app.id; });
             if (appEntry && !appEntry.imageUri) {
               var _serverUid = host.serverUid;
               var _appId = app.id;
               try {
-                _copyBoxArtToDocuments(host.hostname, _appId, function(docUri) {
-                  if (docUri) {
-                    _setPreviewImageUri(_serverUid, _appId, docUri);
-                  } else {
-                    // Fallback: resolve from wgt-private (works on Tizen < 5.0)
-                    var wgtPath = 'wgt-private/' + host.hostname + '/boxart-' + _appId;
-                    try {
-                      tizen.filesystem.resolve(wgtPath, function(file) {
-                        _setPreviewImageUri(_serverUid, _appId, file.toURI());
-                      }, function(err) {
-                        console.warn('%c[index.js, showApps]', 'color: green;', 'Warning: Could not resolve wgt-private box art URI for Smart Hub Preview: ' + err.message);
-                      }, 'r');
-                    } catch (e) {
-                      console.warn('%c[index.js, showApps]', 'color: green;', 'Warning: Could not access filesystem for Smart Hub Preview fallback: ' + e.message);
-                    }
-                  }
-                });
+                var docPath = 'documents/Moonlight/' + host.hostname + '/boxart-' + _appId;
+                var fileUri = tizen.filesystem.toURI(docPath);
+                _setPreviewImageUri(_serverUid, _appId, fileUri);
               } catch (e) {
-                console.warn('%c[index.js, showApps]', 'color: green;', 'Warning: Could not copy box art for Smart Hub Preview thumbnail:', e.message);
+                console.warn('%c[index.js, showApps]', 'color: green;', 'Warning: Could not resolve documents box art URI for Smart Hub Preview: ' + e.message);
               }
             }
           }
@@ -3771,15 +3756,14 @@ function loadHTTPCertsCb() {
         // Using the persisted list avoids requiring live host connections at startup.
         getData('previewApps', function(storedPreview) {
           _previewApps = (storedPreview.previewApps != null) ? storedPreview.previewApps : {};
-          // Migrate: invalidate any image URIs pointing to wgt-private storage.
-          // On Tizen 5.0+, the Smart Hub rendering process cannot read wgt-private data
-          // due to cross-process sandboxing. Image URIs are now resolved from the public
-          // documents root, so previously cached wgt-private URIs must be re-resolved.
+          // Migrate: invalidate any image URIs not pointing to the current documents/Moonlight/ storage.
+          // Box art is now saved directly to documents/Moonlight/{hostname}/, so previously cached
+          // wgt-private (/apps_rw/) URIs and old flat-structure documents URIs must be re-resolved.
           Object.keys(_previewApps).forEach(function(uid) {
             var entry = _previewApps[uid];
             if (entry && entry.apps) {
               entry.apps.forEach(function(app) {
-                if (app.imageUri && app.imageUri.indexOf('/apps_rw/') !== -1) {
+                if (app.imageUri && app.imageUri.indexOf('/content/Documents/Moonlight/') === -1) {
                   delete app.imageUri;
                 }
               });
@@ -3921,69 +3905,6 @@ function handleDeepLink() {
   } catch (e) {
     console.log('%c[index.js, handleDeepLink]', 'color: green;', 'No deep link or error processing it: ' + e.message);
   }
-}
-
-// Copies a box art image from wgt-private storage to the public documents virtual root,
-// making it readable by the Smart Hub rendering process on Tizen 5.0+.
-// On Tizen 5.0+, strict cross-process sandboxing prevents the Smart Hub system from reading
-// wgt-private data even within the same package; the public documents root is accessible.
-// On success, calls callback(uri) with the resolved documents file URI.
-// On any failure, calls callback(null) so callers can fall back gracefully.
-function _copyBoxArtToDocuments(hostname, appId, callback) {
-  var boxArtFileName = 'boxart-' + appId;
-  var srcPath = 'wgt-private/' + hostname + '/' + boxArtFileName;
-  var docPath = 'documents/Moonlight/' + hostname + '/' + boxArtFileName;
-
-  // Read binary data from wgt-private synchronously
-  var blob;
-  try {
-    var srcHandle = tizen.filesystem.openFile(srcPath, 'r');
-    blob = srcHandle.readBlob();
-    srcHandle.close();
-  } catch (readErr) {
-    console.warn('%c[index.js, _copyBoxArtToDocuments]', 'color: green;', 'Warning: Could not read box art from wgt-private: ' + readErr.message);
-    callback(null);
-    return;
-  }
-
-  // Convert Blob to ArrayBuffer for writing (FileReader is async)
-  var fr = new FileReader();
-  fr.onerror = function() {
-    console.warn('%c[index.js, _copyBoxArtToDocuments]', 'color: green;', 'Warning: FileReader error converting box art blob.');
-    callback(null);
-  };
-  fr.onloadend = function() {
-    var buffer = fr.result;
-    // Ensure the documents/Moonlight/{hostname} directory tree exists, then write
-    tizen.filesystem.resolve('documents', function(docsRoot) {
-      try { docsRoot.createDirectory('Moonlight'); } catch (ignore) {}
-      tizen.filesystem.resolve('documents/Moonlight', function(moonlightRoot) {
-        try { moonlightRoot.createDirectory(hostname); } catch (ignore) {}
-        try {
-          var dstHandle = tizen.filesystem.openFile(docPath, 'w');
-          dstHandle.writeData(buffer);
-          dstHandle.close();
-          // Resolve the written file to obtain its absolute URI for Smart Hub Preview
-          tizen.filesystem.resolve(docPath, function(docFile) {
-            callback(docFile.toURI());
-          }, function(resolveErr) {
-            console.warn('%c[index.js, _copyBoxArtToDocuments]', 'color: green;', 'Warning: Could not resolve documents path after write: ' + resolveErr.message);
-            callback(null);
-          }, 'r');
-        } catch (writeErr) {
-          console.warn('%c[index.js, _copyBoxArtToDocuments]', 'color: green;', 'Warning: Could not write box art to documents: ' + writeErr.message);
-          callback(null);
-        }
-      }, function(err) {
-        console.warn('%c[index.js, _copyBoxArtToDocuments]', 'color: green;', 'Warning: Could not resolve documents/Moonlight: ' + err.message);
-        callback(null);
-      }, 'rw');
-    }, function(err) {
-      console.warn('%c[index.js, _copyBoxArtToDocuments]', 'color: green;', 'Warning: Could not resolve documents root: ' + err.message);
-      callback(null);
-    }, 'rw');
-  };
-  fr.readAsArrayBuffer(blob);
 }
 
 // Sets the image URI on a cached preview app entry and schedules a debounced Smart Hub update.

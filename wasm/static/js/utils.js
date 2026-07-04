@@ -490,10 +490,12 @@ NvHTTP.prototype = {
   // Returns the box art based on the the given appId
   // Three layers of response time are possible: memory-cached (in JavaScript), storage-cached (in tizen.filesystem), and network-fetched (host sends binary over the network)
   // For explanations on the file system, see: https://developer.samsung.com/smarttv/develop/api-references/tizen-web-device-api-references/filesystem-api.html
+  // Box art is stored in the public documents virtual root so that the Smart Hub Preview background
+  // service process can access it directly without any cross-process copying.
   getBoxArt: function(appId) {
     return new Promise(function(resolve, reject) {
       var boxArtFileName = 'boxart-' + appId;
-      var boxArtDir = 'wgt-private/' + this.hostname; // Widget private storage directory is r/w (read/write)
+      var boxArtDir = 'documents/Moonlight/' + this.hostname; // Documents storage for cross-process Smart Hub Preview access
 
       // Read the cached box art from the storage
       try {
@@ -518,7 +520,10 @@ NvHTTP.prototype = {
           reader.onloadend = function() {
             var dataUrl = reader.result;
             try {
-              // Save the new box art file to the storage
+              // Ensure the documents/Moonlight/{hostname} directory tree exists before writing
+              try { tizen.filesystem.createDirectory('documents/Moonlight', true); } catch (mkdirErr) {}
+              try { tizen.filesystem.createDirectory(boxArtDir, true); } catch (mkdirErr) {}
+              // Save the new box art file directly to documents storage
               var fileHandleWrite = tizen.filesystem.openFile(boxArtDir + '/' + boxArtFileName, 'w');
               fileHandleWrite.writeData(boxArtBuffer);
               fileHandleWrite.close();
@@ -543,31 +548,16 @@ NvHTTP.prototype = {
 
   clearBoxArt: function() {
     return new Promise(function(resolve, reject) {
-      var boxArtDir = 'wgt-private/' + this.hostname; // Widget private storage directory is r/w (read/write)
-      var docBoxArtDir = 'documents/Moonlight/' + this.hostname; // Public documents copy for Smart Hub Preview
-      var wgtError = null;
+      var boxArtDir = 'documents/Moonlight/' + this.hostname; // Documents storage for cross-process Smart Hub Preview access
 
-      // Delete the cached box art directory from wgt-private storage
+      // Delete the cached box art directory from documents storage
       try {
         tizen.filesystem.deleteDirectory(boxArtDir);
         console.log('%c[utils.js, clearBoxArt]', 'color: gray;', 'Clearing the box art files from ' + boxArtDir);
+        resolve();
       } catch (error) {
         console.error('%c[utils.js, clearBoxArt]', 'color: gray;', 'Error: Failed to clear box art files: ', error);
-        wgtError = error;
-      }
-
-      // Best-effort: also delete the documents copy used for Smart Hub Preview
-      try {
-        tizen.filesystem.deleteDirectory(docBoxArtDir);
-        console.log('%c[utils.js, clearBoxArt]', 'color: gray;', 'Clearing the box art files from ' + docBoxArtDir);
-      } catch (docError) {
-        console.warn('%c[utils.js, clearBoxArt]', 'color: gray;', 'Warning: Could not clear box art from documents (may not exist): ', docError);
-      }
-
-      if (wgtError) {
-        reject(wgtError);
-      } else {
-        resolve();
+        reject(error);
       }
     }.bind(this));
   },
