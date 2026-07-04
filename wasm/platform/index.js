@@ -50,7 +50,8 @@ const BUILD_TYPE = '__BUILD_TYPE__'; // Placeholder for build type, which should
 const BUILD_COMMIT = '__BUILD_COMMIT__'; // Placeholder for build commit, which should be replaced during the build process
 var _smartHubLocalMessagePort = null; // Local message port for receiving messages from the Smart Hub service
 var _smartHubMessagePortListener = null; // Listener ID for the Smart Hub local message port
-var _previewApps = {}; // Per-host app cache for Smart Hub Preview: {serverUid: {hostname, address, apps: [{id, title}]}}
+var _previewApps = {}; // Per-host app cache for Smart Hub Preview: {serverUid: {hostname, address, apps: [{id, title, imageUri}]}}
+var _previewUpdateTimer = null; // Debounce timer for batching Smart Hub Preview updates triggered by box art loading
 
 const REPEAT_DELAY = 350; // Repeat delay set to 350ms (milliseconds)
 const REPEAT_INTERVAL = 100; // Repeat interval set to 100ms (milliseconds)
@@ -2224,6 +2225,29 @@ function showApps(host) {
         var boxArtPlaceholderImg = new Image();
         host.getBoxArt(app.id).then(function(resolvedPromise) {
           boxArtPlaceholderImg.src = resolvedPromise;
+          // Resolve and cache the file URI for the Smart Hub Preview thumbnail
+          var boxArtPath = 'wgt-private/' + host.hostname + '/boxart-' + app.id;
+          try {
+            tizen.filesystem.resolve(boxArtPath, function(file) {
+              if (_previewApps[host.serverUid]) {
+                var appEntry = _previewApps[host.serverUid].apps.find(function(a) { return a.id === app.id; });
+                if (appEntry && !appEntry.imageUri) {
+                  appEntry.imageUri = file.toURI();
+                  // Debounce the preview update so all box arts are batched into a single service call
+                  if (_previewUpdateTimer) { clearTimeout(_previewUpdateTimer); }
+                  _previewUpdateTimer = setTimeout(function() {
+                    _previewUpdateTimer = null;
+                    savePreviewApps();
+                    updatePreviewData();
+                  }, 500);
+                }
+              }
+            }, function(err) {
+              console.warn('%c[index.js, showApps]', 'color: green;', 'Warning: Could not resolve box art URI for Smart Hub Preview thumbnail (filesystem error):', err.message);
+            }, 'r');
+          } catch (e) {
+            console.warn('%c[index.js, showApps]', 'color: green;', 'Warning: Could not resolve box art URI for Smart Hub Preview thumbnail (API unavailable):', e.message);
+          }
         }, function(failedPromise) {
           console.error('%c[index.js, showApps]', 'color: green;', 'Error: Failed to retrieve box art for app ID: ' + app.id + '. Returned value was: ' + failedPromise + '. Host object: ', host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
           boxArtPlaceholderImg.src = 'static/res/placeholder_error.svg';
@@ -3901,12 +3925,16 @@ function updatePreviewData() {
         return;
       }
       var tiles = entry.apps.map(function(app) {
-        return {
+        var tile = {
           title: app.title,
           subtitle: entry.hostname,
           action_data: JSON.stringify({serverUid: serverUid, address: entry.address, appId: app.id}),
           is_playable: true
         };
+        if (app.imageUri) {
+          tile.image_url = app.imageUri;
+        }
+        return tile;
       });
       sections.push({title: entry.hostname, tiles: tiles});
     });
