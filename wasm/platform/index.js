@@ -48,6 +48,9 @@ var repeatTimeout = null; // Flag indicating whether the repeat timeout is set, 
 var navigationTimeout = null; // Flag indicating whether the navigation timeout is set, initial value is null
 const BUILD_TYPE = '__BUILD_TYPE__'; // Placeholder for build type, which should be replaced during the build process
 const BUILD_COMMIT = '__BUILD_COMMIT__'; // Placeholder for build commit, which should be replaced during the build process
+var _smartHubLocalMessagePort = null; // Local message port for receiving messages from the Smart Hub service
+var _smartHubMessagePortListener = null; // Listener ID for the Smart Hub local message port
+
 const REPEAT_DELAY = 350; // Repeat delay set to 350ms (milliseconds)
 const REPEAT_INTERVAL = 100; // Repeat interval set to 100ms (milliseconds)
 const ACTION_THRESHOLD = 0.5; // Threshold for initial navigation set to 0.5
@@ -3709,19 +3712,152 @@ function loadHTTPCertsCb() {
           addHostToGrid(revivedHost);
         }
         startPollingHosts();
+        // Update Smart Hub Preview tiles after loading saved hosts
+        setTimeout(updatePreviewData, 2000);
         console.log('%c[index.js, loadHTTPCertsCb]', 'color: green;', 'Loading previously connected hosts...');
       });
     });
   });
 }
 
+// Navigates to a specific host once it has been loaded and becomes available.
+// Polls the hosts object at 1-second intervals for up to 30 seconds.
+function waitForHostAndNavigate(serverUid) {
+  var attempts = 0;
+  var interval = setInterval(function() {
+    attempts++;
+    if (hosts[serverUid]) {
+      clearInterval(interval);
+      console.log('%c[index.js, waitForHostAndNavigate]', 'color: green;', 'Host found for deep link, navigating: ' + serverUid);
+      hostChosen(hosts[serverUid]);
+    } else if (attempts > 30) {
+      clearInterval(interval);
+      console.warn('%c[index.js, waitForHostAndNavigate]', 'color: green;', 'Warning: Timed out waiting for host ' + serverUid + ' to load.');
+    }
+  }, 1000);
+}
+
+// Handles deep link navigation when the app is launched from a Smart Hub Preview tile.
+// Reads the PAYLOAD from AppControl data and navigates to the appropriate host.
+function handleDeepLink() {
+  try {
+    var reqAppControl = tizen.application.getCurrentApplication().getRequestedAppControl();
+    if (!reqAppControl) {
+      return;
+    }
+
+    var appControlData = reqAppControl.appControl.data;
+    console.log('%c[index.js, handleDeepLink]', 'color: green;', 'App control data: ' + JSON.stringify(appControlData));
+
+    for (var i = 0; i < appControlData.length; i++) {
+      if (appControlData[i].key === 'PAYLOAD') {
+        var payload = JSON.parse(appControlData[i].value[0]);
+        var actionData = JSON.parse(payload.values);
+        console.log('%c[index.js, handleDeepLink]', 'color: green;', 'Deep link action data: ', actionData);
+
+        if (actionData.serverUid) {
+          waitForHostAndNavigate(actionData.serverUid);
+        }
+        break;
+      }
+    }
+  } catch (e) {
+    console.log('%c[index.js, handleDeepLink]', 'color: green;', 'No deep link or error processing it: ' + e.message);
+  }
+}
+
+// Builds Smart Hub Preview tiles from the current set of saved hosts and sends the
+// preview data to the background service, which calls webapis.preview.setPreviewData().
+// The webapis.preview API is only accessible from within a Tizen background service.
+function updatePreviewData() {
+  try {
+    var packageId = tizen.application.getCurrentApplication().appInfo.packageId;
+    var tizenVer = parseFloat(platformVer);
+
+    // Smart Hub Preview requires Tizen 4.0 or later
+    if (isNaN(tizenVer) || tizenVer < 4) {
+      console.log('%c[index.js, updatePreviewData]', 'color: green;', 'Tizen version ' + platformVer + ' does not support Smart Hub Preview. Skipping.');
+      return;
+    }
+
+    // Build preview tiles from paired hosts
+    var tiles = [];
+    Object.keys(hosts).forEach(function(uid) {
+      var host = hosts[uid];
+      if (host && host.paired) {
+        tiles.push({
+          title: host.hostname,
+          subtitle: 'Game Streaming',
+          action_data: JSON.stringify({serverUid: host.serverUid, address: host.address}),
+          is_playable: false
+        });
+      }
+    });
+
+    if (tiles.length === 0) {
+      console.log('%c[index.js, updatePreviewData]', 'color: green;', 'No paired hosts found, skipping Smart Hub Preview update.');
+      return;
+    }
+
+    var previewData = {sections: [{title: 'My PCs', tiles: tiles}]};
+    var serviceId = packageId + '.service';
+
+    console.log('%c[index.js, updatePreviewData]', 'color: green;', 'Launching Smart Hub service with preview data: ', previewData);
+
+    // Set up local message port to receive responses from the service
+    if (_smartHubLocalMessagePort && _smartHubMessagePortListener !== null) {
+      try {
+        _smartHubLocalMessagePort.removeMessagePortListener(_smartHubMessagePortListener);
+      } catch (e) {
+        // Ignore listener removal errors
+      }
+    }
+    _smartHubLocalMessagePort = tizen.messageport.requestLocalMessagePort(packageId);
+    _smartHubMessagePortListener = _smartHubLocalMessagePort.addMessagePortListener(function(uiData) {
+      console.log('%c[index.js, updatePreviewData]', 'color: green;', 'Received from Smart Hub service: ' + uiData[0].value);
+      if (uiData[0].value === 'Service stopping...' || uiData[0].value === 'Service exiting...') {
+        try {
+          _smartHubLocalMessagePort.removeMessagePortListener(_smartHubMessagePortListener);
+          _smartHubMessagePortListener = null;
+        } catch (e) {
+          // Ignore listener removal errors
+        }
+      }
+    });
+
+    // Launch the background service with the preview data via AppControl
+    tizen.application.launchAppControl(
+      new tizen.ApplicationControl(
+        'http://tizen.org/appcontrol/operation/pick',
+        null,
+        'image/jpeg',
+        null,
+        [new tizen.ApplicationControlData('Preview', [JSON.stringify(previewData)])]
+      ),
+      serviceId,
+      function() {
+        console.log('%c[index.js, updatePreviewData]', 'color: green;', 'Preview data sent to service: ' + serviceId);
+      },
+      function(err) {
+        console.error('%c[index.js, updatePreviewData]', 'color: green;', 'Failed to launch Smart Hub service: ' + err.message);
+      }
+    );
+  } catch (e) {
+    console.error('%c[index.js, updatePreviewData]', 'color: green;', 'Error updating Smart Hub preview data: ' + e.message);
+  }
+}
+
 function onWindowLoad() {
-  console.log('%c[index.js, onWindowLoad]', 'color: green;', 'Moonlight\'s main window loaded.');
 
   initSamsungKeys();
   initSpecialKeys();
   loadSystemInfo();
   loadUserData();
+
+  // Handle deep links from Smart Hub Preview tile clicks (initial launch)
+  handleDeepLink();
+  // Also handle deep links when the app is brought to the foreground via Smart Hub
+  window.addEventListener('appcontrol', handleDeepLink);
 }
 
 window.onload = onWindowLoad;
