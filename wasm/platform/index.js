@@ -3756,19 +3756,6 @@ function loadHTTPCertsCb() {
         // Using the persisted list avoids requiring live host connections at startup.
         getData('previewApps', function(storedPreview) {
           _previewApps = (storedPreview.previewApps != null) ? storedPreview.previewApps : {};
-          // Migrate: invalidate any image URIs not pointing to the current documents/Moonlight/ storage.
-          // Box art is now saved directly to documents/Moonlight/{hostname}/, so previously cached
-          // wgt-private (/apps_rw/) URIs and old flat-structure documents URIs must be re-resolved.
-          Object.keys(_previewApps).forEach(function(uid) {
-            var entry = _previewApps[uid];
-            if (entry && entry.apps) {
-              entry.apps.forEach(function(app) {
-                if (app.imageUri && app.imageUri.indexOf('/content/Documents/Moonlight/') === -1) {
-                  delete app.imageUri;
-                }
-              });
-            }
-          });
           updatePreviewData();
         });
         console.log('%c[index.js, loadHTTPCertsCb]', 'color: green;', 'Loading previously connected hosts...');
