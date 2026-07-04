@@ -3802,9 +3802,25 @@ function waitForHostAndNavigateToApp(serverUid, appId) {
 
         var appExists = appList.some(function(app) { return app.id === appId; });
         if (appExists) {
-          // App still exists: connect and navigate to the app list (where the user can start it)
-          console.log('%c[index.js, waitForHostAndNavigateToApp]', 'color: green;', 'App ' + appId + ' found, navigating to app list.');
+          // App still exists: connect, show the app list, and auto-launch the app
+          console.log('%c[index.js, waitForHostAndNavigateToApp]', 'color: green;', 'App ' + appId + ' found, launching app from deep link.');
           hostChosen(host);
+          // Wait for the app list to render, then scroll to the app and launch it automatically.
+          // This ensures the app list is in the navigation stack so Back returns correctly:
+          // streaming session → app list → Moonlight home screen.
+          var gameStartAttempts = 0;
+          var gameStartInterval = setInterval(function() {
+            gameStartAttempts++;
+            var gameContainer = document.getElementById('game-container-' + appId);
+            if (gameContainer) {
+              clearInterval(gameStartInterval);
+              gameContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              startGame(host, appId);
+            } else if (gameStartAttempts > 30) {
+              clearInterval(gameStartInterval);
+              console.warn('%c[index.js, waitForHostAndNavigateToApp]', 'color: orange;', 'Warning: Timed out waiting for game container for app ' + appId + ' to appear.');
+            }
+          }, 200);
         } else {
           // App no longer exists: connect to host and show the current app list
           console.warn('%c[index.js, waitForHostAndNavigateToApp]', 'color: orange;', 'App ' + appId + ' not found on host, showing current app list.');
@@ -3869,8 +3885,10 @@ function updatePreviewData() {
     var packageId = tizen.application.getCurrentApplication().appInfo.packageId;
     var tizenVer = parseFloat(platformVer);
 
-    // Smart Hub Preview requires Tizen 4.0 or later
-    if (isNaN(tizenVer) || tizenVer < 4) {
+    // Smart Hub Preview was available on Samsung Smart TVs from 2016 to 2021 (Tizen 3.0+).
+    // The feature has been discontinued but is still supported on those models.
+    // The background service checks webapis.preview availability at runtime.
+    if (isNaN(tizenVer) || tizenVer < 3) {
       console.log('%c[index.js, updatePreviewData]', 'color: green;', 'Tizen version ' + platformVer + ' does not support Smart Hub Preview. Skipping.');
       return;
     }

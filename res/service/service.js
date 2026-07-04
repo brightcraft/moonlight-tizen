@@ -71,6 +71,12 @@ function handleDataInRequest() {
           var parsedPreviewData = JSON.parse(previewData);
           logAndSend('Preview data received: ' + previewData);
 
+          if (typeof webapis === 'undefined' || typeof webapis.preview === 'undefined' || typeof webapis.preview.setPreviewData !== 'function') {
+            logAndSend('webapis.preview API is not available on this device. Smart Hub Preview is not supported.');
+            tizen.application.getCurrentApplication().exit();
+            return;
+          }
+
           try {
             webapis.preview.setPreviewData(
               JSON.stringify(parsedPreviewData),
