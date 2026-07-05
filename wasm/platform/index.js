@@ -4060,6 +4060,7 @@ function updatePreviewData() {
 }
 
 function onWindowLoad() {
+  console.log('%c[index.js, onWindowLoad]', 'color: green;', 'Moonlight\'s main window loaded.');
 
   initSamsungKeys();
   initSpecialKeys();
