@@ -494,35 +494,35 @@ NvHTTP.prototype = {
   // service process can access it directly without any cross-process copying.
   getBoxArt: function(appId) {
     return new Promise(function(resolve, reject) {
-      var boxArtFileName = 'boxart-' + appId;
-      var boxArtDir = 'documents/Moonlight/' + this.hostname; // Documents storage for cross-process Smart Hub Preview access
+      var boxArtFileName = 'boxart_' + appId + '.png'; // Use true binary PNG
+      var boxArtDir = 'documents'; // Public storage directory so the background service can read it
 
+      var self = this;
+      
       // Read the cached box art from the storage
       try {
         var fileHandleRead = tizen.filesystem.openFile(boxArtDir + '/' + boxArtFileName, 'r');
-        var fileContentInBlob = fileHandleRead.readBlob();
+        var fileData = fileHandleRead.readData(); // Returns Uint8Array
         fileHandleRead.close();
 
-        // Guard against empty/corrupt cached files — treat them as a cache miss so we re-fetch from the network
-        if (!fileContentInBlob || fileContentInBlob.size === 0) {
-          throw new Error('Cached box art file is empty, re-fetching from network.');
+        // Convert Uint8Array to base64
+        var binary = '';
+        for (var i = 0; i < fileData.length; i++) {
+          binary += String.fromCharCode(fileData[i]);
         }
+        var base64Data = btoa(binary);
 
         console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Returning storage-cached box art: ', appId);
-
-        // Re-wrap with the correct MIME type so the data URL is recognised as an image by the browser
-        var typedBlob = new Blob([fileContentInBlob], { type: 'image/png' });
-        var reader = new FileReader();
-        reader.onloadend = function() {
-          var dataUrl = reader.result;
-          resolve(dataUrl);
-        };
-        reader.readAsDataURL(typedBlob);
+        resolve('data:image/png;base64,' + base64Data);
       } catch (readError) {
-        console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Cannot find or read box art from internal storage: ', readError);
+        console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Cannot find or read box art from internal storage: ', readError.message);
+        fetchFromNetwork();
+      }
+
+      function fetchFromNetwork() {
         // Fetch the new box art from the network
-        return sendMessage('openUrl', [
-          this._baseUrlHttps + '/appasset?' + this._buildUidStr() + '&appid=' + appId + '&AssetType=2&AssetIdx=0', this.ppkstr, true
+        sendMessage('openUrl', [
+          self._baseUrlHttps + '/appasset?' + self._buildUidStr() + '&appid=' + appId + '&AssetType=2&AssetIdx=0', self.ppkstr, true
         ]).then(function(boxArtBuffer) {
           // boxArtBuffer is a Uint8Array from the WASM binary response
           var blob = new Blob([boxArtBuffer], { type: 'image/png' });
@@ -530,47 +530,56 @@ NvHTTP.prototype = {
           reader.onloadend = function() {
             var dataUrl = reader.result;
             // Always resolve for UI display regardless of caching outcome.
-            // File caching is only needed for Smart Hub Preview — a write failure
-            // must not prevent the image from appearing in the app list.
             console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Returning network-fetched box art: ', appId);
-            resolve(dataUrl);
-            // Attempt to cache box art to disk for Smart Hub Preview cross-process access
+
+            // Save to disk as true binary PNG for local HTTP server and future cache using modern Tizen API
             try {
-              // Ensure the documents/Moonlight/{hostname} directory tree exists before writing
-              try { tizen.filesystem.createDirectory('documents/Moonlight', true); } catch (mkdirErr) { console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Could not create documents/Moonlight directory: ', mkdirErr); }
-              try { tizen.filesystem.createDirectory(boxArtDir, true); } catch (mkdirErr) { console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Could not create box art directory: ', mkdirErr); }
-              var fileHandleWrite = tizen.filesystem.openFile(boxArtDir + '/' + boxArtFileName, 'w');
-              // Prefer writeBlob (dedicated Blob writer) for reliability on Tizen 5.x;
-              // fall back to writeData if writeBlob is not available.
-              if (typeof fileHandleWrite.writeBlob === 'function') {
-                fileHandleWrite.writeBlob(blob);
-              } else {
-                fileHandleWrite.writeData(blob);
+              try { tizen.filesystem.createDirectory('documents', true); } catch (mkdirErr) { }
+              
+              var fileHandleWrite = tizen.filesystem.openFile('documents/' + boxArtFileName, 'w');
+              
+              var base64Payload = dataUrl.split(',')[1];
+              var binaryStr = atob(base64Payload);
+              var bytes = new Uint8Array(binaryStr.length);
+              for (var i = 0; i < binaryStr.length; i++) {
+                bytes[i] = binaryStr.charCodeAt(i);
               }
+              
+              fileHandleWrite.writeData(bytes);
               fileHandleWrite.close();
-              console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Box art cached to disk: ', boxArtDir + '/' + boxArtFileName);
             } catch (writeError) {
-              console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Could not cache box art to disk (Smart Hub Preview may not show image): ', writeError);
+              console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Could not cache box art to disk: ', writeError.message);
             }
           };
           reader.readAsDataURL(blob);
-        }.bind(this), function(error) {
+        }, function(error) {
           console.error('%c[utils.js, getBoxArt]', 'color: gray;', 'Error: Failed to retrieve box art from network: ', error);
           reject(error);
-        }.bind(this));
+        });
       }
     }.bind(this));
   },
 
   clearBoxArt: function() {
     return new Promise(function(resolve, reject) {
-      var boxArtDir = 'documents/Moonlight/' + this.hostname; // Documents storage for cross-process Smart Hub Preview access
+      var boxArtDir = 'documents'; // Public storage directory so the background service can read it
 
-      // Delete the cached box art directory from documents storage
+      // Delete the cached box art files from the storage using modern API
       try {
-        tizen.filesystem.deleteDirectory(boxArtDir);
-        console.log('%c[utils.js, clearBoxArt]', 'color: gray;', 'Clearing the box art files from ' + boxArtDir);
-        resolve();
+        tizen.filesystem.listDirectory(boxArtDir, function(files) {
+          var deleteCount = 0;
+          for (var i = 0; i < files.length; i++) {
+            if (files[i].name.startsWith('boxart_') && files[i].name.endsWith('.png')) {
+              tizen.filesystem.deleteFile(files[i].fullPath);
+              deleteCount++;
+            }
+          }
+          console.log('%c[utils.js, clearBoxArt]', 'color: gray;', 'Cleared ' + deleteCount + ' box art files from ' + boxArtDir);
+          resolve();
+        }.bind(this), function(err) {
+          console.warn('%c[utils.js, clearBoxArt]', 'color: gray;', 'Warning: Could not list documents directory to clear box art: ', err.message);
+          resolve();
+        });
       } catch (error) {
         console.error('%c[utils.js, clearBoxArt]', 'color: gray;', 'Error: Failed to clear box art files: ', error);
         reject(error);

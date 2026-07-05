@@ -1001,16 +1001,13 @@ function addHostToGrid(host, ismDNSDiscovered) {
 
 // Function to correctly update and store the valid MAC address of the host in IndexedDB
 function updateMacAddress(host) {
-  getData('hosts', function(previousValue) {
-    hosts = previousValue.hosts != null ? previousValue.hosts : {};
-    if (host.macAddress != '00:00:00:00:00:00') {
-      if (hosts[host.serverUid] && hosts[host.serverUid].macAddress != host.macAddress) {
-        console.log('%c[index.js, updateMacAddress]', 'color: green;', 'Updated MAC address for host ' + host.hostname + ' from ' + hosts[host.serverUid].macAddress + ' to ' + host.macAddress);
-        hosts[host.serverUid].macAddress = host.macAddress;
-        saveHosts();
-      }
+  if (host.macAddress != '00:00:00:00:00:00') {
+    if (hosts[host.serverUid] && hosts[host.serverUid].macAddress != host.macAddress) {
+      console.log('%c[index.js, updateMacAddress]', 'color: green;', 'Updated MAC address for host ' + host.hostname + ' from ' + hosts[host.serverUid].macAddress + ' to ' + host.macAddress);
+      hosts[host.serverUid].macAddress = host.macAddress;
+      saveHosts();
     }
-  });
+  }
 }
 
 // Show the Host Menu dialog with host button options
@@ -2135,21 +2132,20 @@ function showApps(host) {
         return;
       }
 
-      // Update the Smart Hub Preview app cache for this host on every successful connection
-      _previewApps[host.serverUid] = {
-        hostname: host.hostname,
-        address: host.address,
-        apps: appList.map(function(app) { return {id: app.id, title: app.title}; })
-      };
-      savePreviewApps();
-      updatePreviewData();
-
       // Find the existing switch element
       const sortAppsListSwitch = document.getElementById('sortAppsListSwitch');
       // Defines the sort order based on the state of the switch
       const sortOrder = sortAppsListSwitch.checked ? 'DESC' : 'ASC';
       // If game grid is populated, sort the app list
       const sortedAppList = sortTitles(appList, sortOrder);
+
+      _previewApps[host.serverUid] = {
+        hostname: host.hostname,
+        address: host.address,
+        apps: sortedAppList.map(function(app) { return {id: app.id, title: app.title}; })
+      };
+
+      var boxArtPromises = [];
 
       sortedAppList.forEach(function(app) {
         // Double clicking the button will cause multiple box arts to appear.
@@ -2223,31 +2219,72 @@ function showApps(host) {
         }
         // Load box art
         var boxArtPlaceholderImg = new Image();
-        host.getBoxArt(app.id).then(function(resolvedPromise) {
-          boxArtPlaceholderImg.src = resolvedPromise;
-          // Resolve the file URI from documents storage for Smart Hub Preview.
-          // Box art is now saved directly to documents/Moonlight/{hostname}/ by getBoxArt(),
-          // so it is immediately accessible to the Smart Hub rendering process.
-          if (_previewApps[host.serverUid]) {
-            var appEntry = _previewApps[host.serverUid].apps.find(function(a) { return a.id === app.id; });
-            if (appEntry && !appEntry.imageUri) {
-              var _serverUid = host.serverUid;
-              var _appId = app.id;
-              try {
-                var docPath = 'documents/Moonlight/' + host.hostname + '/boxart-' + _appId;
-                var fileUri = tizen.filesystem.toURI(docPath);
-                _setPreviewImageUri(_serverUid, _appId, fileUri);
-              } catch (e) {
-                console.warn('%c[index.js, showApps]', 'color: green;', 'Warning: Could not resolve documents box art URI for Smart Hub Preview: ' + e.message);
+        var boxArtPromise = new Promise(function(resolveBoxArt) {
+          host.getBoxArt(app.id).then(function(resolvedPromise) {
+            boxArtPlaceholderImg.src = resolvedPromise;
+            // The resolvedPromise is now the absolute file URI (or data URL if it failed to save).
+            if (_previewApps[host.serverUid]) {
+              var appEntry = _previewApps[host.serverUid].apps.find(function(a) { return a.id === app.id; });
+              if (appEntry) {
+                // Resolve real TV IP because Smart Hub might block 127.0.0.1
+                var tvIp = '127.0.0.1';
+                try {
+                  if (typeof webapis !== 'undefined' && webapis.network) {
+                    tvIp = webapis.network.getIp();
+                  }
+                } catch(e) {
+                  console.log("Failed to get TV IP", e);
+                }
+
+                // Generate random secure UUID for the route to prevent unauthorized LAN access
+                var secureToken = 'cover_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15) + '.png';
+
+                // Determine local path from resolvedPromise if it's a file URI
+                if (resolvedPromise.startsWith('file://')) {
+                  var localPngPath = resolvedPromise.replace('file://', '');
+                  appEntry.txtPath = localPngPath;
+                  appEntry.imageUri = 'http://' + tvIp + ':8888/' + secureToken;
+                  resolveBoxArt();
+                } else {
+                  tizen.filesystem.resolve('documents', function(dir) {
+                    var documentsPath = dir.toURI().replace('file://', '');
+                    appEntry.txtPath = documentsPath + '/boxart_' + app.id + '.png';
+                    appEntry.imageUri = 'http://' + tvIp + ':8888/' + secureToken;
+                    resolveBoxArt();
+                  }, function(err) {
+                    appEntry.txtPath = '/opt/usr/home/owner/content/Documents/boxart_' + app.id + '.png';
+                    appEntry.imageUri = 'http://' + tvIp + ':8888/' + secureToken;
+                    resolveBoxArt();
+                  }, 'r');
+                }
+                
+                // Early return to prevent the fallback synchronous resolveBoxArt from firing
+                return;
               }
             }
-          }
-        }, function(failedPromise) {
-          console.error('%c[index.js, showApps]', 'color: green;', 'Error: Failed to retrieve box art for app ID: ' + app.id + '. Returned value was: ' + failedPromise + '. Host object: ', host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
-          boxArtPlaceholderImg.src = 'static/res/placeholder_error.svg';
+            resolveBoxArt();
+          }, function(failedPromise) {
+            console.error('%c[index.js, showApps]', 'color: green;', 'Error: Failed to retrieve box art for app ID: ' + app.id + '. Returned value was: ' + failedPromise + '. Host object: ', host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
+            boxArtPlaceholderImg.src = 'static/res/placeholder_error.svg';
+            resolveBoxArt();
+          });
         });
+
         boxArtPlaceholderImg.onload = e => boxArtPlaceholderImg.classList.add('fade-in');
         $(gameContainer).append(boxArtPlaceholderImg);
+        boxArtPromises.push(boxArtPromise);
+      });
+
+      var settledPromises = boxArtPromises.map(function(p) {
+        return p.catch(function(e) { return e; });
+      });
+
+      Promise.all(settledPromises).then(function() {
+        // Wait 250ms to ensure tizen.filesystem.resolve callbacks have completed
+        setTimeout(function() {
+          savePreviewApps();
+          updatePreviewData();
+        }, 250);
       });
     }, function(failedAppList) {
       // Hide the spinner if the host has failed to retrieve the app list
@@ -3809,11 +3846,27 @@ function waitForHostAndNavigateToApp(serverUid, appId) {
 
       // Host is online: check whether the requested app still exists
       host.getAppListWithCacheFlush().then(function(appList) {
+        // Find the existing switch element
+        const sortAppsListSwitch = document.getElementById('sortAppsListSwitch');
+        // Defines the sort order based on the state of the switch
+        const sortOrder = sortAppsListSwitch.checked ? 'DESC' : 'ASC';
+        // If game grid is populated, sort the app list
+        const sortedAppList = sortTitles(appList, sortOrder);
+
+        // Preserve existing image paths from the previous preview cache
+        var oldApps = (_previewApps[serverUid] && _previewApps[serverUid].apps) || [];
+
         // Update the preview with the latest app list from this successful connection
         _previewApps[serverUid] = {
           hostname: host.hostname,
           address: host.address,
-          apps: appList.map(function(app) { return {id: app.id, title: app.title}; })
+          apps: sortedAppList.map(function(app) {
+            var oldApp = oldApps.find(function(a) { return a.id === app.id; });
+            var newApp = {id: app.id, title: app.title};
+            if (oldApp && oldApp.imageUri) newApp.imageUri = oldApp.imageUri;
+            if (oldApp && oldApp.txtPath) newApp.txtPath = oldApp.txtPath;
+            return newApp;
+          })
         };
         savePreviewApps();
         updatePreviewData();
@@ -3934,15 +3987,19 @@ function updatePreviewData() {
       if (!entry || !entry.apps || entry.apps.length === 0) {
         return;
       }
-      var tiles = entry.apps.map(function(app) {
+      var tiles = entry.apps.map(function(app, index) {
         var tile = {
           title: app.title,
           subtitle: entry.hostname,
           action_data: JSON.stringify({serverUid: serverUid, address: entry.address, appId: app.id}),
-          is_playable: true
+          is_playable: true,
+          position: index
         };
         if (app.imageUri) {
           tile.image_url = app.imageUri;
+        }
+        if (app.txtPath) {
+          tile.txtPath = app.txtPath;
         }
         return tile;
       });
