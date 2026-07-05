@@ -492,9 +492,9 @@ NvHTTP.prototype = {
   // For explanations on the file system, see: https://developer.samsung.com/smarttv/develop/api-references/tizen-web-device-api-references/filesystem-api.html
   // Box art is stored in the public documents virtual root so that the Smart Hub Preview background
   // service process can access it directly without any cross-process copying.
-  getBoxArt: function(appId) {
+  getBoxArt: function(appId, secureFileName) {
     return new Promise(function(resolve, reject) {
-      var boxArtFileName = 'boxart_' + appId + '.png'; // Use true binary PNG
+      var boxArtFileName = secureFileName || 'boxart_' + appId + '.png'; // Use secure deterministic name
       var boxArtDir = 'documents'; // Public storage directory so the background service can read it
 
       var self = this;

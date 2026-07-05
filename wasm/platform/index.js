@@ -2139,10 +2139,21 @@ function showApps(host) {
       // If game grid is populated, sort the app list
       const sortedAppList = sortTitles(appList, sortOrder);
 
+      var oldApps = (_previewApps[host.serverUid] && _previewApps[host.serverUid].apps) || [];
+
       _previewApps[host.serverUid] = {
         hostname: host.hostname,
         address: host.address,
-        apps: sortedAppList.map(function(app) { return {id: app.id, title: app.title}; })
+        apps: sortedAppList.map(function(app) {
+          var oldApp = oldApps.find(function(a) { return a.id === app.id; });
+          var secureToken = (oldApp && oldApp.secureToken) ? oldApp.secureToken : Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+          var newApp = {id: app.id, title: app.title, secureToken: secureToken};
+          if (oldApp) {
+            if (oldApp.imageUri) newApp.imageUri = oldApp.imageUri;
+            if (oldApp.txtPath) newApp.txtPath = oldApp.txtPath;
+          }
+          return newApp;
+        })
       };
 
       var boxArtPromises = [];
@@ -2219,13 +2230,12 @@ function showApps(host) {
         }
         // Load box art
         var boxArtPlaceholderImg = new Image();
+        var appEntry = _previewApps[host.serverUid] ? _previewApps[host.serverUid].apps.find(function(a) { return a.id === app.id; }) : null;
         var boxArtPromise = new Promise(function(resolveBoxArt) {
-          host.getBoxArt(app.id).then(function(resolvedPromise) {
+          host.getBoxArt(app.id, appEntry ? 'boxart_' + appEntry.secureToken + '.png' : undefined).then(function(resolvedPromise) {
             boxArtPlaceholderImg.src = resolvedPromise;
             // The resolvedPromise is now the absolute file URI (or data URL if it failed to save).
-            if (_previewApps[host.serverUid]) {
-              var appEntry = _previewApps[host.serverUid].apps.find(function(a) { return a.id === app.id; });
-              if (appEntry) {
+            if (_previewApps[host.serverUid] && appEntry) {
                 // Resolve real TV IP because Smart Hub might block 127.0.0.1
                 var tvIp = '127.0.0.1';
                 try {
@@ -2237,23 +2247,24 @@ function showApps(host) {
                 }
 
                 // Generate random secure UUID for the route to prevent unauthorized LAN access
-                var secureToken = 'cover_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15) + '.png';
+                var filename = 'boxart_' + appEntry.secureToken + '.png';
+                var cacheBuster = '?v=' + Date.now();
 
                 // Determine local path from resolvedPromise if it's a file URI
                 if (resolvedPromise.startsWith('file://')) {
                   var localPngPath = resolvedPromise.replace('file://', '');
                   appEntry.txtPath = localPngPath;
-                  appEntry.imageUri = 'http://' + tvIp + ':8888/' + secureToken;
+                  appEntry.imageUri = 'http://' + tvIp + ':8888/' + filename + cacheBuster;
                   resolveBoxArt();
                 } else {
                   tizen.filesystem.resolve('documents', function(dir) {
                     var documentsPath = dir.toURI().replace('file://', '');
-                    appEntry.txtPath = documentsPath + '/boxart_' + app.id + '.png';
-                    appEntry.imageUri = 'http://' + tvIp + ':8888/' + secureToken;
+                    appEntry.txtPath = documentsPath + '/' + filename;
+                    appEntry.imageUri = 'http://' + tvIp + ':8888/' + filename + cacheBuster;
                     resolveBoxArt();
                   }, function(err) {
-                    appEntry.txtPath = '/opt/usr/home/owner/content/Documents/boxart_' + app.id + '.png';
-                    appEntry.imageUri = 'http://' + tvIp + ':8888/' + secureToken;
+                    appEntry.txtPath = '/opt/usr/home/owner/content/Documents/' + filename;
+                    appEntry.imageUri = 'http://' + tvIp + ':8888/' + filename + cacheBuster;
                     resolveBoxArt();
                   }, 'r');
                 }
@@ -3870,9 +3881,12 @@ function waitForHostAndNavigateToApp(serverUid, appId) {
           address: host.address,
           apps: sortedAppList.map(function(app) {
             var oldApp = oldApps.find(function(a) { return a.id === app.id; });
-            var newApp = {id: app.id, title: app.title};
-            if (oldApp && oldApp.imageUri) newApp.imageUri = oldApp.imageUri;
-            if (oldApp && oldApp.txtPath) newApp.txtPath = oldApp.txtPath;
+            var secureToken = (oldApp && oldApp.secureToken) ? oldApp.secureToken : Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+            var newApp = {id: app.id, title: app.title, secureToken: secureToken};
+            if (oldApp) {
+              if (oldApp.imageUri) newApp.imageUri = oldApp.imageUri;
+              if (oldApp.txtPath) newApp.txtPath = oldApp.txtPath;
+            }
             return newApp;
           })
         };

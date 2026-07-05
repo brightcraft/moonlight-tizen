@@ -81,7 +81,7 @@ function startLocalServer() {
   }
   
   localServer = http.createServer(function (req, res) {
-    var route = req.url;
+    var route = require('url').parse(req.url).pathname; // Strip query string for cache-busting
     logAndSend('Local HTTP server received request for: ' + route);
     if (routeMap[route]) {
       var pngPath = routeMap[route];
@@ -99,7 +99,31 @@ function startLocalServer() {
         res.end();
       }
     } else {
-      logAndSend('Route not found in routeMap for: ' + route);
+      // Fallback for TV reboots when memory routeMap is empty
+      if (route && route.startsWith('/boxart_') && route.endsWith('.png')) {
+        logAndSend('Attempting fallback disk resolution for: ' + route);
+        var fallbackPaths = [
+          '/opt/usr/home/owner/content/Documents' + route,
+          '/home/owner/content/Documents' + route
+        ];
+        
+        for (var i = 0; i < fallbackPaths.length; i++) {
+          try {
+            var fallbackData = fs.readFileSync(fallbackPaths[i]);
+            res.writeHead(200, {
+              'Content-Type': 'image/png',
+              'Content-Length': fallbackData.length
+            });
+            res.end(fallbackData);
+            logAndSend('Successfully served fallback binary image from ' + fallbackPaths[i]);
+            return; // Exit on success
+          } catch (fallbackErr) {
+            // Ignore error and try the next path
+          }
+        }
+      }
+      
+      logAndSend('Route not found in routeMap or fallbacks for: ' + route);
       res.writeHead(404);
       res.end();
     }
