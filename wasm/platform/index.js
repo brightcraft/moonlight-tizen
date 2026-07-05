@@ -3013,6 +3013,20 @@ function saveSortAppsList() {
     const chosenSortAppsList = $('#sortAppsListSwitch').parent().hasClass('is-checked');
     console.log('%c[index.js, saveSortAppsList]', 'color: green;', 'Saving sort apps list state: ' + chosenSortAppsList);
     storeData('sortAppsList', chosenSortAppsList, null);
+    
+    // Instantly update the Smart Hub Preview to reflect the new sort order
+    const sortOrder = chosenSortAppsList ? 'DESC' : 'ASC';
+    let updated = false;
+    Object.keys(_previewApps).forEach(function(serverUid) {
+      if (_previewApps[serverUid] && _previewApps[serverUid].apps) {
+        _previewApps[serverUid].apps = sortTitles(_previewApps[serverUid].apps, sortOrder);
+        updated = true;
+      }
+    });
+    if (updated) {
+      savePreviewApps();
+      updatePreviewData();
+    }
   }, 100);
 }
 
@@ -3834,13 +3848,7 @@ function waitForHostAndNavigateToApp(serverUid, appId) {
 
       // Check whether the host is online before trying to connect
       if (!host.online) {
-        console.warn('%c[index.js, waitForHostAndNavigateToApp]', 'color: orange;', 'Host is offline, removing from preview and returning to home screen: ' + serverUid);
-        snackbarLogLong('Host "' + (host.hostname || serverUid) + '" is unavailable. Returning to Moonlight home screen.');
-        // Remove unreachable host from preview so it no longer appears as a suggestion
-        delete _previewApps[serverUid];
-        savePreviewApps();
-        updatePreviewData();
-        showHosts();
+        hostChosen(host);
         return;
       }
 
@@ -3900,12 +3908,7 @@ function waitForHostAndNavigateToApp(serverUid, appId) {
         }
       }, function() {
         // Could not fetch app list (host may have gone offline during the check)
-        console.warn('%c[index.js, waitForHostAndNavigateToApp]', 'color: orange;', 'Failed to retrieve app list from host, removing from preview: ' + serverUid);
-        snackbarLogLong('Host "' + (host.hostname || serverUid) + '" is unavailable. Returning to Moonlight home screen.');
-        delete _previewApps[serverUid];
-        savePreviewApps();
-        updatePreviewData();
-        showHosts();
+        hostChosen(host);
       });
     } else if (attempts > 30) {
       clearInterval(interval);
@@ -4007,8 +4010,7 @@ function updatePreviewData() {
     });
 
     if (sections.length === 0) {
-      console.log('%c[index.js, updatePreviewData]', 'color: green;', 'No preview app data found, skipping Smart Hub Preview update.');
-      return;
+      console.log('%c[index.js, updatePreviewData]', 'color: green;', 'No preview app data found, clearing Smart Hub Preview.');
     }
 
     var previewData = {sections: sections};
