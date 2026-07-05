@@ -48,6 +48,11 @@ var repeatTimeout = null; // Flag indicating whether the repeat timeout is set, 
 var navigationTimeout = null; // Flag indicating whether the navigation timeout is set, initial value is null
 const BUILD_TYPE = '__BUILD_TYPE__'; // Placeholder for build type, which should be replaced during the build process
 const BUILD_COMMIT = '__BUILD_COMMIT__'; // Placeholder for build commit, which should be replaced during the build process
+var _smartHubLocalMessagePort = null; // Local message port for receiving messages from the Smart Hub service
+var _smartHubMessagePortListener = null; // Listener ID for the Smart Hub local message port
+var _previewApps = {}; // Per-host app cache for Smart Hub Preview: {serverUid: {hostname, address, apps: [{id, title, imageUri}]}}
+var _previewUpdateTimer = null; // Debounce timer for batching Smart Hub Preview updates triggered by box art loading
+
 const REPEAT_DELAY = 350; // Repeat delay set to 350ms (milliseconds)
 const REPEAT_INTERVAL = 100; // Repeat interval set to 100ms (milliseconds)
 const ACTION_THRESHOLD = 0.5; // Threshold for initial navigation set to 0.5
@@ -996,16 +1001,13 @@ function addHostToGrid(host, ismDNSDiscovered) {
 
 // Function to correctly update and store the valid MAC address of the host in IndexedDB
 function updateMacAddress(host) {
-  getData('hosts', function(previousValue) {
-    hosts = previousValue.hosts != null ? previousValue.hosts : {};
-    if (host.macAddress != '00:00:00:00:00:00') {
-      if (hosts[host.serverUid] && hosts[host.serverUid].macAddress != host.macAddress) {
-        console.log('%c[index.js, updateMacAddress]', 'color: green;', 'Updated MAC address for host ' + host.hostname + ' from ' + hosts[host.serverUid].macAddress + ' to ' + host.macAddress);
-        hosts[host.serverUid].macAddress = host.macAddress;
-        saveHosts();
-      }
+  if (host.macAddress != '00:00:00:00:00:00') {
+    if (hosts[host.serverUid] && hosts[host.serverUid].macAddress != host.macAddress) {
+      console.log('%c[index.js, updateMacAddress]', 'color: green;', 'Updated MAC address for host ' + host.hostname + ' from ' + hosts[host.serverUid].macAddress + ' to ' + host.macAddress);
+      hosts[host.serverUid].macAddress = host.macAddress;
+      saveHosts();
     }
-  });
+  }
 }
 
 // Show the Host Menu dialog with host button options
@@ -1177,6 +1179,10 @@ function deleteHostDialog(host) {
     delete hosts[host.serverUid];
     // Save the updated hosts
     saveHosts();
+    // Remove the host from the preview app cache and update Smart Hub Preview
+    delete _previewApps[host.serverUid];
+    savePreviewApps();
+    updatePreviewData();
     // If host removed, show snackbar message
     snackbarLog(host.hostname + ' has been deleted successfully.');
     deleteHostOverlay.style.display = 'none';
@@ -1241,6 +1247,10 @@ function deleteAllHostsDialog() {
       }
       // If all hosts removed, show snackbar message
       snackbarLog('All hosts have been deleted successfully.');
+      // Clear the preview app cache and update Smart Hub Preview
+      _previewApps = {};
+      savePreviewApps();
+      updatePreviewData();
       deleteHostOverlay.style.display = 'none';
       deleteHostDialog.close();
       isDialogOpen = false;
@@ -2129,6 +2139,14 @@ function showApps(host) {
       // If game grid is populated, sort the app list
       const sortedAppList = sortTitles(appList, sortOrder);
 
+      _previewApps[host.serverUid] = {
+        hostname: host.hostname,
+        address: host.address,
+        apps: sortedAppList.map(function(app) { return {id: app.id, title: app.title}; })
+      };
+
+      var boxArtPromises = [];
+
       sortedAppList.forEach(function(app) {
         // Double clicking the button will cause multiple box arts to appear.
         // To mitigate this, we ensure that we don't add a duplicate box art.
@@ -2201,14 +2219,72 @@ function showApps(host) {
         }
         // Load box art
         var boxArtPlaceholderImg = new Image();
-        host.getBoxArt(app.id).then(function(resolvedPromise) {
-          boxArtPlaceholderImg.src = resolvedPromise;
-        }, function(failedPromise) {
-          console.error('%c[index.js, showApps]', 'color: green;', 'Error: Failed to retrieve box art for app ID: ' + app.id + '. Returned value was: ' + failedPromise + '. Host object: ', host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
-          boxArtPlaceholderImg.src = 'static/res/placeholder_error.svg';
+        var boxArtPromise = new Promise(function(resolveBoxArt) {
+          host.getBoxArt(app.id).then(function(resolvedPromise) {
+            boxArtPlaceholderImg.src = resolvedPromise;
+            // The resolvedPromise is now the absolute file URI (or data URL if it failed to save).
+            if (_previewApps[host.serverUid]) {
+              var appEntry = _previewApps[host.serverUid].apps.find(function(a) { return a.id === app.id; });
+              if (appEntry) {
+                // Resolve real TV IP because Smart Hub might block 127.0.0.1
+                var tvIp = '127.0.0.1';
+                try {
+                  if (typeof webapis !== 'undefined' && webapis.network) {
+                    tvIp = webapis.network.getIp();
+                  }
+                } catch(e) {
+                  console.log("Failed to get TV IP", e);
+                }
+
+                // Generate random secure UUID for the route to prevent unauthorized LAN access
+                var secureToken = 'cover_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15) + '.png';
+
+                // Determine local path from resolvedPromise if it's a file URI
+                if (resolvedPromise.startsWith('file://')) {
+                  var localPngPath = resolvedPromise.replace('file://', '');
+                  appEntry.txtPath = localPngPath;
+                  appEntry.imageUri = 'http://' + tvIp + ':8888/' + secureToken;
+                  resolveBoxArt();
+                } else {
+                  tizen.filesystem.resolve('documents', function(dir) {
+                    var documentsPath = dir.toURI().replace('file://', '');
+                    appEntry.txtPath = documentsPath + '/boxart_' + app.id + '.png';
+                    appEntry.imageUri = 'http://' + tvIp + ':8888/' + secureToken;
+                    resolveBoxArt();
+                  }, function(err) {
+                    appEntry.txtPath = '/opt/usr/home/owner/content/Documents/boxart_' + app.id + '.png';
+                    appEntry.imageUri = 'http://' + tvIp + ':8888/' + secureToken;
+                    resolveBoxArt();
+                  }, 'r');
+                }
+                
+                // Early return to prevent the fallback synchronous resolveBoxArt from firing
+                return;
+              }
+            }
+            resolveBoxArt();
+          }, function(failedPromise) {
+            console.error('%c[index.js, showApps]', 'color: green;', 'Error: Failed to retrieve box art for app ID: ' + app.id + '. Returned value was: ' + failedPromise + '. Host object: ', host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
+            boxArtPlaceholderImg.src = 'static/res/placeholder_error.svg';
+            resolveBoxArt();
+          });
         });
+
         boxArtPlaceholderImg.onload = e => boxArtPlaceholderImg.classList.add('fade-in');
         $(gameContainer).append(boxArtPlaceholderImg);
+        boxArtPromises.push(boxArtPromise);
+      });
+
+      var settledPromises = boxArtPromises.map(function(p) {
+        return p.catch(function(e) { return e; });
+      });
+
+      Promise.all(settledPromises).then(function() {
+        // Wait 250ms to ensure tizen.filesystem.resolve callbacks have completed
+        setTimeout(function() {
+          savePreviewApps();
+          updatePreviewData();
+        }, 250);
       });
     }, function(failedAppList) {
       // Hide the spinner if the host has failed to retrieve the app list
@@ -2734,6 +2810,10 @@ function storeData(key, data, callbackFunction) {
 // when converted to a raw object, so we cannot forget to revive the object after we load it.
 function saveHosts() {
   storeData('hosts', hosts, null);
+}
+
+function savePreviewApps() {
+  storeData('previewApps', _previewApps, null);
 }
 
 function saveResolution() {
@@ -3709,19 +3789,287 @@ function loadHTTPCertsCb() {
           addHostToGrid(revivedHost);
         }
         startPollingHosts();
+        // Load stored preview app lists and update Smart Hub Preview tiles.
+        // Using the persisted list avoids requiring live host connections at startup.
+        getData('previewApps', function(storedPreview) {
+          _previewApps = (storedPreview.previewApps != null) ? storedPreview.previewApps : {};
+          updatePreviewData();
+        });
         console.log('%c[index.js, loadHTTPCertsCb]', 'color: green;', 'Loading previously connected hosts...');
       });
     });
   });
 }
 
+// Navigates to a specific host once it has been loaded and becomes available.
+// Polls the hosts object at 1-second intervals for up to 30 seconds.
+function waitForHostAndNavigate(serverUid) {
+  var attempts = 0;
+  var interval = setInterval(function() {
+    attempts++;
+    if (hosts[serverUid]) {
+      clearInterval(interval);
+      console.log('%c[index.js, waitForHostAndNavigate]', 'color: green;', 'Host found for deep link, navigating: ' + serverUid);
+      hostChosen(hosts[serverUid]);
+    } else if (attempts > 30) {
+      clearInterval(interval);
+      console.warn('%c[index.js, waitForHostAndNavigate]', 'color: orange;', 'Warning: Timed out waiting for host ' + serverUid + ' to load.');
+    }
+  }, 1000);
+}
+
+// Navigates to a specific app on a host from a Smart Hub Preview deep link.
+// Waits for the host to load, then checks availability and whether the app still exists.
+// - If the host is offline: removes it from preview and returns to the Moonlight home screen.
+// - If the app no longer exists on the server: connects to the host and shows the current app list.
+// - If the app exists: connects to the host and navigates directly to the app list.
+function waitForHostAndNavigateToApp(serverUid, appId) {
+  var attempts = 0;
+  var interval = setInterval(function() {
+    attempts++;
+    if (hosts[serverUid]) {
+      clearInterval(interval);
+      var host = hosts[serverUid];
+      console.log('%c[index.js, waitForHostAndNavigateToApp]', 'color: green;', 'Host found for deep link, checking availability: ' + serverUid);
+
+      // Check whether the host is online before trying to connect
+      if (!host.online) {
+        console.warn('%c[index.js, waitForHostAndNavigateToApp]', 'color: orange;', 'Host is offline, removing from preview and returning to home screen: ' + serverUid);
+        snackbarLogLong('Host "' + (host.hostname || serverUid) + '" is unavailable. Returning to Moonlight home screen.');
+        // Remove unreachable host from preview so it no longer appears as a suggestion
+        delete _previewApps[serverUid];
+        savePreviewApps();
+        updatePreviewData();
+        showHosts();
+        return;
+      }
+
+      // Host is online: check whether the requested app still exists
+      host.getAppListWithCacheFlush().then(function(appList) {
+        // Find the existing switch element
+        const sortAppsListSwitch = document.getElementById('sortAppsListSwitch');
+        // Defines the sort order based on the state of the switch
+        const sortOrder = sortAppsListSwitch.checked ? 'DESC' : 'ASC';
+        // If game grid is populated, sort the app list
+        const sortedAppList = sortTitles(appList, sortOrder);
+
+        // Preserve existing image paths from the previous preview cache
+        var oldApps = (_previewApps[serverUid] && _previewApps[serverUid].apps) || [];
+
+        // Update the preview with the latest app list from this successful connection
+        _previewApps[serverUid] = {
+          hostname: host.hostname,
+          address: host.address,
+          apps: sortedAppList.map(function(app) {
+            var oldApp = oldApps.find(function(a) { return a.id === app.id; });
+            var newApp = {id: app.id, title: app.title};
+            if (oldApp && oldApp.imageUri) newApp.imageUri = oldApp.imageUri;
+            if (oldApp && oldApp.txtPath) newApp.txtPath = oldApp.txtPath;
+            return newApp;
+          })
+        };
+        savePreviewApps();
+        updatePreviewData();
+
+        var appExists = appList.some(function(app) { return app.id === appId; });
+        if (appExists) {
+          // App still exists: connect, show the app list, and auto-launch the app
+          console.log('%c[index.js, waitForHostAndNavigateToApp]', 'color: green;', 'App ' + appId + ' found, launching app from deep link.');
+          hostChosen(host);
+          // Wait for the app list to render, then scroll to the app and launch it automatically.
+          // This ensures the app list is in the navigation stack so Back returns correctly:
+          // streaming session → app list → Moonlight home screen.
+          var gameStartAttempts = 0;
+          var gameStartInterval = setInterval(function() {
+            gameStartAttempts++;
+            var gameContainer = document.getElementById('game-container-' + appId);
+            if (gameContainer) {
+              clearInterval(gameStartInterval);
+              gameContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              startGame(host, appId);
+            } else if (gameStartAttempts > 30) {
+              clearInterval(gameStartInterval);
+              console.warn('%c[index.js, waitForHostAndNavigateToApp]', 'color: orange;', 'Warning: Timed out waiting for game container for app ' + appId + ' to appear.');
+            }
+          }, 200);
+        } else {
+          // App no longer exists: connect to host and show the current app list
+          console.warn('%c[index.js, waitForHostAndNavigateToApp]', 'color: orange;', 'App ' + appId + ' not found on host, showing current app list.');
+          snackbarLogLong('The selected app is no longer available on this host. Showing the current app list.');
+          hostChosen(host);
+        }
+      }, function() {
+        // Could not fetch app list (host may have gone offline during the check)
+        console.warn('%c[index.js, waitForHostAndNavigateToApp]', 'color: orange;', 'Failed to retrieve app list from host, removing from preview: ' + serverUid);
+        snackbarLogLong('Host "' + (host.hostname || serverUid) + '" is unavailable. Returning to Moonlight home screen.');
+        delete _previewApps[serverUid];
+        savePreviewApps();
+        updatePreviewData();
+        showHosts();
+      });
+    } else if (attempts > 30) {
+      clearInterval(interval);
+      console.warn('%c[index.js, waitForHostAndNavigateToApp]', 'color: orange;', 'Warning: Timed out waiting for host ' + serverUid + ' to load.');
+    }
+  }, 1000);
+}
+
+// Handles deep link navigation when the app is launched from a Smart Hub Preview tile.
+// Reads the PAYLOAD from AppControl data and navigates to the appropriate host and app.
+function handleDeepLink() {
+  try {
+    var reqAppControl = tizen.application.getCurrentApplication().getRequestedAppControl();
+    if (!reqAppControl) {
+      return;
+    }
+
+    var appControlData = reqAppControl.appControl.data;
+    console.log('%c[index.js, handleDeepLink]', 'color: green;', 'App control data: ' + JSON.stringify(appControlData));
+
+    for (var i = 0; i < appControlData.length; i++) {
+      if (appControlData[i].key === 'PAYLOAD') {
+        var payload = JSON.parse(appControlData[i].value[0]);
+        var actionData = JSON.parse(payload.values);
+        console.log('%c[index.js, handleDeepLink]', 'color: green;', 'Deep link action data: ', actionData);
+
+        if (actionData.serverUid && actionData.appId !== null && actionData.appId !== undefined) {
+          // App-level deep link from a preview tile: navigate to the specific host and app
+          waitForHostAndNavigateToApp(actionData.serverUid, actionData.appId);
+        } else if (actionData.serverUid) {
+          // Host-level deep link: navigate to the host's app list
+          waitForHostAndNavigate(actionData.serverUid);
+        }
+        break;
+      }
+    }
+  } catch (e) {
+    console.log('%c[index.js, handleDeepLink]', 'color: green;', 'No deep link or error processing it: ' + e.message);
+  }
+}
+
+// Sets the image URI on a cached preview app entry and schedules a debounced Smart Hub update.
+function _setPreviewImageUri(serverUid, appId, uri) {
+  if (_previewApps[serverUid]) {
+    var appEntry = _previewApps[serverUid].apps.find(function(a) { return a.id === appId; });
+    if (appEntry && !appEntry.imageUri) {
+      appEntry.imageUri = uri;
+      if (_previewUpdateTimer) { clearTimeout(_previewUpdateTimer); }
+      _previewUpdateTimer = setTimeout(function() {
+        _previewUpdateTimer = null;
+        savePreviewApps();
+        updatePreviewData();
+      }, 500);
+    }
+  }
+}
+
+// Builds Smart Hub Preview tiles from the cached per-host app lists and sends the
+// preview data to the background service, which calls webapis.preview.setPreviewData().
+// The webapis.preview API is only accessible from within a Tizen background service.
+// The preview is populated only from successfully connected hosts (stored in _previewApps).
+function updatePreviewData() {
+  try {
+    var packageId = tizen.application.getCurrentApplication().appInfo.packageId;
+    var tizenVer = parseFloat(platformVer);
+
+    // Smart Hub Preview was available on Samsung Smart TVs from 2016 to 2021 (Tizen 3.0+).
+    // The feature has been discontinued but is still supported on those models.
+    // The background service checks webapis.preview availability at runtime.
+    if (isNaN(tizenVer) || tizenVer < 3) {
+      console.log('%c[index.js, updatePreviewData]', 'color: green;', 'Tizen version ' + platformVer + ' does not support Smart Hub Preview. Skipping.');
+      return;
+    }
+
+    // Build one section per host that has a cached app list
+    var sections = [];
+    Object.keys(_previewApps).forEach(function(serverUid) {
+      var entry = _previewApps[serverUid];
+      if (!entry || !entry.apps || entry.apps.length === 0) {
+        return;
+      }
+      var tiles = entry.apps.map(function(app, index) {
+        var tile = {
+          title: app.title,
+          subtitle: entry.hostname,
+          action_data: JSON.stringify({serverUid: serverUid, address: entry.address, appId: app.id}),
+          is_playable: true,
+          position: index
+        };
+        if (app.imageUri) {
+          tile.image_url = app.imageUri;
+        }
+        if (app.txtPath) {
+          tile.txtPath = app.txtPath;
+        }
+        return tile;
+      });
+      sections.push({title: entry.hostname, tiles: tiles});
+    });
+
+    if (sections.length === 0) {
+      console.log('%c[index.js, updatePreviewData]', 'color: green;', 'No preview app data found, skipping Smart Hub Preview update.');
+      return;
+    }
+
+    var previewData = {sections: sections};
+    var serviceId = packageId + '.service';
+
+    console.log('%c[index.js, updatePreviewData]', 'color: green;', 'Launching Smart Hub service with preview data: ', previewData);
+
+    // Set up local message port to receive responses from the service
+    if (_smartHubLocalMessagePort && _smartHubMessagePortListener !== null) {
+      try {
+        _smartHubLocalMessagePort.removeMessagePortListener(_smartHubMessagePortListener);
+      } catch (e) {
+        // Ignore listener removal errors
+      }
+    }
+    _smartHubLocalMessagePort = tizen.messageport.requestLocalMessagePort(packageId);
+    _smartHubMessagePortListener = _smartHubLocalMessagePort.addMessagePortListener(function(uiData) {
+      console.log('%c[index.js, updatePreviewData]', 'color: green;', 'Received from Smart Hub service: ' + uiData[0].value);
+      if (uiData[0].value === 'Service stopping...' || uiData[0].value === 'Service exiting...') {
+        try {
+          _smartHubLocalMessagePort.removeMessagePortListener(_smartHubMessagePortListener);
+          _smartHubMessagePortListener = null;
+        } catch (e) {
+          // Ignore listener removal errors
+        }
+      }
+    });
+
+    // Launch the background service with the preview data via AppControl
+    tizen.application.launchAppControl(
+      new tizen.ApplicationControl(
+        'http://tizen.org/appcontrol/operation/pick',
+        null,
+        'image/jpeg',
+        null,
+        [new tizen.ApplicationControlData('Preview', [JSON.stringify(previewData)])]
+      ),
+      serviceId,
+      function() {
+        console.log('%c[index.js, updatePreviewData]', 'color: green;', 'Preview data sent to service: ' + serviceId);
+      },
+      function(err) {
+        console.error('%c[index.js, updatePreviewData]', 'color: green;', 'Failed to launch Smart Hub service: ' + err.message);
+      }
+    );
+  } catch (e) {
+    console.error('%c[index.js, updatePreviewData]', 'color: green;', 'Error updating Smart Hub preview data: ' + e.message);
+  }
+}
+
 function onWindowLoad() {
-  console.log('%c[index.js, onWindowLoad]', 'color: green;', 'Moonlight\'s main window loaded.');
 
   initSamsungKeys();
   initSpecialKeys();
   loadSystemInfo();
   loadUserData();
+
+  // Handle deep links from Smart Hub Preview tile clicks (initial launch)
+  handleDeepLink();
+  // Also handle deep links when the app is brought to the foreground via Smart Hub
+  window.addEventListener('appcontrol', handleDeepLink);
 }
 
 window.onload = onWindowLoad;

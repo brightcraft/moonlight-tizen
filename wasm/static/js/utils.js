@@ -490,66 +490,96 @@ NvHTTP.prototype = {
   // Returns the box art based on the the given appId
   // Three layers of response time are possible: memory-cached (in JavaScript), storage-cached (in tizen.filesystem), and network-fetched (host sends binary over the network)
   // For explanations on the file system, see: https://developer.samsung.com/smarttv/develop/api-references/tizen-web-device-api-references/filesystem-api.html
+  // Box art is stored in the public documents virtual root so that the Smart Hub Preview background
+  // service process can access it directly without any cross-process copying.
   getBoxArt: function(appId) {
     return new Promise(function(resolve, reject) {
-      var boxArtFileName = 'boxart-' + appId;
-      var boxArtDir = 'wgt-private/' + this.hostname; // Widget private storage directory is r/w (read/write)
+      var boxArtFileName = 'boxart_' + appId + '.png'; // Use true binary PNG
+      var boxArtDir = 'documents'; // Public storage directory so the background service can read it
 
+      var self = this;
+      
       // Read the cached box art from the storage
       try {
         var fileHandleRead = tizen.filesystem.openFile(boxArtDir + '/' + boxArtFileName, 'r');
-        var fileContentInBlob = fileHandleRead.readBlob();
+        var fileData = fileHandleRead.readData(); // Returns Uint8Array
         fileHandleRead.close();
-        console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Returning storage-cached box art: ', appId);
 
-        var reader = new FileReader();
-        reader.onloadend = function() {
-          var dataUrl = reader.result;
-          resolve(dataUrl);
-        };
-        reader.readAsDataURL(fileContentInBlob);
+        // Convert Uint8Array to base64
+        var binary = '';
+        for (var i = 0; i < fileData.length; i++) {
+          binary += String.fromCharCode(fileData[i]);
+        }
+        var base64Data = btoa(binary);
+
+        console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Returning storage-cached box art: ', appId);
+        resolve('data:image/png;base64,' + base64Data);
       } catch (readError) {
-        console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Cannot find or read box art from internal storage: ', readError);
+        console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Cannot find or read box art from internal storage: ', readError.message);
+        fetchFromNetwork();
+      }
+
+      function fetchFromNetwork() {
         // Fetch the new box art from the network
-        return sendMessage('openUrl', [
-          this._baseUrlHttps + '/appasset?' + this._buildUidStr() + '&appid=' + appId + '&AssetType=2&AssetIdx=0', this.ppkstr, true
+        sendMessage('openUrl', [
+          self._baseUrlHttps + '/appasset?' + self._buildUidStr() + '&appid=' + appId + '&AssetType=2&AssetIdx=0', self.ppkstr, true
         ]).then(function(boxArtBuffer) {
+          // boxArtBuffer is a Uint8Array from the WASM binary response
+          var blob = new Blob([boxArtBuffer], { type: 'image/png' });
           var reader = new FileReader();
           reader.onloadend = function() {
             var dataUrl = reader.result;
+            // Always resolve for UI display regardless of caching outcome.
+            console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Returning network-fetched box art: ', appId);
+
+            // Save to disk as true binary PNG for local HTTP server and future cache using modern Tizen API
             try {
-              // Save the new box art file to the storage
-              var fileHandleWrite = tizen.filesystem.openFile(boxArtDir + '/' + boxArtFileName, 'w');
-              fileHandleWrite.writeData(boxArtBuffer);
+              try { tizen.filesystem.createDirectory('documents', true); } catch (mkdirErr) { }
+              
+              var fileHandleWrite = tizen.filesystem.openFile('documents/' + boxArtFileName, 'w');
+              
+              var base64Payload = dataUrl.split(',')[1];
+              var binaryStr = atob(base64Payload);
+              var bytes = new Uint8Array(binaryStr.length);
+              for (var i = 0; i < binaryStr.length; i++) {
+                bytes[i] = binaryStr.charCodeAt(i);
+              }
+              
+              fileHandleWrite.writeData(bytes);
               fileHandleWrite.close();
-              console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Returning network-fetched box art: ', appId);
-              resolve(dataUrl);
             } catch (writeError) {
-              console.error('%c[utils.js, getBoxArt]', 'color: gray;', 'Error: Unable to save or write box art to internal storage: ', writeError);
-              reject(writeError);
+              console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Could not cache box art to disk: ', writeError.message);
             }
           };
-          var blob = new Blob([boxArtBuffer], {
-            type: 'image/png'
-          });
           reader.readAsDataURL(blob);
-        }.bind(this), function(error) {
+        }, function(error) {
           console.error('%c[utils.js, getBoxArt]', 'color: gray;', 'Error: Failed to retrieve box art from network: ', error);
           reject(error);
-        }.bind(this));
+        });
       }
     }.bind(this));
   },
 
   clearBoxArt: function() {
     return new Promise(function(resolve, reject) {
-      var boxArtDir = 'wgt-private/' + this.hostname; // Widget private storage directory is r/w (read/write)
+      var boxArtDir = 'documents'; // Public storage directory so the background service can read it
 
-      // Delete the cached box art directory from the storage
+      // Delete the cached box art files from the storage using modern API
       try {
-        tizen.filesystem.deleteDirectory(boxArtDir);
-        console.log('%c[utils.js, clearBoxArt]', 'color: gray;', 'Clearing the box art files from ' + boxArtDir);
-        resolve();
+        tizen.filesystem.listDirectory(boxArtDir, function(files) {
+          var deleteCount = 0;
+          for (var i = 0; i < files.length; i++) {
+            if (files[i].name.startsWith('boxart_') && files[i].name.endsWith('.png')) {
+              tizen.filesystem.deleteFile(files[i].fullPath);
+              deleteCount++;
+            }
+          }
+          console.log('%c[utils.js, clearBoxArt]', 'color: gray;', 'Cleared ' + deleteCount + ' box art files from ' + boxArtDir);
+          resolve();
+        }.bind(this), function(err) {
+          console.warn('%c[utils.js, clearBoxArt]', 'color: gray;', 'Warning: Could not list documents directory to clear box art: ', err.message);
+          resolve();
+        });
       } catch (error) {
         console.error('%c[utils.js, clearBoxArt]', 'color: gray;', 'Error: Failed to clear box art files: ', error);
         reject(error);
