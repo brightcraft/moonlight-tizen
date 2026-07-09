@@ -101,7 +101,7 @@ function startSubnetScanner() {
               if (abortCtrl) {
                 abortCtrl.abort();
               }
-            }, 800);
+            }, 1800);
             // Use fetch() to probe the host for the /serverinfo endpoint on port 47989
             fetch('http://' + ip + ':47989/serverinfo',
               abortCtrl ? { signal: abortCtrl.signal } : {}
