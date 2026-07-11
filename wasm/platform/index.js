@@ -442,28 +442,26 @@ function hostChosen(host) {
     pairingDialog(host, function() {
       // After pairing the host, save the host object, show the apps, and navigate to the Apps view
       saveHosts();
-      showApps(host);
       Navigation.push(Views.Apps);
-      setTimeout(() => {
+      showApps(host).then(() => {
         // Scroll to the current game row
         Navigation.switch();
         // Switch to Apps view
         Navigation.change(Views.Apps);
-      }, 1500);
+      }).catch(console.error);
     }, function() {
       // Start polling the host after pairing flow
       startPollingHosts();
     });
   } else {
     // But if the host is already paired and online, then we show the apps and navigate to the Apps view as usual.
-    showApps(host);
     Navigation.push(Views.Apps);
-    setTimeout(() => {
+    showApps(host).then(() => {
       // Scroll to the current game row
       Navigation.switch();
       // Switch to Apps view
       Navigation.change(Views.Apps);
-    }, 1500);
+    }).catch(console.error);
   }
 }
 
@@ -2079,13 +2077,15 @@ function showAppsMode() {
 
 // Show the Apps grid
 function showApps(host) {
-  // Safety checking should happen before attempting to show the app list
-  if (!host || !host.paired) {
-    console.error('%c[index.js, showApps]', 'color: green;', 'Error: Unable to initialize the host properly! Host object: ', host);
-    return;
-  } else {
-    console.log('%c[index.js, showApps]', 'color: green;', 'Current host object: \n', host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
-  }
+  return new Promise((resolve, reject) => {
+    // Safety checking should happen before attempting to show the app list
+    if (!host || !host.paired) {
+      console.error('%c[index.js, showApps]', 'color: green;', 'Error: Unable to initialize the host properly! Host object: ', host);
+      reject('Unable to initialize the host properly');
+      return;
+    } else {
+      console.log('%c[index.js, showApps]', 'color: green;', 'Current host object: \n', host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
+    }
 
   // Stop navigation before showing the loading screen
   Navigation.stop();
@@ -2213,6 +2213,9 @@ function showApps(host) {
         boxArtPlaceholderImg.onload = e => boxArtPlaceholderImg.classList.add('fade-in');
         $(gameContainer).append(boxArtPlaceholderImg);
       });
+      // Navigate to the Apps view
+      showAppsMode();
+      resolve();
     }, function(failedAppList) {
       // Hide the spinner if the host has failed to retrieve the app list
       $('#wasmSpinner').hide();
@@ -2226,11 +2229,13 @@ function showApps(host) {
       errorAppListImg.src = 'static/res/applist_error.svg';
       $('#game-grid').html(errorAppListImg);
       snackbarLogLong('Unable to retrieve your list of apps at this time. Please refresh the list of apps or try again later!');
-    });
 
-    // Navigate to the Apps view
-    showAppsMode();
+      // Navigate to the Apps view
+      showAppsMode();
+      reject(failedAppList);
+    });
   }, 500);
+  });
 }
 
 // Show a confirmation with the Quit App dialog before stopping the running app
@@ -2462,13 +2467,12 @@ function startGame(host, appID) {
           if (status_code != 200) {
             $('#loadingSpinnerMessage').text('');
             snackbarLogLong('Error ' + status_code + ': ' + status_message);
-            showApps(host);
-            setTimeout(() => {
+            showApps(host).then(() => {
               // Scroll to the current game row
               Navigation.switch();
               // Switch to Apps view
               Navigation.change(Views.Apps);
-            }, 1500);
+            });
             return;
           }
           // Start stream request
@@ -2482,13 +2486,12 @@ function startGame(host, appID) {
         }, function(failedResumeApp) {
           console.error('%c[index.js, startGame]', 'color: green;', 'Error: Failed to resume app with id: ' + appID + '\n Returned error was: ' + failedResumeApp + '!');
           snackbarLog('Failed to resume ' + appToStart.title);
-          showApps(host);
-          setTimeout(() => {
+          showApps(host).then(() => {
             // Scroll to the current game row
             Navigation.switch();
             // Switch to Apps view
             Navigation.change(Views.Apps);
-          }, 1500);
+          });
           return;
         });
       }
@@ -2516,13 +2519,12 @@ function startGame(host, appID) {
           }
           $('#loadingSpinnerMessage').text('');
           snackbarLogLong('Error ' + status_code + ': ' + status_message);
-          showApps(host);
-          setTimeout(() => {
+          showApps(host).then(() => {
             // Scroll to the current game row
             Navigation.switch();
             // Switch to Apps view
             Navigation.change(Views.Apps);
-          }, 1500);
+          });
           return;
         }
         // Start stream request
@@ -2536,13 +2538,12 @@ function startGame(host, appID) {
       }, function(failedLaunchApp) {
         console.error('%c[index.js, startGame]', 'color: green;', 'Error: Failed to launch app with id: ' + appID + '\n Returned error was: ' + failedLaunchApp + '!');
         snackbarLog('Failed to launch ' + appToStart.title + '.');
-        showApps(host);
-        setTimeout(() => {
+        showApps(host).then(() => {
           // Scroll to the current game row
           Navigation.switch();
           // Switch to Apps view
           Navigation.change(Views.Apps);
-        }, 1500);
+        });
         return;
       });
     });
@@ -2571,8 +2572,9 @@ function stopGame(host, callbackFunction) {
         snackbarLog('Successfully quit ' + appTitle);
         host.refreshServerInfo().then(function(ret3) {
           // Refresh to show no app is currently running
-          showApps(host);
-          if (typeof(callbackFunction) === "function") callbackFunction();
+          showApps(host).finally(() => {
+            if (typeof(callbackFunction) === "function") callbackFunction();
+          });
         }, function(failedRefreshInfo2) {
           console.error('%c[index.js, stopGame]', 'color: green;', 'Error: Failed to refresh server info! Returned error was: ' + failedRefreshInfo2 + '! Failed server was: ' + '\n', host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
         });
