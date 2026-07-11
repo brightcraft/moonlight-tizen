@@ -14,7 +14,7 @@ const SyncFunctions = {
   // no parameters
   'toggleStats': (...args) => Module.toggleStats(...args),
   // no parameters
-  'cancelPair': (...args) => Module.cancelPair(...args),
+  'cancelRequest': (...args) => Module.cancelRequest(...args),
 };
 
 const AsyncFunctions = {

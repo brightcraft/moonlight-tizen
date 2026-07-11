@@ -97,7 +97,7 @@ class MoonlightInstance {
 
   void STUN(int callbackId);
   void Pair(int callbackId, std::string serverMajorVersion, std::string address, int httpPort, std::string randomNumber);
-  void CancelPair();
+  void CancelRequest();
   void WakeOnLan(int callbackId, std::string macAddress);
 
   virtual ~MoonlightInstance();

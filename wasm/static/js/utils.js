@@ -445,9 +445,18 @@ NvHTTP.prototype = {
   },
 
   getAppListWithCacheFlush: function() {
-    return sendMessage('openUrl', [
-      this._baseUrlHttps + '/applist?' + this._buildUidStr(), this.ppkstr, false
-    ]).then(function(ret) {
+    return Promise.race([
+      sendMessage('openUrl', [
+        this._baseUrlHttps + '/applist?' + this._buildUidStr(), this.ppkstr, false
+      ]),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout retrieving app list')), 5000))
+    ]).catch(error => {
+      // If it's our timeout error, instruct the C++ layer to abort the hung network request
+      if (error.message === 'Timeout retrieving app list') {
+        sendMessage('cancelRequest', []);
+      }
+      throw error;
+    }).then(function(ret) {
       $xml = this._parseXML(ret);
       $root = $xml.find('root');
 
