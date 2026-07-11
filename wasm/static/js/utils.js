@@ -161,7 +161,9 @@ NvHTTP.prototype = {
         return sendMessage('openUrl', [
           this._baseUrlHttp + '/serverinfo?' + this._buildUidStr(), this.ppkstr, false
         ]).then(function(retHttp) {
-          this._parseServerInfo(retHttp);
+          if (!this._parseServerInfo(retHttp)) {
+            return Promise.reject("Failed to parse server info from HTTP");
+          }
         }.bind(this));
       }
     }.bind(this), function(error) {
@@ -171,9 +173,12 @@ NvHTTP.prototype = {
         return sendMessage('openUrl', [
           this._baseUrlHttp + '/serverinfo?' + this._buildUidStr(), this.ppkstr, false
         ]).then(function(retHttp) {
-          this._parseServerInfo(retHttp);
+          if (!this._parseServerInfo(retHttp)) {
+            return Promise.reject("Failed to parse server info from HTTP");
+          }
         }.bind(this));
       }
+      return Promise.reject(error);
     }.bind(this));
   },
 
@@ -184,7 +189,9 @@ NvHTTP.prototype = {
       return sendMessage('openUrl', [
         'http://' + givenAddress + ':' + this.httpPort + '/serverinfo?' + this._buildUidStr(), this.ppkstr, false
       ]).then(function(retHttp) {
-        return this._parseServerInfo(retHttp);
+        var parsed = this._parseServerInfo(retHttp);
+        if (!parsed) return Promise.reject("Failed to parse server info from HTTP");
+        return parsed;
       }.bind(this));
     }
     // Try HTTPS first
@@ -197,7 +204,9 @@ NvHTTP.prototype = {
         return sendMessage('openUrl', [
           'http://' + givenAddress + ':' + this.httpPort + '/serverinfo?' + this._buildUidStr(), this.ppkstr, false
         ]).then(function(retHttp) {
-          return this._parseServerInfo(retHttp);
+          var parsed = this._parseServerInfo(retHttp);
+          if (!parsed) return Promise.reject("Failed to parse server info from HTTP");
+          return parsed;
         }.bind(this));
       }
     }.bind(this), function(error) {
@@ -207,9 +216,12 @@ NvHTTP.prototype = {
         return sendMessage('openUrl', [
           'http://' + givenAddress + ':' + this.httpPort + '/serverinfo?' + this._buildUidStr(), this.ppkstr, false
         ]).then(function(retHttp) {
-          return this._parseServerInfo(retHttp);
+          var parsed = this._parseServerInfo(retHttp);
+          if (!parsed) return Promise.reject("Failed to parse server info from HTTP");
+          return parsed;
         }.bind(this));
       }
+      return Promise.reject(error);
     }.bind(this));
   },
 
@@ -258,6 +270,7 @@ NvHTTP.prototype = {
     }.bind(this), function() {
       if (++this._consecutivePollFailures >= 2) {
         this.online = false;
+        this._memCachedApplist = null;
       }
 
       // Call all pending completion callbacks

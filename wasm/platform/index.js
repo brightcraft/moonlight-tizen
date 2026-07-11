@@ -219,8 +219,6 @@ function delayedNavigation(callback) {
 }
 
 function beginBackgroundPollingOfHost(host) {
-  // Assign methods of NvHTTP to the host object
-  Object.assign(host, NvHTTP.prototype);
 
   // Refresh server info before attempting to start background polling of the host
   host.refreshServerInfo().then(function(ret) {
@@ -270,6 +268,27 @@ function beginBackgroundPollingOfHost(host) {
     }
   }, function(failedRefreshInfo) {
     console.error('%c[index.js, beginBackgroundPollingOfHost]', 'color: green;', 'Error: Failed to refresh server info! Returned error was: ' + failedRefreshInfo + '! Failed server was: ' + '\n', host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
+    
+    // Set host to offline and clear the app list cache
+    host.online = false;
+    host._memCachedApplist = null;
+
+    // Update the UI to show the host as offline
+    var hostCell = document.querySelector('#host-' + host.serverUid);
+    if (hostCell) {
+      hostCell.classList.add('host-cell-inactive');
+    }
+
+    // Start background polling to detect when the host comes back online
+    activePolls[host.serverUid] = window.setInterval(function() {
+      host.pollServer(function(returnedHost) {
+        if (returnedHost.online) {
+          if (hostCell) hostCell.classList.remove('host-cell-inactive');
+        } else {
+          if (hostCell) hostCell.classList.add('host-cell-inactive');
+        }
+      });
+    }, 5000);
   });
 }
 
@@ -1000,11 +1019,13 @@ function addHostToGrid(host, ismDNSDiscovered) {
 // Function to correctly update and store the valid MAC address of the host in IndexedDB
 function updateMacAddress(host) {
   getData('hosts', function(previousValue) {
-    hosts = previousValue.hosts != null ? previousValue.hosts : {};
+    var dbHosts = previousValue.hosts != null ? previousValue.hosts : {};
     if (host.macAddress != '00:00:00:00:00:00') {
-      if (hosts[host.serverUid] && hosts[host.serverUid].macAddress != host.macAddress) {
-        console.log('%c[index.js, updateMacAddress]', 'color: green;', 'Updated MAC address for host ' + host.hostname + ' from ' + hosts[host.serverUid].macAddress + ' to ' + host.macAddress);
-        hosts[host.serverUid].macAddress = host.macAddress;
+      if (dbHosts[host.serverUid] && dbHosts[host.serverUid].macAddress != host.macAddress) {
+        console.log('%c[index.js, updateMacAddress]', 'color: green;', 'Updated MAC address for host ' + host.hostname + ' from ' + dbHosts[host.serverUid].macAddress + ' to ' + host.macAddress);
+        if (hosts[host.serverUid]) {
+          hosts[host.serverUid].macAddress = host.macAddress;
+        }
         saveHosts();
       }
     }
@@ -2101,7 +2122,7 @@ function showApps(host) {
   $('#wasmSpinnerMessage').text('Loading Apps...');
 
   // Remove all game container elements from the game grid and from any other div elements
-  $('#game-grid .game-container').remove();
+  $('#game-grid').empty();
   $('div.game-container').remove();
 
   setTimeout(() => {
@@ -3709,6 +3730,7 @@ function loadHTTPCertsCb() {
           revivedHost.externalIP = hosts[hostUID].externalIP;
           revivedHost.hostname = hosts[hostUID].hostname;
           revivedHost.ppkstr = hosts[hostUID].ppkstr;
+          hosts[hostUID] = revivedHost;
           addHostToGrid(revivedHost);
         }
         startPollingHosts();
