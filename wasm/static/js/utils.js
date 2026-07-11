@@ -174,9 +174,12 @@ NvHTTP.prototype = {
         }.bind(this));
       }
     }.bind(this), function(error) {
-      if (error == -100) { // GS_CERT_MISMATCH
-        // Retry over HTTP
-        console.warn('%c[utils.js, refreshServerInfo]', 'color: gray;', 'Warning: Certificate mismatch. Retrying over HTTP...', this);
+      if (error == -100 || error == -1) { // GS_CERT_MISMATCH or GS_FAILED (EM_ASM fallback HTTPS rejection)
+        if (error == -100) {
+          console.warn('%c[utils.js, refreshServerInfo]', 'color: gray;', 'Warning: Certificate mismatch. Retrying over HTTP...', this);
+        } else {
+          console.warn('%c[utils.js, refreshServerInfo]', 'color: gray;', 'Warning: HTTPS failure. Retrying over HTTP...', this);
+        }
         return sendMessage('openUrl', [
           this._baseUrlHttp + '/serverinfo?' + this._buildUidStr(), this.ppkstr, false
         ]).then(function(retHttp) {
@@ -211,9 +214,12 @@ NvHTTP.prototype = {
         }.bind(this));
       }
     }.bind(this), function(error) {
-      if (error == -100) { // GS_CERT_MISMATCH
-        // Retry over HTTP
-        console.warn('%c[utils.js, refreshServerInfoAtAddress]', 'color: gray;', 'Warning: Certificate mismatch. Retrying over HTTP...', this);
+      if (error == -100 || error == -1) { // GS_CERT_MISMATCH or GS_FAILED (EM_ASM fallback HTTPS rejection)
+        if (error == -100) {
+          console.warn('%c[utils.js, refreshServerInfoAtAddress]', 'color: gray;', 'Warning: Certificate mismatch. Retrying over HTTP...', this);
+        } else {
+          console.warn('%c[utils.js, refreshServerInfoAtAddress]', 'color: gray;', 'Warning: HTTPS failure. Retrying over HTTP...', this);
+        }
         return sendMessage('openUrl', [
           'http://' + urlAddr + ':' + this.httpPort + '/serverinfo?' + this._buildUidStr(), this.ppkstr, false
         ]).then(function(retHttp) {
@@ -617,7 +623,12 @@ NvHTTP.prototype = {
         this.ppkstr = ppkstr;
         return sendMessage('openUrl', [
           this._baseUrlHttps + '/pair?uniqueid=' + this.getUid() + '&devicename=roth&updateState=1&phrase=pairchallenge', this.ppkstr, false
-        ]).then(function(ret) {
+        ]).catch(function(error) {
+          console.warn('%c[utils.js, pair]', 'color: gray;', 'HTTPS pairchallenge failed (' + error + '). Retrying over HTTP...');
+          return sendMessage('openUrl', [
+            this._baseUrlHttp + '/pair?uniqueid=' + this.getUid() + '&devicename=roth&updateState=1&phrase=pairchallenge', this.ppkstr, false
+          ]);
+        }.bind(this)).then(function(ret) {
           $xml = this._parseXML(ret);
           this.paired = $xml.find('paired').html() == '1';
           return this.paired;
