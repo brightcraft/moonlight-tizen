@@ -613,9 +613,18 @@ NvHTTP.prototype = {
         this.serverMajorVersion.toString(), this.address, this.httpPort, randomNumber, this.getUid()
       ]).then(function(ppkstr) {
         this.ppkstr = ppkstr;
-        return sendMessage('openUrl', [
-          this._baseUrlHttps + '/pair?uniqueid=' + this.getUid() + '&devicename=roth&updateState=1&phrase=pairchallenge', this.ppkstr, false
-        ]).then(function(ret) {
+        return Promise.race([
+          sendMessage('openUrl', [
+            this._baseUrlHttps + '/pair?uniqueid=' + this.getUid() + '&devicename=roth&updateState=1&phrase=pairchallenge', this.ppkstr, false
+          ]),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout during pairchallenge')), 5000))
+        ]).catch(error => {
+          if (error.message === 'Timeout during pairchallenge') {
+            console.warn('%c[utils.js, pair]', 'color: gray;', 'Warning: HTTPS request timed out, canceling C++ HTTP request');
+            sendMessage('cancelRequest', []);
+          }
+          throw error;
+        }).then(function(ret) {
           $xml = this._parseXML(ret);
           this.paired = $xml.find('paired').html() == '1';
           return this.paired;
