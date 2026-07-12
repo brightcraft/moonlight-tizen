@@ -2661,7 +2661,7 @@ function resetVideoElement() {
     console.log('[index.js, resetVideoElement] Flushed and removed old video element.');
   }
   // Inject a fresh video element after the snackbar
-  $('#snackbar').after('<video id="wasm_module" style="display: none;" tabindex="-1"></video>');
+  $('#snackbar').after('<video id="wasm_module" autoplay style="display: none;" tabindex="-1"></video>');
   // Re-bind the special keys (like XF86Back) since the old element was destroyed
   initSpecialKeys();
 }

@@ -257,21 +257,6 @@ int MoonlightInstance::StartupVidDecSetup(int videoFormat, int width, int height
     }
   });
 
-  // Guarantee the DOM element is playing (in case it was left paused)
-  MAIN_THREAD_EM_ASM({
-      var videoElement = document.getElementById('wasm_module');
-      if (videoElement) {
-          var playPromise = videoElement.play();
-          if (playPromise !== undefined) {
-              playPromise.then(function() {
-                  console.log('Video play() succeeded');
-              }).catch(function(error) {
-                  console.warn('Video play() failed:', error);
-              });
-          }
-      }
-  });
-
   ClLogMessage("Waiting to start\n");
   g_Instance->WaitFor(&g_Instance->m_EmssAudioStateChanged, [] {
     return g_Instance->m_AudioStarted.load();
