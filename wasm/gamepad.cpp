@@ -167,6 +167,9 @@ void MoonlightInstance::PollGamepads() {
   // Prevent repeated trigger while the button combo is held down
   static bool comboTriggered = false;
 
+  // Track valid gamepads that had a non-zero timestamp at least once
+  static bool isRealGamepad[32] = { false };
+
   // Iterate through connected gamepads and process their input
   for (int gamepadID = 0; gamepadID < numGamepads; ++gamepadID) {
     emscripten_sample_gamepad_data();
@@ -177,10 +180,17 @@ void MoonlightInstance::PollGamepads() {
     const auto result = emscripten_get_gamepad_status(gamepadID, &gamepad);
     if (result != EMSCRIPTEN_RESULT_SUCCESS || !gamepad.connected) {
       // Not connected
+      if (gamepadID < 32) {
+        isRealGamepad[gamepadID] = false;
+      }
       continue;
     }
 
-    if (gamepad.timestamp == 0) {
+    if (gamepadID < 32 && gamepad.timestamp != 0) {
+      isRealGamepad[gamepadID] = true;
+    }
+
+    if (gamepad.timestamp == 0 && (gamepadID >= 32 || !isRealGamepad[gamepadID])) {
       // On some platforms, Tizen returns "connected" gamepads that really 
       // aren't, so timestamp stays at zero. To work around this, we'll only
       // count gamepads that have a non-zero timestamp in our controller index.
