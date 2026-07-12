@@ -105,13 +105,26 @@ function handleMessage(msg) {
         snackbarLogLong('Connection terminated');
         break;
     }
+    // We need to completely destroy and recreate the video DOM element to unstick the Tizen media pipeline
+    if (typeof resetVideoElement === 'function') {
+      resetVideoElement();
+    }
+
+    // Hide the RTSP spinner (if it was showing from a connection attempt)
+    $('#loadingSpinner').hide();
+    
+    // We must explicitly re-enter Apps Mode before showing the apps
+    showAppsMode();
+    
     // Return to the app list with new current game
     showApps(api);
     setTimeout(() => {
       // Scroll to the current game row
       Navigation.switch();
       // Switch to Apps view
-      Navigation.change(Views.Apps);
+      if (!window.isDialogOpen) {
+        Navigation.change(Views.Apps);
+      }
     }, 1500);
   } else if (msg === 'Connection Established') {
     // Prepare the screen for video stream

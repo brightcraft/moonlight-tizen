@@ -26,7 +26,16 @@ function remoteControllerHandler(e) {
       break;
     case tvKey.KEY_RETURN:
       // Go back or cancel the operation
-      Navigation.back();
+      if (isInGame === true) {
+        if (isStreamCancelable === true) {
+          // Cancel the active stream and return to the apps list
+          cancelStreamAndReturn();
+        } else {
+          console.log('%c[remote_controller.js]', 'color: orange;', 'Back button disabled during stream RTSP initialization.');
+        }
+      } else {
+        Navigation.back();
+      }
       break;
     case tvKey.KEY_VOLUME_UP:
       // Increase the volume

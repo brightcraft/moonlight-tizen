@@ -33,6 +33,8 @@ var pairingCert; // Loads the generated certificate
 var myUniqueid;
 var api; // The `api` should only be set if we're in a host-specific screen, on the initial screen it should always be null
 var isInGame = false; // Flag indicating whether the game has started, initial value is false
+var isStreamCancelable = false; // Flag indicating whether the active stream operation can be cancelled safely
+var streamSessionId = 0; // Session ID to prevent race conditions during stream start and cancellation
 var isDialogOpen = false; // Flag indicating whether the dialog is open, initial value is false
 var isPairingInProgress = false; // Flag indicating whether a pairing process is in progress, initial value is false
 var wasPairingCanceled = false; // Flag indicating whether the current pairing process was canceled by the user, initial value is false
@@ -368,6 +370,9 @@ function showHosts() {
 }
 
 function restoreUiAfterWasmLoad() {
+  $('#loading').css('display', 'none');
+  $('#root').css('display', 'block');
+
   // Stop navigation before showing the loading screen
   Navigation.stop();
 
@@ -2049,6 +2054,8 @@ function sortTitles(list, sortOrder) {
 // Handle layout elements when displaying the Apps view
 function showAppsMode() {
   console.log('%c[index.js, showAppsMode]', 'color: green;', 'Entering "Show Apps" mode.');
+
+  isInGame = false;
   $('#header-title').html('Apps');
   $('#header-logo').show();
   $('#main-header').show();
@@ -2285,11 +2292,18 @@ function quitAppDialog() {
 // Handle layout elements when displaying the Stream view
 function showStreamMode() {
   console.log('%c[index.js, showStreamMode]', 'color: green;', 'Entering "Show Stream" mode.');
+
+  // Safe to cancel while waiting for the HTTP resume/launch request
+  isStreamCancelable = true;
   $('#main-header').hide();
   $('#main-content').children().not('#listener, #loadingSpinner').hide();
   $('#main-content').addClass('fullscreen');
   $('#listener').addClass('fullscreen');
   $('#loadingSpinner').css('display', 'inline-block');
+
+  // Unhide the video element immediately so Tizen's hardware decoder will accept play commands during C++ setup
+  $('#wasm_module').css('display', '');
+  $('#wasm_module').focus();
 
   isInGame = true;
   fullscreenWasmModule();
@@ -2327,6 +2341,11 @@ function handleOnScreenOverlays() {
   // Check if the performance stats switch is checked, then show or hide the performance statistics information
   performanceStatsSwitch.checked ? $('#performance-stats').css('display', 'inline-block') : $('#performance-stats').css('display', 'none');
 }
+
+var disableWarnings = false;
+var performanceStats = false;
+var streamSessionId = 0;
+var isStreamCancelable = true;
 
 // Start the given appID. If another app is running, offer to quit it. Otherwise, if the given app is already running, just resume it.
 function startGame(host, appID) {
@@ -2443,6 +2462,11 @@ function startGame(host, appID) {
       $('#loadingSpinnerMessage').text('Starting ' + appToStart.title + '...');
       showStreamMode();
 
+      // Increment the stream session ID for this new launch attempt
+      streamSessionId++;
+      var currentStreamSessionId = streamSessionId;
+      isStreamCancelable = false;
+      
       // Check if user wants to resume the already-running app
       if (host.currentGame == appID) {
         // If the app is already running, we can just resume it
@@ -2471,6 +2495,16 @@ function startGame(host, appID) {
             }, 1500);
             return;
           }
+
+          // Abort if the user cancelled the connection while the promise was pending
+          if (currentStreamSessionId !== streamSessionId) {
+            console.log('%c[index.js, startGame]', 'color: green;', 'App resume cancelled by user. Aborting startRequest.');
+            return;
+          }
+
+          // Danger zone begins! C++ will now touch the hardware overlay. Do not allow cancellation.
+          isStreamCancelable = false;
+
           // Start stream request
           sendMessage('startRequest', [
             host.address, host.httpPort, streamWidth, streamHeight, frameRate, bitrate.toString(), rikey, rikeyid.toString(),
@@ -2525,6 +2559,16 @@ function startGame(host, appID) {
           }, 1500);
           return;
         }
+
+        // Abort if the user cancelled the connection while the promise was pending
+        if (currentStreamSessionId !== streamSessionId) {
+          console.log('%c[index.js, startGame]', 'color: green;', 'App launch cancelled by user. Aborting startRequest.');
+          return;
+        }
+
+        // Danger zone begins! C++ will now touch the hardware overlay. Do not allow cancellation.
+        isStreamCancelable = false;
+
         // Start stream request
         sendMessage('startRequest', [
           host.address, host.httpPort, streamWidth, streamHeight, frameRate, bitrate.toString(), rikey, rikeyid.toString(),
@@ -2591,6 +2635,35 @@ function stopGame(host, callbackFunction) {
 function sendEscapeKeyToHost() {
   Module.sendKeyboardEvent(0x80 << 8 | 0x1B, 0x03, 0); // Key down
   Module.sendKeyboardEvent(0x80 << 8 | 0x1B, 0x04, 0); // Key up
+}
+
+// Cancel an in-progress or active stream and return to the apps list
+function cancelStreamAndReturn() {
+  console.log('%c[index.js, cancelStreamAndReturn]', 'color: green;', 'Cancelling stream and returning to apps list...');
+  streamSessionId++;
+  isStreamCancelable = false;
+  // Send ESC to the host so the game knows the session is ending
+  sendEscapeKeyToHost();
+  
+  // Signal C++ to stop the stream; the streamTerminated message will handle UI cleanup
+  Module.stopStream();
+}
+
+// Destroy and recreate the video element to prevent Tizen WebKit's sticky DOM state from hanging the next stream
+function resetVideoElement() {
+  var oldVideo = document.getElementById('wasm_module');
+  if (oldVideo) {
+    // Explicitly flush the old video element to force Tizen to release the hardware decoder resources
+    // BEFORE removing it from the DOM. If we remove it first, the Tizen media engine will leak them.
+    oldVideo.src = '';
+    oldVideo.removeAttribute('src');
+    oldVideo.remove();
+    console.log('[index.js, resetVideoElement] Flushed and removed old video element.');
+  }
+  // Inject a fresh video element after the snackbar
+  $('#snackbar').after('<video id="wasm_module" style="display: none;" tabindex="-1"></video>');
+  // Re-bind the special keys (like XF86Back) since the old element was destroyed
+  initSpecialKeys();
 }
 
 let indexedDB = null;
@@ -3351,12 +3424,9 @@ function initSpecialKeys() {
   videoElement.addEventListener('keydown', function(e) {
     // Check if the 'Back' key has been pressed and the streaming is currently active
     if (e.key === 'XF86Back' && isInGame === true) {
-      // Send the Escape key (ESC) to the host while streaming
-      sendEscapeKeyToHost();
-      // Simulate mouse to move focus back to the streaming session
-      videoElement.dispatchEvent(new MouseEvent('mousedown', {
-        bubbles: true, cancelable: true, view: window, clientX: 0, clientY: 0
-      }));
+      // Cancel the stream and return to the apps list
+      // (cancelStreamAndReturn already sends ESC to host when streaming is active)
+      cancelStreamAndReturn();
     }
   });
 }

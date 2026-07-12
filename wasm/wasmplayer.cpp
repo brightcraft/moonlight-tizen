@@ -15,6 +15,8 @@
 #include "samsung/html/html_media_element_listener.h"
 #include "samsung/wasm/operation_result.h"
 
+#include <emscripten.h>
+
 #define INITIAL_DECODE_BUFFER_LEN 1024 * 1024
 #define MAX_SPS_EXTRA_SIZE 32
 
@@ -144,7 +146,8 @@ bool MoonlightInstance::InitializeRenderingSurface(int width, int height) {
 
 int MoonlightInstance::StartupVidDecSetup(int videoFormat, int width, int height, int redrawRate, void* context, int drFlags) {
   // Bind the media source to the media element
-  g_Instance->m_MediaElement.SetSrc(g_Instance->m_Source.get());
+  g_Instance->m_MediaElement->SetSrc(g_Instance->m_Source.get());
+
   ClLogMessage("Waiting to close\n");
 
   g_Instance->WaitFor(&g_Instance->m_EmssStateChanged, [] {
@@ -241,16 +244,32 @@ int MoonlightInstance::StartupVidDecSetup(int videoFormat, int width, int height
   ClLogMessage("Inb4 source open\n");
   g_Instance->m_Source->Open([](EmssOperationResult){});
   g_Instance->WaitFor(&g_Instance->m_EmssStateChanged, [] {
-    return g_Instance->m_EmssReadyState == EmssReadyState::kOpenPending;
+    return g_Instance->m_EmssReadyState == EmssReadyState::kOpenPending || 
+           g_Instance->m_EmssReadyState == EmssReadyState::kOpen;
   });
 
   ClLogMessage("Source ready to open\n");
-  g_Instance->m_MediaElement.Play([](EmssOperationResult err) {
+  g_Instance->m_MediaElement->Play([](EmssOperationResult err) {
     if (err != EmssOperationResult::kSuccess) {
       ClLogMessage("Play error\n");
     } else {
       ClLogMessage("Play success\n");
     }
+  });
+
+  // Guarantee the DOM element is playing (in case it was left paused)
+  MAIN_THREAD_EM_ASM({
+      var videoElement = document.getElementById('wasm_module');
+      if (videoElement) {
+          var playPromise = videoElement.play();
+          if (playPromise !== undefined) {
+              playPromise.then(function() {
+                  console.log('Video play() succeeded');
+              }).catch(function(error) {
+                  console.warn('Video play() failed:', error);
+              });
+          }
+      }
   });
 
   ClLogMessage("Waiting to start\n");

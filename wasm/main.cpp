@@ -34,6 +34,10 @@ using EmssRenderingMode = samsung::wasm::ElementaryMediaStreamSource::RenderingM
 
 MoonlightInstance* g_Instance;
 
+std::mutex g_TeardownMutex;
+std::condition_variable g_TeardownCV;
+bool g_IsTearingDown = false;
+
 MoonlightInstance::MoonlightInstance()
   : m_OpusDecoder(NULL),
     m_MouseLocked(false),
@@ -54,7 +58,7 @@ MoonlightInstance::MoonlightInstance()
     m_VideoStarted(false),
     m_AudioSessionId(0),
     m_VideoSessionId(0),
-    m_MediaElement("wasm_module"),
+    m_MediaElement(nullptr),
     m_Source(nullptr),
     m_SourceListener(this),
     m_AudioTrackListener(this),
@@ -80,8 +84,38 @@ void MoonlightInstance::OnConnectionStopped(uint32_t error) {
   // Unlock the mouse
   UnlockMouse();
 
-  // Notify the JS code that the stream has ended
-  PostToJs(std::string(MSG_STREAM_TERMINATED + std::to_string((int)error)));
+  // Close the media source - the OnSourceClosed callback will handle DOM cleanup
+  if (g_Instance && g_Instance->m_Source) {
+    {
+      std::lock_guard<std::mutex> lock(g_TeardownMutex);
+      g_IsTearingDown = true;
+    }
+    g_Instance->m_Source->Close([error](samsung::wasm::OperationResult err) {
+      if (err != samsung::wasm::OperationResult::kSuccess) {
+          ClLogMessage("Close error\n");
+      } else {
+          ClLogMessage("Close success\n");
+      }
+
+      // Release tracks to ensure WebKit garbage collection
+      g_Instance->m_AudioTrack = samsung::wasm::ElementaryMediaTrack();
+      g_Instance->m_VideoTrack = samsung::wasm::ElementaryMediaTrack();
+
+      // Release the lock and wake up the new stream
+      {
+          std::lock_guard<std::mutex> teardownLock(g_TeardownMutex);
+          g_IsTearingDown = false;
+      }
+      g_TeardownCV.notify_all();
+
+      // Notify the JS code that the stream has ended NOW
+      // (waiting until OS finishes hardware teardown prevents JS from doing DOM cleanup too early)
+      PostToJs(std::string(MSG_STREAM_TERMINATED + std::to_string((int)error)));
+    });
+  } else {
+    // Notify the JS code that the stream has ended
+    PostToJs(std::string(MSG_STREAM_TERMINATED + std::to_string((int)error)));
+  }
 }
 
 void MoonlightInstance::StopConnection() {
@@ -91,10 +125,7 @@ void MoonlightInstance::StopConnection() {
   // caused by us getting a callback to the main thread while inside
   // LiStopConnection.
   pthread_create(&t, NULL, MoonlightInstance::StopThreadFunc, NULL);
-
-  // We'll need to call the listener ourselves since our connection terminated
-  // callback won't be invoked for a manually requested termination.
-  OnConnectionStopped(0);
+  pthread_detach(t);
 }
 
 void* MoonlightInstance::StopThreadFunc(void* context) {
@@ -119,6 +150,9 @@ void* MoonlightInstance::StopThreadFunc(void* context) {
 
   // Stop the connection
   LiStopConnection();
+  
+  // Trigger JS teardown ONLY after C++ cleanup is fully complete to prevent race conditions
+  g_Instance->OnConnectionStopped(0);
   return NULL;
 }
 
@@ -143,6 +177,30 @@ void* MoonlightInstance::ConnectionThreadFunc(void* context) {
 
   // Post a status update before we begin
   PostToJs(std::string("Starting connection to ") + me->m_Host);
+
+  // Check if the old stream is still dying. If so, put this thread to sleep.
+  {
+    std::unique_lock<std::mutex> lock(g_TeardownMutex);
+    g_TeardownCV.wait(lock, []{ return !g_IsTearingDown; });
+  }
+
+  // Reset EMSS state variables for the new stream
+  me->m_EmssReadyState = EmssReadyState::kDetached;
+  me->m_AudioStarted = false;
+  me->m_VideoStarted = false;
+  me->m_AudioSessionId = 0;
+  me->m_VideoSessionId = 0;
+
+  // Apply the desired latency mode ​based on the toggle switch state
+  EmssLatencyMode selectedLatencyMode = me->m_GameModeEnabled ? EmssLatencyMode::kUltraLow : EmssLatencyMode::kLow;
+  PostToJs(me->m_GameModeEnabled ? "Selecting the latency mode to: LATENCY_MODE_ULTRA_LOW" : "Selecting the latency mode to: LATENCY_MODE_LOW");
+  // Create the media source with the selected latency and rendering modes
+  me->m_Source = std::make_unique<samsung::wasm::ElementaryMediaStreamSource>(
+    selectedLatencyMode,
+    EmssRenderingMode::kMediaElement
+  );
+  // Set the source listener to the media source
+  me->m_Source->SetListener(&me->m_SourceListener);
 
   // Populate the server information
   LiInitializeServerInformation(&serverInfo);
@@ -319,17 +377,6 @@ MessageResult MoonlightInstance::StartStream(std::string host, int httpPort, std
   // Manage gamepad input states based on selected settings
   HandleGamepadInputState(rumbleFeedback, mouseEmulation, flipABfaceButtons, flipXYfaceButtons);
 
-  // Apply the desired latency mode ​based on the toggle switch state
-  EmssLatencyMode selectedLatencyMode = gameMode ? EmssLatencyMode::kUltraLow : EmssLatencyMode::kLow;
-  PostToJs(gameMode ? "Selecting the latency mode to: LATENCY_MODE_ULTRA_LOW" : "Selecting the latency mode to: LATENCY_MODE_LOW");
-  // Create the media source with the selected latency and rendering modes
-  m_Source = std::make_unique<samsung::wasm::ElementaryMediaStreamSource>(
-    selectedLatencyMode,
-    EmssRenderingMode::kMediaElement
-  );
-  // Set the source listener to the media source
-  m_Source->SetListener(&m_SourceListener);
-
   // Store the parameters from the start message
   m_Host = host;
   m_HttpPort = httpPort;
@@ -353,6 +400,9 @@ MessageResult MoonlightInstance::StartStream(std::string host, int httpPort, std
 
   // Initialize the rendering surface before starting the connection
   if (InitializeRenderingSurface(m_StreamConfig.width, m_StreamConfig.height)) {
+    // Dynamically create a brand new binding to the video element on the main thread!
+    m_MediaElement = std::make_unique<samsung::html::HTMLMediaElement>("wasm_module");
+
     // Start the worker thread to establish the connection
     pthread_create(&m_ConnectionThread, NULL, MoonlightInstance::ConnectionThreadFunc, this);
   } else {
