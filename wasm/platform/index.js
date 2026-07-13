@@ -217,10 +217,15 @@ function delayedNavigation(callback) {
   // Set a new navigation timeout with the provided callback and delay
   navigationTimeout = setTimeout(callback, NAVIGATION_DELAY);
 }
+
+// Updates the host status indicator based on the host's online and paired status
 function updateHostStatusIndicator(host) {
   var indicator = document.querySelector('#host-status-' + host.serverUid);
-  if (!indicator) return;
-
+  // If the indicator element is not found, exit the function early
+  if (!indicator) {
+    return;
+  }
+  // Set the appropriate status indicator based on the host status
   if (host.online === undefined || host.online === null) {
     indicator.style.display = 'none';
   } else if (!host.online) {
@@ -234,7 +239,6 @@ function updateHostStatusIndicator(host) {
     indicator.innerHTML = '';
   }
 }
-
 
 function beginBackgroundPollingOfHost(host) {
   // Assign methods of NvHTTP to the host object
@@ -963,6 +967,12 @@ function addHostToGrid(host, ismDNSDiscovered) {
     'aria-label': host.hostname + ' menu'
   });
 
+  // Create the host center icon to indicate the host's status (online/offline/unpaired)
+  var hostStatusIndicator = $('<i>', {
+    id: 'host-status-' + host.serverUid,
+    class: 'material-icons host-center-icon'
+  });
+
   // Append the host text to the host title wrapper
   hostTitle.append(hostText);
 
@@ -984,12 +994,6 @@ function addHostToGrid(host, ismDNSDiscovered) {
   // Append the host menu button to the host container
   hostContainer.append(hostMenu);
 
-  // Create the host center icon
-  var hostStatusIndicator = $('<i>', {
-    id: 'host-status-' + host.serverUid,
-    class: 'material-icons host-center-icon'
-  });
-  
   // Append the host status indicator to the host container
   hostContainer.append(hostStatusIndicator);
 
