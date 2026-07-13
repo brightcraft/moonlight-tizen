@@ -467,28 +467,26 @@ function hostChosen(host) {
     pairingDialog(host, function() {
       // After pairing the host, save the host object, show the apps, and navigate to the Apps view
       saveHosts();
-      showApps(host);
       Navigation.push(Views.Apps);
-      setTimeout(() => {
+      showApps(host).then(() => {
         // Scroll to the current game row
         Navigation.switch();
         // Switch to Apps view
         Navigation.change(Views.Apps);
-      }, 1500);
+      }).catch(console.error);
     }, function() {
       // Start polling the host after pairing flow
       startPollingHosts();
     });
   } else {
     // But if the host is already paired and online, then we show the apps and navigate to the Apps view as usual.
-    showApps(host);
     Navigation.push(Views.Apps);
-    setTimeout(() => {
+    showApps(host).then(() => {
       // Scroll to the current game row
       Navigation.switch();
       // Switch to Apps view
       Navigation.change(Views.Apps);
-    }, 1500);
+    }).catch(console.error);
   }
 }
 
@@ -2088,158 +2086,165 @@ function showAppsMode() {
 
 // Show the Apps grid
 function showApps(host) {
-  // Safety checking should happen before attempting to show the app list
-  if (!host || !host.paired) {
-    console.error('%c[index.js, showApps]', 'color: green;', 'Error: Unable to initialize the host properly! Host object: ', host);
-    return;
-  } else {
-    console.log('%c[index.js, showApps]', 'color: green;', 'Current host object: \n', host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
-  }
+  return new Promise((resolve, reject) => {
+    // Safety checking should happen before attempting to show the app list
+    if (!host || !host.paired) {
+      console.error('%c[index.js, showApps]', 'color: green;', 'Error: Unable to initialize the host properly! Host object: ', host);
+      reject('Unable to initialize the host properly');
+      return;
+    } else {
+      console.log('%c[index.js, showApps]', 'color: green;', 'Current host object: \n', host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
+    }
 
-  // Stop navigation before showing the loading screen
-  Navigation.stop();
+    // Stop navigation before showing the loading screen
+    Navigation.stop();
 
-  // Hide the main header before showing a loading screen
-  $('#main-header').children().hide();
-  $('#main-header').css({'backgroundColor': 'transparent', 'boxShadow': 'none'});
-  $('#host-grid, #settings-list').hide();
+    // Hide the main header before showing a loading screen
+    $('#main-header').children().hide();
+    $('#main-header').css({'backgroundColor': 'transparent', 'boxShadow': 'none'});
+    $('#host-grid, #settings-list').hide();
 
-  // Show a spinner while the app list loads
-  $('#wasmSpinner').css('display', 'inline-block');
-  $('#wasmSpinnerLogo').hide();
-  $('#wasmSpinnerMessage').text('Loading Apps...');
+    // Show a spinner while the app list loads
+    $('#wasmSpinner').css('display', 'inline-block');
+    $('#wasmSpinnerLogo').hide();
+    $('#wasmSpinnerMessage').text('Loading Apps...');
 
-  // Remove all game container elements from the game grid and from any other div elements
-  $('#game-grid .game-container').remove();
-  $('div.game-container').remove();
+    // Remove all game container elements from the game grid and from any other div elements
+    $('#game-grid .game-container').remove();
+    $('div.game-container').remove();
 
-  setTimeout(() => {
-    host.getAppList().then(function(appList) {
-      // Hide the spinner after the host has successfully retrieved the app list
-      $('#wasmSpinner').hide();
+    setTimeout(() => {
+      host.getAppList().then(function(appList) {
+        // Hide the spinner after the host has successfully retrieved the app list
+        $('#wasmSpinner').hide();
 
-      // Show the main header after the loading screen is complete
-      $('#main-header').children().show();
-      $('#main-header').css({'backgroundColor': '#333846', 'boxShadow': '0 0 4px 0 rgba(0, 0, 0, 1)'});
+        // Show the main header after the loading screen is complete
+        $('#main-header').children().show();
+        $('#main-header').css({'backgroundColor': '#333846', 'boxShadow': '0 0 4px 0 rgba(0, 0, 0, 1)'});
 
-      // Show the game grid section
-      $('#game-grid').show();
+        // Show the game grid section
+        $('#game-grid').show();
 
-      if (appList.length == 0) {
-        console.warn('%c[index.js, showApps]', 'Warning: Your app list is empty. Please add some apps to your list!');
-        var emptyAppListImg = new Image();
-        emptyAppListImg.src = 'static/res/applist_empty.svg';
-        $('#game-grid').html(emptyAppListImg);
-        snackbarLogLong('Your list is currently empty. Please add your favorite apps to the list.');
-        return;
-      }
-
-      // Find the existing switch element
-      const sortAppsListSwitch = document.getElementById('sortAppsListSwitch');
-      // Defines the sort order based on the state of the switch
-      const sortOrder = sortAppsListSwitch.checked ? 'DESC' : 'ASC';
-      // If game grid is populated, sort the app list
-      const sortedAppList = sortTitles(appList, sortOrder);
-
-      sortedAppList.forEach(function(app) {
-        // Double clicking the button will cause multiple box arts to appear.
-        // To mitigate this, we ensure that we don't add a duplicate box art.
-        // This isn't perfect: there's lots of RTTs before the logic prevents anything.
-        if ($('#game-container-' + app.id).length === 0) {
-          // Create the game container with the appropriate attributes for the game card
-          var gameContainer = $('<div>', {
-            id: 'game-container-' + app.id,
-            class: 'game-container mdl-card mdl-shadow--4dp',
-            role: 'link',
-            tabindex: 0,
-            'aria-label': app.title
-          });
-
-          // Create the game cell to serve as a holder for the game box
-          var gameCell = $('<div>', {
-            id: 'game-' + app.id,
-            class: 'mdl-card__title mdl-card--expand'
-          });
-
-          // Create the game title wrapper to hold the game title text
-          var gameTitle = $('<div>', {
-            class: 'game-title mdl-card__title-text'
-          });
-
-          // Create the game text placeholder that will contain the game name
-          var gameText = $('<span>', {
-            class: 'game-text',
-            html: app.title
-          });
-
-          // Append the game text to the game title wrapper
-          gameTitle.append(gameText);
-
-          // Handle animation state based on game title text length
-          if (app.title.length <= 20) {
-            // For game title text of 20 characters or less, disable scrolling text animation
-            gameText.addClass('disable-animation');
-          } else {
-            // For game title text longer than 20 characters, enable scrolling text animation
-            gameText.removeClass('disable-animation');
-          }
-
-          // Append the game title to the game cell
-          gameCell.append(gameTitle);
-
-          // Append the game cell to the game container
-          gameContainer.append(gameCell);
-
-          // Attach the click event listener to the game container
-          gameContainer.off('click');
-          gameContainer.on('click', function() {
-            // Prevent further clicks
-            if (isClickPrevented) {
-              return;
-            }
-            // Block subsequent clicks immediately
-            isClickPrevented = true;
-            // Start the game when the Click key is pressed
-            startGame(host, app.id);
-            // Reset the click flag after 2 second delay
-            setTimeout(() => isClickPrevented = false, 2000);
-          });
-
-          // Append the game container to the game grid
-          $('#game-grid').append(gameContainer);
-
-          // Apply style to the game container to indicate whether the game is active or not
-          setTimeout(() => stylizeBoxArt(host, app.id), 100);
+        if (appList.length == 0) {
+          console.warn('%c[index.js, showApps]', 'Warning: Your app list is empty. Please add some apps to your list!');
+          var emptyAppListImg = new Image();
+          emptyAppListImg.src = 'static/res/applist_empty.svg';
+          $('#game-grid').html(emptyAppListImg);
+          snackbarLogLong('Your list is currently empty. Please add your favorite apps to the list.');
+          return;
         }
-        // Load box art
-        var boxArtPlaceholderImg = new Image();
-        host.getBoxArt(app.id).then(function(resolvedPromise) {
-          boxArtPlaceholderImg.src = resolvedPromise;
-        }, function(failedPromise) {
-          console.error('%c[index.js, showApps]', 'color: green;', 'Error: Failed to retrieve box art for app ID: ' + app.id + '. Returned value was: ' + failedPromise + '. Host object: ', host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
-          boxArtPlaceholderImg.src = 'static/res/placeholder_error.svg';
+
+        // Find the existing switch element
+        const sortAppsListSwitch = document.getElementById('sortAppsListSwitch');
+        // Defines the sort order based on the state of the switch
+        const sortOrder = sortAppsListSwitch.checked ? 'DESC' : 'ASC';
+        // If game grid is populated, sort the app list
+        const sortedAppList = sortTitles(appList, sortOrder);
+
+        sortedAppList.forEach(function(app) {
+          // Double clicking the button will cause multiple box arts to appear.
+          // To mitigate this, we ensure that we don't add a duplicate box art.
+          // This isn't perfect: there's lots of RTTs before the logic prevents anything.
+          if ($('#game-container-' + app.id).length === 0) {
+            // Create the game container with the appropriate attributes for the game card
+            var gameContainer = $('<div>', {
+              id: 'game-container-' + app.id,
+              class: 'game-container mdl-card mdl-shadow--4dp',
+              role: 'link',
+              tabindex: 0,
+              'aria-label': app.title
+            });
+
+            // Create the game cell to serve as a holder for the game box
+            var gameCell = $('<div>', {
+              id: 'game-' + app.id,
+              class: 'mdl-card__title mdl-card--expand'
+            });
+
+            // Create the game title wrapper to hold the game title text
+            var gameTitle = $('<div>', {
+              class: 'game-title mdl-card__title-text'
+            });
+
+            // Create the game text placeholder that will contain the game name
+            var gameText = $('<span>', {
+              class: 'game-text',
+              html: app.title
+            });
+
+            // Append the game text to the game title wrapper
+            gameTitle.append(gameText);
+
+            // Handle animation state based on game title text length
+            if (app.title.length <= 20) {
+              // For game title text of 20 characters or less, disable scrolling text animation
+              gameText.addClass('disable-animation');
+            } else {
+              // For game title text longer than 20 characters, enable scrolling text animation
+              gameText.removeClass('disable-animation');
+            }
+
+            // Append the game title to the game cell
+            gameCell.append(gameTitle);
+
+            // Append the game cell to the game container
+            gameContainer.append(gameCell);
+
+            // Attach the click event listener to the game container
+            gameContainer.off('click');
+            gameContainer.on('click', function() {
+              // Prevent further clicks
+              if (isClickPrevented) {
+                return;
+              }
+              // Block subsequent clicks immediately
+              isClickPrevented = true;
+              // Start the game when the Click key is pressed
+              startGame(host, app.id);
+              // Reset the click flag after 2 second delay
+              setTimeout(() => isClickPrevented = false, 2000);
+            });
+
+            // Append the game container to the game grid
+            $('#game-grid').append(gameContainer);
+
+            // Apply style to the game container to indicate whether the game is active or not
+            setTimeout(() => stylizeBoxArt(host, app.id), 100);
+          }
+          // Load box art
+          var boxArtPlaceholderImg = new Image();
+          host.getBoxArt(app.id).then(function(resolvedPromise) {
+            boxArtPlaceholderImg.src = resolvedPromise;
+          }, function(failedPromise) {
+            console.error('%c[index.js, showApps]', 'color: green;', 'Error: Failed to retrieve box art for app ID: ' + app.id + '. Returned value was: ' + failedPromise + '. Host object: ', host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
+            boxArtPlaceholderImg.src = 'static/res/placeholder_error.svg';
+          });
+          boxArtPlaceholderImg.onload = e => boxArtPlaceholderImg.classList.add('fade-in');
+          $(gameContainer).append(boxArtPlaceholderImg);
         });
-        boxArtPlaceholderImg.onload = e => boxArtPlaceholderImg.classList.add('fade-in');
-        $(gameContainer).append(boxArtPlaceholderImg);
+        // Navigate to the Apps view
+        showAppsMode();
+        resolve();
+      }, function(failedAppList) {
+        // Hide the spinner if the host has failed to retrieve the app list
+        $('#wasmSpinner').hide();
+
+        // Show the main header after the loading screen is complete
+        $('#main-header').children().show();
+        $('#main-header').css({'backgroundColor': '#333846', 'boxShadow': '0 0 4px 0 rgba(0, 0, 0, 1)'});
+
+        console.error('%c[index.js, showApps]', 'color: green;', 'Error: Failed to get app list from ' + host.hostname + '. Host object: ', host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
+        var errorAppListImg = new Image();
+        errorAppListImg.src = 'static/res/applist_error.svg';
+        $('#game-grid').html(errorAppListImg);
+        snackbarLogLong('Unable to retrieve your list of apps at this time. Please refresh the list of apps or try again later!');
+
+        // Navigate to the Apps view
+        showAppsMode();
+        reject(failedAppList);
       });
-    }, function(failedAppList) {
-      // Hide the spinner if the host has failed to retrieve the app list
-      $('#wasmSpinner').hide();
-
-      // Show the main header after the loading screen is complete
-      $('#main-header').children().show();
-      $('#main-header').css({'backgroundColor': '#333846', 'boxShadow': '0 0 4px 0 rgba(0, 0, 0, 1)'});
-
-      console.error('%c[index.js, showApps]', 'color: green;', 'Error: Failed to get app list from ' + host.hostname + '. Host object: ', host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
-      var errorAppListImg = new Image();
-      errorAppListImg.src = 'static/res/applist_error.svg';
-      $('#game-grid').html(errorAppListImg);
-      snackbarLogLong('Unable to retrieve your list of apps at this time. Please refresh the list of apps or try again later!');
-    });
-
-    // Navigate to the Apps view
-    showAppsMode();
-  }, 500);
+    }, 500);
+  });
 }
 
 // Show a confirmation with the Quit App dialog before stopping the running app
@@ -2471,13 +2476,12 @@ function startGame(host, appID) {
           if (status_code != 200) {
             $('#loadingSpinnerMessage').text('');
             snackbarLogLong('Error ' + status_code + ': ' + status_message);
-            showApps(host);
-            setTimeout(() => {
+            showApps(host).then(() => {
               // Scroll to the current game row
               Navigation.switch();
               // Switch to Apps view
               Navigation.change(Views.Apps);
-            }, 1500);
+            });
             return;
           }
           // Start stream request
@@ -2491,13 +2495,12 @@ function startGame(host, appID) {
         }, function(failedResumeApp) {
           console.error('%c[index.js, startGame]', 'color: green;', 'Error: Failed to resume app with id: ' + appID + '\n Returned error was: ' + failedResumeApp + '!');
           snackbarLog('Failed to resume ' + appToStart.title);
-          showApps(host);
-          setTimeout(() => {
+          showApps(host).then(() => {
             // Scroll to the current game row
             Navigation.switch();
             // Switch to Apps view
             Navigation.change(Views.Apps);
-          }, 1500);
+          });
           return;
         });
       }
@@ -2525,13 +2528,12 @@ function startGame(host, appID) {
           }
           $('#loadingSpinnerMessage').text('');
           snackbarLogLong('Error ' + status_code + ': ' + status_message);
-          showApps(host);
-          setTimeout(() => {
+          showApps(host).then(() => {
             // Scroll to the current game row
             Navigation.switch();
             // Switch to Apps view
             Navigation.change(Views.Apps);
-          }, 1500);
+          });
           return;
         }
         // Start stream request
@@ -2545,13 +2547,12 @@ function startGame(host, appID) {
       }, function(failedLaunchApp) {
         console.error('%c[index.js, startGame]', 'color: green;', 'Error: Failed to launch app with id: ' + appID + '\n Returned error was: ' + failedLaunchApp + '!');
         snackbarLog('Failed to launch ' + appToStart.title + '.');
-        showApps(host);
-        setTimeout(() => {
+        showApps(host).then(() => {
           // Scroll to the current game row
           Navigation.switch();
           // Switch to Apps view
           Navigation.change(Views.Apps);
-        }, 1500);
+        });
         return;
       });
     });
@@ -2580,8 +2581,9 @@ function stopGame(host, callbackFunction) {
         snackbarLog('Successfully quit ' + appTitle);
         host.refreshServerInfo().then(function(ret3) {
           // Refresh to show no app is currently running
-          showApps(host);
-          if (typeof(callbackFunction) === "function") callbackFunction();
+          showApps(host).finally(() => {
+            if (typeof(callbackFunction) === "function") callbackFunction();
+          });
         }, function(failedRefreshInfo2) {
           console.error('%c[index.js, stopGame]', 'color: green;', 'Error: Failed to refresh server info! Returned error was: ' + failedRefreshInfo2 + '! Failed server was: ' + '\n', host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
         });
