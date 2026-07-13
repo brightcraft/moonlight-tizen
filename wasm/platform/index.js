@@ -547,78 +547,31 @@ function isValidPort(port) {
   return Number.isInteger(port) && port > 0 && port <= 65535;
 }
 
-function isValidIpv4Address(address) {
+function isValidHostAddress(address) {
   if (!address) {
     return false;
   }
 
-  const octets = address.split('.');
-  if (octets.length !== 4) {
-    return false;
-  }
+  // IPv4 regex
+  const ipv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+  
+  // IPv6 regex
+  const ipv6Regex = /^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:))$/;
+  
+  // Hostname regex (FQDN or short hostname)
+  const hostnameRegex = /^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$/;
 
-  for (const octet of octets) {
-    if (!/^\d{1,3}$/.test(octet)) {
-      return false;
-    }
-
-    const octetValue = parseInt(octet, 10);
-    if (octetValue < 0 || octetValue > 255) {
-      return false;
-    }
-  }
-
-  return true;
+  return ipv4Regex.test(address) || ipv6Regex.test(address) || hostnameRegex.test(address);
 }
 
-function isPotentialIpv4AddressWithOptionalPort(rawInput) {
+function isPotentialAddressWithOptionalPort(rawInput) {
   const input = (rawInput || '').trim();
   if (!input) {
     return true;
   }
 
-  const rawParts = input.split(':');
-  if (rawParts.length > 2) {
-    return false;
-  }
-
-  const addrPart = rawParts[0];
-  const portPart = rawParts.length === 2 ? rawParts[1] : null;
-
-  if (!/^\d{0,3}(\.\d{0,3}){0,3}$/.test(addrPart)) {
-    return false;
-  }
-
-  const octets = addrPart.split('.');
-  if (octets.length > 4) {
-    return false;
-  }
-
-  for (const octet of octets) {
-    if (!octet) {
-      continue;
-    }
-
-    const octetValue = parseInt(octet, 10);
-    if (octetValue < 0 || octetValue > 255) {
-      return false;
-    }
-  }
-
-  if (portPart != null) {
-    if (!/^\d{0,5}$/.test(portPart)) {
-      return false;
-    }
-
-    if (portPart.length > 0) {
-      const parsedPort = parseInt(portPart, 10);
-      if (!isValidPort(parsedPort)) {
-        return false;
-      }
-    }
-  }
-
-  return true;
+  // Relaxed validation while typing: allow alphanumeric, dots, hyphens, colons, and brackets
+  return /^[a-zA-Z0-9.:\[\]\-]*$/.test(input);
 }
 
 function updateIpAddressInputValidationState() {
@@ -631,7 +584,7 @@ function updateIpAddressInputValidationState() {
   }
 
   const inputValue = ipAddressInput.value;
-  const isPotentialValue = isPotentialIpv4AddressWithOptionalPort(inputValue);
+  const isPotentialValue = isPotentialAddressWithOptionalPort(inputValue);
 
   if (!inputValue.trim()) {
     ipAddressInput.setCustomValidity('');
@@ -652,21 +605,44 @@ function parseHostAndPortInput(rawInput) {
   const input = (rawInput || '').trim();
 
   if (!input) {
-    return { valid: false, error: 'Please enter a valid host IP address!' };
+    return { valid: false, error: 'Please enter a valid host address!' };
   }
 
-  const firstColon = input.indexOf(':');
-  const lastColon = input.lastIndexOf(':');
-  if (firstColon > 0 && firstColon === lastColon) {
-    const hostPart = input.substring(0, firstColon).trim();
-    const portPart = input.substring(firstColon + 1).trim();
+  let hostPart = input;
+  let portPart = '';
 
-    if (!hostPart) {
-      return { valid: false, error: 'Please enter a valid host IP address!' };
+  // Check for IPv6 with port like [fe80::1]:47989
+  const ipv6PortMatch = input.match(/^\[(.*)\]:(\d+)$/);
+  // Check for IPv6 surrounded by brackets without port like [fe80::1]
+  const ipv6BracketMatch = input.match(/^\[(.*)\]$/);
+  
+  if (ipv6PortMatch) {
+    hostPart = ipv6PortMatch[1];
+    portPart = ipv6PortMatch[2];
+  } else if (ipv6BracketMatch) {
+    hostPart = ipv6BracketMatch[1];
+  } else {
+    // Check if it has a port but is not an IPv6 address
+    const firstColon = input.indexOf(':');
+    const lastColon = input.lastIndexOf(':');
+    
+    if (firstColon > 0 && firstColon === lastColon) {
+      hostPart = input.substring(0, firstColon).trim();
+      portPart = input.substring(firstColon + 1).trim();
+    } else {
+      hostPart = input;
     }
-    if (!isValidIpv4Address(hostPart)) {
-      return { valid: false, error: 'Please enter a valid host IPv4 address!' };
-    }
+  }
+
+  if (!hostPart) {
+    return { valid: false, error: 'Please enter a valid host address!' };
+  }
+
+  if (!isValidHostAddress(hostPart)) {
+    return { valid: false, error: 'Please enter a valid host address!' };
+  }
+
+  if (portPart) {
     if (!/^\d{1,5}$/.test(portPart)) {
       return { valid: false, error: 'Port must be a numeric value between 1 and 65535!' };
     }
@@ -679,11 +655,7 @@ function parseHostAndPortInput(rawInput) {
     return { valid: true, addr: hostPart, port: parsedPort };
   }
 
-  if (!isValidIpv4Address(input)) {
-    return { valid: false, error: 'Please enter a valid host IPv4 address!' };
-  }
-
-  return { valid: true, addr: input, port: 47989 };
+  return { valid: true, addr: hostPart, port: 47989 };
 }
 
 // If the `Add Host +` is selected on the host grid, then show the 
