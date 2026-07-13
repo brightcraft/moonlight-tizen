@@ -8,6 +8,8 @@
 #include <pairing.h>
 #include <iostream>
 
+extern char* g_UniqueId;
+
 #include <emscripten.h>
 #include <emscripten/html5.h>
 
@@ -527,7 +529,11 @@ void stun(int callbackId) {
   g_Instance->STUN(callbackId);
 }
 
-void pair(int callbackId, std::string serverMajorVersion, std::string address, int httpPort, std::string randomNumber) {
+void pair(int callbackId, std::string serverMajorVersion, std::string address, int httpPort, std::string randomNumber, std::string uniqueId) {
+  if (g_UniqueId) {
+    free(g_UniqueId);
+  }
+  g_UniqueId = strdup(uniqueId.c_str());
   g_Instance->Pair(callbackId, serverMajorVersion, address, httpPort, randomNumber);
 }
 

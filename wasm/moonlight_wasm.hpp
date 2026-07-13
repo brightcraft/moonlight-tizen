@@ -296,7 +296,7 @@ MessageResult stopStream();
 
 void toggleStats();
 void stun(int callbackId);
-void pair(int callbackId, std::string serverMajorVersion, std::string address, int httpPort, std::string randomNumber);
+void pair(int callbackId, std::string serverMajorVersion, std::string address, int httpPort, std::string randomNumber, std::string uniqueId);
 void wakeOnLan(int callbackId, std::string macAddress);
 
 EM_BOOL handleKeyDown(int eventType, const EmscriptenKeyboardEvent* keyEvent, void* userData);

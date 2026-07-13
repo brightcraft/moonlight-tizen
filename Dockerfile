@@ -6,6 +6,7 @@ ENV TZ=Etc/UTC
 # Install required packages and dependencies
 RUN apt-get update && apt-get install -y \
 	cmake \
+	ccache \
 	expect \
 	git \
 	ninja-build \
@@ -32,11 +33,11 @@ ENV PATH=/home/moonlight/tizen-studio/tools/ide/bin:/home/moonlight/tizen-studio
 RUN tizen certificate \
 	-a Moonlight \
 	-f Moonlight \
-	-p 1234
+	-p 123456
 RUN tizen security-profiles add \
 	-n Moonlight \
 	-a /home/moonlight/tizen-studio-data/keystore/author/Moonlight.p12 \
-	-p 1234
+	-p 123456
 
 # Workaround to package applications without gnome-keyring
 # These steps must be repeated each time before packaging an application
@@ -73,10 +74,15 @@ COPY --chown=moonlight wasm/dispatcher ./moonlight-tizen/wasm/dispatcher/
 
 RUN cmake \
 	-DCMAKE_TOOLCHAIN_FILE=/home/moonlight/emscripten-release-bundle/emsdk/fastcomp/emscripten/cmake/Modules/Platform/Emscripten.cmake \
+	-DCMAKE_C_COMPILER_LAUNCHER=ccache \
+	-DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
 	-G Ninja \
 	-S moonlight-tizen \
 	-B build
-RUN cmake --build build
+RUN --mount=type=cache,target=/home/moonlight/.ccache,uid=1000,gid=1000 \
+	--mount=type=cache,target=/home/moonlight/.emscripten_cache,uid=1000,gid=1000 \
+	--mount=type=cache,target=/home/moonlight/.emscripten_ports,uid=1000,gid=1000 \
+	CCACHE_DIR=/home/moonlight/.ccache cmake --build build
 
 # Copy the remaining frontend files required for packaging the application
 COPY --chown=moonlight res/ ./moonlight-tizen/res/
@@ -92,7 +98,7 @@ RUN echo \
 	'set timeout -1\n' \
 	'spawn tizen package -t wgt -- build/widget\n' \
 	'expect "Author password:"\n' \
-	'send -- "1234\\r"\n' \
+	'send -- "123456\\r"\n' \
 	'expect "Yes: (Y), No: (N) ?"\n' \
 	'send -- "N\\r"\n' \
 	'expect eof\n' \

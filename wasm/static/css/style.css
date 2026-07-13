@@ -904,6 +904,15 @@ body {
     white-space: pre-line;
     box-sizing: border-box;
 }
+.unsupported-resolution[disabled] {
+	opacity: 0.5 !important;
+	pointer-events: none;
+}
+.unsupported-resolution[disabled].hovered, .unsupported-resolution[disabled]:hover,
+.unsupported-resolution[disabled]:focus, .unsupported-resolution[disabled]:active {
+	color: #dedede !important;
+    background-color: #666875 !important;
+}
 #gameModeBtn.is-disabled.hovered, #gameModeBtn.is-disabled:hover,
 #gameModeBtn.is-disabled:focus, #gameModeBtn.is-disabled:active {
     box-shadow: 0 0 2px 3px rgba(170, 170, 170, 1) !important;

@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## v1.12.1
+
+### Changed
+- Optimized the Docker build process with persistent cache mounts for faster builds
+- Prevented selection of resolutions unsupported by the TV's hardware capabilities
+- Excluded hidden files and directories to prevent unnecessary Docker cache busting
+- Updated the Tizen certificate keystore password to meet minimum password requirements
+
+### Fixed
+- Fixed pairing failures with Sunshine using a randomly generated unique client ID
+- Fixed an issue where canceling the pairing dialog would cause subsequent pairing attempts
+- Fixed logging in the NvHTTP constructor to prevent undefined values from being printed
+- Fixed a deserialization bug where newly revived hosts failed to inherit their properties correctly
+
 ## v1.12.0
 
 ### Added
