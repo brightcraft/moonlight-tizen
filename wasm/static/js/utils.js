@@ -624,7 +624,7 @@ NvHTTP.prototype = {
         return sendMessage('openUrl', [
           this._baseUrlHttps + '/pair?uniqueid=' + this.getUid() + '&devicename=roth&updateState=1&phrase=pairchallenge', this.ppkstr, false
         ]).catch(function(error) {
-          console.warn('%c[utils.js, pair]', 'color: gray;', 'HTTPS pairchallenge failed (' + error + '). Retrying over HTTP...');
+          console.warn('%c[utils.js, pair]', 'color: gray;', 'HTTPS pair challenge failed (' + error + '). Retrying over HTTP...');
           return sendMessage('openUrl', [
             this._baseUrlHttp + '/pair?uniqueid=' + this.getUid() + '&devicename=roth&updateState=1&phrase=pairchallenge', this.ppkstr, false
           ]);
