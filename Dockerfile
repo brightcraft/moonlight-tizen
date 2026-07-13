@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y \
 	ninja-build \
 	python2 \
 	unzip \
-	wget \
+	aria2 \
 	&& rm -rf /var/lib/apt/lists/*
 
 # Some of the Samsung Tizen scripts refer to `python`, but Ubuntu only provides `/usr/bin/python2`
@@ -24,7 +24,7 @@ USER moonlight
 WORKDIR /home/moonlight
 
 # Install Tizen Studio CLI and configure the toolchain path
-RUN wget -nv -O web-cli_Tizen_Studio_6.1_ubuntu-64.bin 'https://download.tizen.org/sdk/Installer/tizen-studio_6.1/web-cli_Tizen_Studio_6.1_ubuntu-64.bin'
+RUN aria2c -x 5 -s 5 -o web-cli_Tizen_Studio_6.1_ubuntu-64.bin 'https://download.tizen.org/sdk/Installer/tizen-studio_6.1/web-cli_Tizen_Studio_6.1_ubuntu-64.bin'
 RUN chmod a+x web-cli_Tizen_Studio_6.1_ubuntu-64.bin
 RUN ./web-cli_Tizen_Studio_6.1_ubuntu-64.bin --accept-license /home/moonlight/tizen-studio
 ENV PATH=/home/moonlight/tizen-studio/tools/ide/bin:/home/moonlight/tizen-studio/tools:${PATH}
@@ -46,7 +46,7 @@ RUN sed -i 's|/home/moonlight/tizen-studio-data/keystore/author/Moonlight.pwd||'
 RUN sed -i 's|/home/moonlight/tizen-studio-data/tools/certificate-generator/certificates/distributor/tizen-distributor-signer.pwd|tizenpkcs12passfordsigner|' /home/moonlight/tizen-studio-data/profile/profiles.xml
 
 # Install Samsung Emscripten SDK and configure Java path for closure compiler
-RUN wget -nv -O emscripten-1.39.4.7-linux64.zip 'https://developer.samsung.com/smarttv/file/a5013a65-af11-4b59-844f-2d34f14d19a9'
+RUN aria2c -x 5 -s 5 -o emscripten-1.39.4.7-linux64.zip 'https://developer.samsung.com/smarttv/file/a5013a65-af11-4b59-844f-2d34f14d19a9'
 RUN unzip emscripten-1.39.4.7-linux64.zip
 
 # Replace deprecated OpenSSL download URL in Emscripten SDK ports to prevent build failure caused by invalid upstream path
@@ -118,8 +118,7 @@ RUN rm -rf \
 	.emscripten_cache \
 	.emscripten_cache.lock \
 	.emscripten_ports \
-	.emscripten_sanity \
-	.wget-hsts
+	.emscripten_sanity
 
 # Use a multi-stage build to reclaim space from deleted files
 FROM ubuntu:22.04

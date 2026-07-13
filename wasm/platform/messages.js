@@ -21,7 +21,7 @@ const AsyncFunctions = {
   // url, ppk, binaryResponse
   'openUrl': (...args) => Module.openUrl(...args),
   // no parameters
-  'STUN': (...args) => Module.STUN(...args),
+  'STUN': (...args) => Module.stun(...args),
   // serverMajorVersion, address, httpPort, randomNumber
   'pair': (...args) => Module.pair(...args),
   // macAddress
