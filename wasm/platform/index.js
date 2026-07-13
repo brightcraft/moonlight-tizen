@@ -411,8 +411,6 @@ function restoreUiAfterWasmLoad() {
   //   }
   // });
 
-  // Start subnet scanning after 1.5 seconds delay to avoid immediate subnet scanning
-  setTimeout(() => startSubnetScanner(), 1500);
 
   // Automatically check for a new update after 10 seconds delay at application startup once every 24 hours
   setTimeout(() => checkForAppUpdatesAtStartup(), 10000);
@@ -3685,6 +3683,9 @@ function loadHTTPCertsCb() {
         }
         startPollingHosts();
         console.log('%c[index.js, loadHTTPCertsCb]', 'color: green;', 'Loading previously connected hosts...');
+
+        // Start subnet scanning silently in the background after hosts are fully loaded
+        startSubnetScanner();
       });
     });
   });
