@@ -451,15 +451,33 @@ void MoonlightInstance::WakeOnLan(int callbackId, std::string macAddress) {
   addr.sin_addr.s_addr = INADDR_BROADCAST;
   addr.sin_port = htons(9); // Wake-on-LAN typically uses port 9
 
-  // Send the magic packet
+  // Send the magic packet over IPv4
   if (sendto(udpSocket, magicPacket, sizeof(magicPacket), 0, (struct sockaddr*) &addr, sizeof(addr)) == -1) {
     ClLogMessage("Failed to send magic packet");
   } else {
     ClLogMessage("Magic packet sent successfully to MAC address: %s\n", macAddress.c_str());
   }
 
-  // Close the socket
+  // Close the IPv4 socket
   close(udpSocket);
+
+  // Send the magic packet over IPv6
+  int udp6Socket = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
+  if (udp6Socket != -1) {
+    struct sockaddr_in6 addr6;
+    memset(&addr6, 0, sizeof(addr6));
+    addr6.sin6_family = AF_INET6;
+    addr6.sin6_port = htons(9); // Wake-on-LAN typically uses port 9
+    // ff02::1 is the link-local all-nodes multicast address
+    inet_pton(AF_INET6, "ff02::1", &addr6.sin6_addr);
+
+    if (sendto(udp6Socket, magicPacket, sizeof(magicPacket), 0, (struct sockaddr*) &addr6, sizeof(addr6)) == -1) {
+      ClLogMessage("Failed to send IPv6 magic packet");
+    } else {
+      ClLogMessage("IPv6 Magic packet sent successfully to MAC address: %s\n", macAddress.c_str());
+    }
+    close(udp6Socket);
+  }
 }
 
 bool MoonlightInstance::Init(uint32_t argc, const char* argn[], const char* argv[]) {

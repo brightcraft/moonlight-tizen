@@ -23,6 +23,10 @@
 #include <string.h>
 #include <curl/curl.h>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 #include <openssl/ssl.h>
 #include <openssl/x509v3.h>
 #include <openssl/pem.h>
@@ -83,8 +87,9 @@ int http_request(const char* url, const char* ppkstr, PHTTP_DATA data) {
   http_reset_cancel();
 
   curl = curl_easy_init();
-  if (!curl)
+  if (!curl) {
     return GS_FAILED;
+  }
 
   curl_easy_setopt(curl, CURLOPT_CAINFO, "/curl/ca-bundle.crt");
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, _write_curl);
@@ -127,7 +132,47 @@ int http_request(const char* url, const char* ppkstr, PHTTP_DATA data) {
   if (res == CURLE_SSL_PINNEDPUBKEYNOTMATCH) {
     ret = GS_CERT_MISMATCH;
   } else if (res != CURLE_OK) {
+#ifdef __EMSCRIPTEN__
+  // Emscripten's built-in libcurl port uses a buggy regular expression to parse CURLOPT_URL.
+  // It fails to properly extract the host from bracketed IPv6 URLs (e.g. http://[fe80::1]:47989),
+  // instantly returning CURLE_COULDNT_RESOLVE_HOST without even trying to connect.
+  // To bypass this, we use EM_ASM to perform a native, synchronous XMLHttpRequest directly, 
+  // which handles IPv6 literals flawlessly.
+  printf("CURL failed (%s), falling back to EM_ASM XMLHttpRequest for %s\n", curl_easy_strerror(res), url);
+  char* response = (char*) EM_ASM_INT({
+    var url = UTF8ToString($0);
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', url, false);
+    try {
+      xhr.send();
+      if (xhr.status == 200 || xhr.status == 0) {
+        var respText = xhr.responseText || "";
+        var length = lengthBytesUTF8(respText) + 1;
+        var ptr = _malloc(length);
+        stringToUTF8(respText, ptr, length);
+        return ptr;
+      }
+    } catch(e) {
+      console.error("XMLHttpRequest failed for URL: " + url, e);
+    }
+    return 0;
+  }, url);
+
+  if (response == NULL) {
+    printf("EM_ASM XHR request failed for %s\n", url);
     ret = GS_FAILED;
+  } else {
+    if (data->memory != NULL) {
+      free(data->memory);
+    }
+    data->memory = response;
+    data->size = strlen(response);
+    printf("EM_ASM XHR request succeeded for %s\n", url);
+    ret = GS_OK;
+  }
+#else
+    ret = GS_FAILED;
+#endif
   } else if (data->memory == NULL) {
     ret = GS_OUT_OF_MEMORY;
   } else {
