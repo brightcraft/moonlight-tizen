@@ -218,6 +218,28 @@ function delayedNavigation(callback) {
   navigationTimeout = setTimeout(callback, NAVIGATION_DELAY);
 }
 
+// Updates the host status indicator based on the host's online and paired status
+function updateHostStatusIndicator(host) {
+  var indicator = document.querySelector('#host-status-' + host.serverUid);
+  // If the indicator element is not found, exit the function early
+  if (!indicator) {
+    return;
+  }
+  // Set the appropriate status indicator based on the host status
+  if (host.online === undefined || host.online === null) {
+    indicator.style.display = 'none';
+  } else if (!host.online) {
+    indicator.style.display = 'block';
+    indicator.innerHTML = 'warning';
+  } else if (host.online && !host.paired) {
+    indicator.style.display = 'block';
+    indicator.innerHTML = 'lock';
+  } else {
+    indicator.style.display = 'none';
+    indicator.innerHTML = '';
+  }
+}
+
 function beginBackgroundPollingOfHost(host) {
   // Assign methods of NvHTTP to the host object
   Object.assign(host, NvHTTP.prototype);
@@ -231,6 +253,7 @@ function beginBackgroundPollingOfHost(host) {
     if (host.online) {
       // If the host is online, show it as active
       hostCell.classList.remove('host-cell-inactive');
+      updateHostStatusIndicator(host);
       // The host was already online, so start polling in the background now
       activePolls[host.serverUid] = window.setInterval(function() {
         // Every 5 seconds, poll at the address to check for any status changes
@@ -241,11 +264,13 @@ function beginBackgroundPollingOfHost(host) {
           } else {
             hostCell.classList.add('host-cell-inactive');
           }
+          updateHostStatusIndicator(returnedHost);
         });
       }, 5000);
     } else {
       // If the host is offline, show it as inactive
       hostCell.classList.add('host-cell-inactive');
+      updateHostStatusIndicator(host);
       // The host was offline, so poll immediately to check the host's status
       host.pollServer(function(returnedHost) {
         // Check if the host is currently online
@@ -254,6 +279,7 @@ function beginBackgroundPollingOfHost(host) {
         } else {
           hostCell.classList.add('host-cell-inactive');
         }
+        updateHostStatusIndicator(returnedHost);
         // Now that the initial poll is done, start the background polling
         activePolls[host.serverUid] = window.setInterval(function() {
           // Every 5 seconds, poll at the address to check for any status changes
@@ -264,6 +290,7 @@ function beginBackgroundPollingOfHost(host) {
             } else {
               hostCell.classList.add('host-cell-inactive');
             }
+            updateHostStatusIndicator(returnedHost);
           });
         }, 5000);
       });
@@ -910,6 +937,12 @@ function addHostToGrid(host, ismDNSDiscovered) {
     'aria-label': host.hostname + ' menu'
   });
 
+  // Create the host center icon to indicate the host's status (online/offline/unpaired)
+  var hostStatusIndicator = $('<i>', {
+    id: 'host-status-' + host.serverUid,
+    class: 'material-icons host-center-icon'
+  });
+
   // Append the host text to the host title wrapper
   hostTitle.append(hostText);
 
@@ -930,6 +963,12 @@ function addHostToGrid(host, ismDNSDiscovered) {
 
   // Append the host menu button to the host container
   hostContainer.append(hostMenu);
+
+  // Append the host status indicator to the host container
+  hostContainer.append(hostStatusIndicator);
+
+  // Set initial status
+  updateHostStatusIndicator(host);
 
   // Attach the click event listener to the host container
   hostContainer.off('click');
