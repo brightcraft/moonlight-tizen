@@ -63,9 +63,28 @@ static CURLcode sslctx_function(CURL * curl, void * sslctx, void * parm)
     return CURLE_OK;
 }
 
+volatile int g_CancelHttpRequest = 0;
+
+void http_cancel_request() {
+  g_CancelHttpRequest = 1;
+}
+
+void http_reset_cancel() {
+  g_CancelHttpRequest = 0;
+}
+
+static int _progress_callback(void *clientp, double dltotal, double dlnow, double ultotal, double ulnow) {
+  if (g_CancelHttpRequest) {
+    return 1;
+  }
+  return 0;
+}
+
 int http_request(const char* url, const char* ppkstr, PHTTP_DATA data) {
   int ret;
   CURL *curl;
+
+  http_reset_cancel();
 
   curl = curl_easy_init();
   if (!curl) {
@@ -75,6 +94,8 @@ int http_request(const char* url, const char* ppkstr, PHTTP_DATA data) {
   curl_easy_setopt(curl, CURLOPT_CAINFO, "/curl/ca-bundle.crt");
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, _write_curl);
   curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
+  curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+  curl_easy_setopt(curl, CURLOPT_PROGRESSFUNCTION, _progress_callback);
   curl_easy_setopt(curl, CURLOPT_SSL_CTX_FUNCTION, *sslctx_function);
   curl_easy_setopt(curl, CURLOPT_SSL_SESSIONID_CACHE, 0L);
   curl_easy_setopt(curl, CURLOPT_MAXCONNECTS, 0L);
