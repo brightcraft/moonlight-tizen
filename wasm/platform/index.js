@@ -3424,9 +3424,12 @@ function initSpecialKeys() {
   videoElement.addEventListener('keydown', function(e) {
     // Check if the 'Back' key has been pressed and the streaming is currently active
     if (e.key === 'XF86Back' && isInGame === true) {
-      // Cancel the stream and return to the apps list
-      // (cancelStreamAndReturn already sends ESC to host when streaming is active)
-      cancelStreamAndReturn();
+      // Send the Escape key (ESC) to the host while streaming
+      sendEscapeKeyToHost();
+      // Simulate mouse to move focus back to the streaming session
+      videoElement.dispatchEvent(new MouseEvent('mousedown', {
+        bubbles: true, cancelable: true, view: window, clientX: 0, clientY: 0
+      }));
     }
   });
 }

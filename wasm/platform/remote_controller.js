@@ -26,16 +26,7 @@ function remoteControllerHandler(e) {
       break;
     case tvKey.KEY_RETURN:
       // Go back or cancel the operation
-      if (isInGame === true) {
-        if (isStreamCancelable === true) {
-          // Cancel the active stream and return to the apps list
-          cancelStreamAndReturn();
-        } else {
-          console.log('%c[remote_controller.js]', 'color: orange;', 'Back button disabled during stream RTSP initialization.');
-        }
-      } else {
-        Navigation.back();
-      }
+      Navigation.back();
       break;
     case tvKey.KEY_VOLUME_UP:
       // Increase the volume
@@ -60,7 +51,12 @@ function remoteControllerHandler(e) {
     case tvKey.KEY_RED:
       // Terminate the connection
       if (isInGame === true) {
-        Module.stopStream();
+        if (isStreamCancelable === true) {
+          // Cancel the active stream and return to the apps list
+          cancelStreamAndReturn();
+        } else {
+          console.log('%c[remote_controller.js]', 'color: orange;', 'Red button disabled during stream RTSP initialization.');
+        }
       }
       break;
     case tvKey.KEY_YELLOW:
