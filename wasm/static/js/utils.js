@@ -300,25 +300,39 @@ NvHTTP.prototype = {
 
   // Initially pings the server to try and figure out if it's routable by any means
   selectServerAddress: function(onSuccess, onFailure) {
-    // TODO: Deduplicate the addresses
-    this.refreshServerInfoAtAddress(this.address).then(function(successPrevAddr) {
-      onSuccess(this.address);
-    }.bind(this), function(successPrevAddr) {
-      this.refreshServerInfoAtAddress(this.hostname + '.local').then(function(successLocal) {
-        onSuccess(this.hostname + '.local');
-      }.bind(this), function(failureLocal) {
-        this.refreshServerInfoAtAddress(this.externalIP).then(function(successExternal) {
-          onSuccess(this.externalIP);
-        }.bind(this), function(failureExternal) {
-          this.refreshServerInfoAtAddress(this.userEnteredAddress).then(function(successUserEntered) {
-            onSuccess(this.userEnteredAddress);
-          }.bind(this), function(failureUserEntered) {
-            console.error('%c[utils.js, selectServerAddress]', 'color: gray;', 'Error: Failed to contact the ' + this.hostname + '!', this);
-            onFailure();
-          }.bind(this));
-        }.bind(this));
+    // Build a deduplicated, validated list of candidate addresses to try in order.
+    var seen = {};
+    var candidates = [];
+
+    var addCandidate = function(addr) {
+      if (addr && !seen[addr]) { // skip empty strings AND duplicates
+        seen[addr] = true;
+        candidates.push(addr);
+      }
+    };
+
+    addCandidate(this.address);
+    // Only append '.local' if the hostname doesn't already end with it
+    var localSuffix = this.hostname.endsWith('.local') ? this.hostname : this.hostname + '.local';
+    addCandidate(localSuffix);
+    addCandidate(this.externalIP);
+    addCandidate(this.userEnteredAddress);
+
+    var tryNext = function(index) {
+      if (index >= candidates.length) {
+        console.error('%c[utils.js, selectServerAddress]', 'color: gray;', 'Error: Failed to contact the ' + this.hostname + '!', this);
+        onFailure();
+        return;
+      }
+      var addr = candidates[index];
+      this.refreshServerInfoAtAddress(addr).then(function() {
+        onSuccess(addr);
+      }.bind(this), function() {
+        tryNext.call(this, index + 1);
       }.bind(this));
-    }.bind(this));
+    }.bind(this);
+
+    tryNext(0);
   },
 
   toString: function() {
