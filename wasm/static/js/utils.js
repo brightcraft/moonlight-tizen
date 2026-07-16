@@ -255,6 +255,11 @@ NvHTTP.prototype = {
     // Check if a stream session is already in progress
     if (isInGame === true) {
       // Do not initiate any server polls while a streaming session is already in progress
+      // Drain callbacks to avoid permanently blocking the deduplication guard
+      var completion;
+      while ((completion = this._pollCompletionCallbacks.pop())) {
+        completion(this); // Executes the callback so the caller isn't left hanging
+      }
       return;
     }
 
