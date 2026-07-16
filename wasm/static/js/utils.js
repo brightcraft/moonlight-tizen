@@ -489,9 +489,18 @@ NvHTTP.prototype = {
   },
 
   getAppListWithCacheFlush: function() {
-    return sendMessage('openUrl', [
-      this._baseUrlHttps + '/applist?' + this._buildUidStr(), this.ppkstr, false
-    ]).then(function(ret) {
+    return Promise.race([
+      sendMessage('openUrl', [
+        this._baseUrlHttps + '/applist?' + this._buildUidStr(), this.ppkstr, false
+      ]),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout retrieving app list')), 5000))
+    ]).catch(error => {
+      // If it's our timeout error, instruct the C++ layer to abort the hung network request
+      if (error.message === 'Timeout retrieving app list') {
+        sendMessage('cancelRequest', []);
+      }
+      throw error;
+    }).then(function(ret) {
       $xml = this._parseXML(ret);
       $root = $xml.find('root');
 
@@ -648,9 +657,17 @@ NvHTTP.prototype = {
         this.serverMajorVersion.toString(), this.address, this.httpPort, randomNumber, this.getUid()
       ]).then(function(ppkstr) {
         this.ppkstr = ppkstr;
-        return sendMessage('openUrl', [
-          this._baseUrlHttps + '/pair?uniqueid=' + this.getUid() + '&devicename=roth&updateState=1&phrase=pairchallenge', this.ppkstr, false
+        return Promise.race([
+          sendMessage('openUrl', [
+            this._baseUrlHttps + '/pair?uniqueid=' + this.getUid() + '&devicename=roth&updateState=1&phrase=pairchallenge', this.ppkstr, false
+          ]),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout during pairchallenge')), 5000))
         ]).catch(function(error) {
+          if (error.message === 'Timeout during pairchallenge') {
+            console.warn('%c[utils.js, pair]', 'color: gray;', 'Warning: HTTPS request timed out, canceling C++ HTTP request');
+            sendMessage('cancelRequest', []);
+            throw error;
+          }
           console.warn('%c[utils.js, pair]', 'color: gray;', 'HTTPS pair challenge failed (' + error + '). Retrying over HTTP...');
           return sendMessage('openUrl', [
             this._baseUrlHttp + '/pair?uniqueid=' + this.getUid() + '&devicename=roth&updateState=1&phrase=pairchallenge', this.ppkstr, false

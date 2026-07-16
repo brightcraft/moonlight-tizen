@@ -886,6 +886,9 @@ function pairingDialog(nvhttpHost, onSuccess, onFailure) {
     var pairingDialog = document.querySelector('#pairingDialog');
     var randomNumber = String('0000' + (Math.random() * 10000 | 0)).slice(-4);
 
+    // Rollback to 'Cancel' button text when opening
+    $('#cancelPairing').text('Cancel');
+
     // Change the dialog text element to include the random PIN number
     $('#pairingDialogText').html(
       'Please enter the following PIN on the target PC: ' + randomNumber + '<br><br>' +
@@ -907,6 +910,7 @@ function pairingDialog(nvhttpHost, onSuccess, onFailure) {
     $('#cancelPairing').off('click');
     $('#cancelPairing').on('click', function() {
       console.log('%c[index.js, pairingDialog]', 'color: green;', 'Closing app dialog and returning.');
+      sendMessage('cancelRequest', []);
       wasPairingCanceled = true;
       pairingOverlay.style.display = 'none';
       pairingDialog.close();
@@ -932,6 +936,10 @@ function pairingDialog(nvhttpHost, onSuccess, onFailure) {
         return;
       }
       console.error('%c[index.js, pairingDialog]', 'color: green;', 'Error: Failed API object:\n', nvhttpHost, '\n' + nvhttpHost.toString()); // Logging both object (for console) and toString-ed object (for text logs)
+      
+      // Keep the modal opened, but change the button for "Close"
+      $('#cancelPairing').text('Close');
+      
       snackbarLog('Failed to pair with ' + nvhttpHost.hostname);
       // If the host is already in a streaming session or failed during pairing,
       // change the dialog text element to include the hostname and display the returned error message
