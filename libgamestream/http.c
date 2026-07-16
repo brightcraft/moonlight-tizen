@@ -23,10 +23,6 @@
 #include <string.h>
 #include <curl/curl.h>
 
-#ifdef __EMSCRIPTEN__
-#include <emscripten.h>
-#endif
-
 #include <openssl/ssl.h>
 #include <openssl/x509v3.h>
 #include <openssl/pem.h>
@@ -83,13 +79,14 @@ static int _progress_callback(void *clientp, double dltotal, double dlnow, doubl
 int http_request(const char* url, const char* ppkstr, PHTTP_DATA data) {
   int ret;
   CURL *curl;
+  const char* real_url = url;
+  char* rewritten_url = NULL;
+  char* resolve_string = NULL;
+  struct curl_slist *resolve_list = NULL;
 
   http_reset_cancel();
 
   curl = curl_easy_init();
-  if (!curl) {
-    return GS_FAILED;
-  }
 
   curl_easy_setopt(curl, CURLOPT_CAINFO, "/curl/ca-bundle.crt");
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, _write_curl);
@@ -105,7 +102,46 @@ int http_request(const char* url, const char* ppkstr, PHTTP_DATA data) {
   curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
   curl_easy_setopt(curl, CURLOPT_SSL_ENABLE_ALPN, 0L);
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, data);
-  curl_easy_setopt(curl, CURLOPT_URL, url);
+
+  const char* bracket_start = strchr(url, '[');
+  const char* bracket_end = strchr(url, ']');
+
+  if (bracket_start != NULL && bracket_end != NULL && bracket_end > bracket_start) {
+    int ipv6_len = bracket_end - bracket_start - 1;
+    char ipv6_raw[128] = {0};
+    if (ipv6_len < sizeof(ipv6_raw)) {
+      strncpy(ipv6_raw, bracket_start + 1, ipv6_len);
+    }
+    
+    const char* port_and_path = bracket_end + 1;
+    
+    int scheme_len = bracket_start - url;
+    char scheme[32] = {0};
+    if (scheme_len < sizeof(scheme)) {
+      strncpy(scheme, url, scheme_len);
+    }
+
+    int port = 80;
+    if (port_and_path[0] == ':') {
+      port = atoi(port_and_path + 1);
+    } else if (strncmp(scheme, "https://", 8) == 0) {
+      port = 443;
+    }
+
+    const char* dummy_host = "moonlight-ipv6-host";
+    rewritten_url = malloc(strlen(url) + strlen(dummy_host) + 1);
+    sprintf(rewritten_url, "%s%s%s", scheme, dummy_host, port_and_path);
+
+    resolve_string = malloc(strlen(dummy_host) + strlen(ipv6_raw) + 32);
+    sprintf(resolve_string, "%s:%d:%s", dummy_host, port, ipv6_raw);
+
+    resolve_list = curl_slist_append(NULL, resolve_string);
+    curl_easy_setopt(curl, CURLOPT_RESOLVE, resolve_list);
+    
+    real_url = rewritten_url;
+  }
+
+  curl_easy_setopt(curl, CURLOPT_URL, real_url);
 
   // Use the pinned certificate for HTTPS
   if (ppkstr != NULL) {
@@ -132,47 +168,7 @@ int http_request(const char* url, const char* ppkstr, PHTTP_DATA data) {
   if (res == CURLE_SSL_PINNEDPUBKEYNOTMATCH) {
     ret = GS_CERT_MISMATCH;
   } else if (res != CURLE_OK) {
-#ifdef __EMSCRIPTEN__
-  // Emscripten's built-in libcurl port uses a buggy regular expression to parse CURLOPT_URL.
-  // It fails to properly extract the host from bracketed IPv6 URLs (e.g. http://[fe80::1]:47989),
-  // instantly returning CURLE_COULDNT_RESOLVE_HOST without even trying to connect.
-  // To bypass this, we use EM_ASM to perform a native, synchronous XMLHttpRequest directly, 
-  // which handles IPv6 literals flawlessly.
-  printf("CURL failed (%s), falling back to EM_ASM XMLHttpRequest for %s\n", curl_easy_strerror(res), url);
-  char* response = (char*) EM_ASM_INT({
-    var url = UTF8ToString($0);
-    var xhr = new XMLHttpRequest();
-    xhr.open('GET', url, false);
-    try {
-      xhr.send();
-      if (xhr.status == 200 || xhr.status == 0) {
-        var respText = xhr.responseText || "";
-        var length = lengthBytesUTF8(respText) + 1;
-        var ptr = _malloc(length);
-        stringToUTF8(respText, ptr, length);
-        return ptr;
-      }
-    } catch(e) {
-      console.error("XMLHttpRequest failed for URL: " + url, e);
-    }
-    return 0;
-  }, url);
-
-  if (response == NULL) {
-    printf("EM_ASM XHR request failed for %s\n", url);
     ret = GS_FAILED;
-  } else {
-    if (data->memory != NULL) {
-      free(data->memory);
-    }
-    data->memory = response;
-    data->size = strlen(response);
-    printf("EM_ASM XHR request succeeded for %s\n", url);
-    ret = GS_OK;
-  }
-#else
-    ret = GS_FAILED;
-#endif
   } else if (data->memory == NULL) {
     ret = GS_OUT_OF_MEMORY;
   } else {
@@ -180,6 +176,9 @@ int http_request(const char* url, const char* ppkstr, PHTTP_DATA data) {
   }
   
 cleanup:
+  if (rewritten_url) free(rewritten_url);
+  if (resolve_string) free(resolve_string);
+  if (resolve_list) curl_slist_free_all(resolve_list);
   curl_easy_cleanup(curl);
   return ret;
 }

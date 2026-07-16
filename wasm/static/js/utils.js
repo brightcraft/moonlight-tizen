@@ -176,12 +176,8 @@ NvHTTP.prototype = {
         }.bind(this));
       }
     }.bind(this), function(error) {
-      if (error == -100 || error == -1) { // GS_CERT_MISMATCH or GS_FAILED (EM_ASM fallback HTTPS rejection)
-        if (error == -100) {
-          console.warn('%c[utils.js, refreshServerInfo]', 'color: gray;', 'Warning: Certificate mismatch. Retrying over HTTP...', this);
-        } else {
-          console.warn('%c[utils.js, refreshServerInfo]', 'color: gray;', 'Warning: HTTPS failure. Retrying over HTTP...', this);
-        }
+      if (error == -100) { // GS_CERT_MISMATCH
+        console.warn('%c[utils.js, refreshServerInfo]', 'color: gray;', 'Warning: Certificate mismatch. Retrying over HTTP...', this);
         return sendMessage('openUrl', [
           this._baseUrlHttp + '/serverinfo?' + this._buildUidStr(), this.ppkstr, false
         ]).then(function(retHttp) {
@@ -223,12 +219,8 @@ NvHTTP.prototype = {
         }.bind(this));
       }
     }.bind(this), function(error) {
-      if (error == -100 || error == -1) { // GS_CERT_MISMATCH or GS_FAILED (EM_ASM fallback HTTPS rejection)
-        if (error == -100) {
-          console.warn('%c[utils.js, refreshServerInfoAtAddress]', 'color: gray;', 'Warning: Certificate mismatch. Retrying over HTTP...', this);
-        } else {
-          console.warn('%c[utils.js, refreshServerInfoAtAddress]', 'color: gray;', 'Warning: HTTPS failure. Retrying over HTTP...', this);
-        }
+      if (error == -100) { // GS_CERT_MISMATCH
+        console.warn('%c[utils.js, refreshServerInfoAtAddress]', 'color: gray;', 'Warning: Certificate mismatch. Retrying over HTTP...', this);
         return sendMessage('openUrl', [
           'http://' + urlAddr + ':' + this.httpPort + '/serverinfo?' + this._buildUidStr(), this.ppkstr, false
         ]).then(function(retHttp) {
@@ -671,12 +663,8 @@ NvHTTP.prototype = {
           if (error.message === 'Timeout during pairchallenge') {
             console.warn('%c[utils.js, pair]', 'color: gray;', 'Warning: HTTPS request timed out, canceling C++ HTTP request');
             sendMessage('cancelRequest', []);
-            throw error;
           }
-          console.warn('%c[utils.js, pair]', 'color: gray;', 'HTTPS pair challenge failed (' + error + '). Retrying over HTTP...');
-          return sendMessage('openUrl', [
-            this._baseUrlHttp + '/pair?uniqueid=' + this.getUid() + '&devicename=roth&updateState=1&phrase=pairchallenge', this.ppkstr, false
-          ]);
+          throw error;
         }.bind(this)).then(function(ret) {
           $xml = this._parseXML(ret);
           this.paired = $xml.find('paired').html() == '1';

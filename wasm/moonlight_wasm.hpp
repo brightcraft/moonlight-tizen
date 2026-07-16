@@ -295,7 +295,7 @@ MessageResult startStream(std::string host, int httpPort, std::string width, std
   bool disableWarnings, bool performanceStats);
 MessageResult stopStream();
 
-void toggleStats();
+MessageResult toggleStats();
 void stun(int callbackId);
 void pair(int callbackId, std::string serverMajorVersion, std::string address, int httpPort, std::string randomNumber, std::string uniqueId);
 void wakeOnLan(int callbackId, std::string macAddress);

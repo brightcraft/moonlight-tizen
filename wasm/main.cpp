@@ -528,8 +528,9 @@ MessageResult stopStream() {
   return g_Instance->StopStream();
 }
 
-void toggleStats() {
+MessageResult toggleStats() {
   g_Instance->TogglePerformanceStats();
+  return MessageResult::Resolve();
 }
 
 void stun(int callbackId) {
@@ -544,8 +545,9 @@ void pair(int callbackId, std::string serverMajorVersion, std::string address, i
   g_Instance->Pair(callbackId, serverMajorVersion, address, httpPort, randomNumber);
 }
 
-void cancelRequest() {
+MessageResult cancelRequest() {
   g_Instance->CancelRequest();
+  return MessageResult::Resolve();
 }
 
 void wakeOnLan(int callbackId, std::string macAddress) {
