@@ -58,7 +58,7 @@ MoonlightInstance::MoonlightInstance()
     m_VideoStarted(false),
     m_AudioSessionId(0),
     m_VideoSessionId(0),
-    m_MediaElement(nullptr),
+    m_MediaElement("wasm_module"),
     m_Source(nullptr),
     m_SourceListener(this),
     m_AudioTrackListener(this),
@@ -400,9 +400,6 @@ MessageResult MoonlightInstance::StartStream(std::string host, int httpPort, std
 
   // Initialize the rendering surface before starting the connection
   if (InitializeRenderingSurface(m_StreamConfig.width, m_StreamConfig.height)) {
-    // Dynamically create a brand new binding to the video element on the main thread!
-    m_MediaElement = std::make_unique<samsung::html::HTMLMediaElement>("wasm_module");
-
     // Start the worker thread to establish the connection
     pthread_create(&m_ConnectionThread, NULL, MoonlightInstance::ConnectionThreadFunc, this);
   } else {
