@@ -150,26 +150,33 @@ NvHTTP.prototype = {
     return this.isNvidiaServerSoftware ? '0123456789ABCDEF' : this.clientUid;
   },
 
+  _openUrlWithTimeout: function(url, ppkstr) {
+    return Promise.race([
+      sendMessage('openUrl', [url, ppkstr, false]),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout retrieving server info')), 5000))
+    ]).catch(error => {
+      if (error && error.message === 'Timeout retrieving server info') {
+        sendMessage('cancelRequest', []);
+        throw -1;
+      }
+      throw error;
+    });
+  },
+
   // Refreshes the server info using the base URL. This is useful for testing whether we can successfully ping a host at the base URL
   refreshServerInfo: function() {
     if (this.ppkstr == null) {
       // Use HTTP if we have no pinned cert
-      return sendMessage('openUrl', [
-        this._baseUrlHttp + '/serverinfo?' + this._buildUidStr(), this.ppkstr, false
-      ]).then(function(retHttp) {
+      return this._openUrlWithTimeout(this._baseUrlHttp + '/serverinfo?' + this._buildUidStr(), this.ppkstr).then(function(retHttp) {
         this._parseServerInfo(retHttp);
       }.bind(this));
     }
     // Try HTTPS first
-    return sendMessage('openUrl', [
-      this._baseUrlHttps + '/serverinfo?' + this._buildUidStr(), this.ppkstr, false
-    ]).then(function(ret) {
+    return this._openUrlWithTimeout(this._baseUrlHttps + '/serverinfo?' + this._buildUidStr(), this.ppkstr).then(function(ret) {
       if (!this._parseServerInfo(ret)) { // If that fails
         console.error('%c[utils.js, refreshServerInfo]', 'color: gray;', 'Error: Failed to parse server info from HTTPS, falling back to HTTP...');
         // Try HTTP as a failover. Useful to clients who aren't paired yet
-        return sendMessage('openUrl', [
-          this._baseUrlHttp + '/serverinfo?' + this._buildUidStr(), this.ppkstr, false
-        ]).then(function(retHttp) {
+        return this._openUrlWithTimeout(this._baseUrlHttp + '/serverinfo?' + this._buildUidStr(), this.ppkstr).then(function(retHttp) {
           if (!this._parseServerInfo(retHttp)) {
             return Promise.reject("Failed to parse server info from HTTP");
           }
@@ -178,9 +185,7 @@ NvHTTP.prototype = {
     }.bind(this), function(error) {
       if (error == -100) { // GS_CERT_MISMATCH
         console.warn('%c[utils.js, refreshServerInfo]', 'color: gray;', 'Warning: Certificate mismatch. Retrying over HTTP...', this);
-        return sendMessage('openUrl', [
-          this._baseUrlHttp + '/serverinfo?' + this._buildUidStr(), this.ppkstr, false
-        ]).then(function(retHttp) {
+        return this._openUrlWithTimeout(this._baseUrlHttp + '/serverinfo?' + this._buildUidStr(), this.ppkstr).then(function(retHttp) {
           if (!this._parseServerInfo(retHttp)) {
             return Promise.reject("Failed to parse server info from HTTP");
           }
@@ -195,24 +200,18 @@ NvHTTP.prototype = {
     var urlAddr = formatAddressForUrl(givenAddress);
     if (this.ppkstr == null) {
       // Use HTTP if we have no pinned cert
-      return sendMessage('openUrl', [
-        'http://' + urlAddr + ':' + this.httpPort + '/serverinfo?' + this._buildUidStr(), this.ppkstr, false
-      ]).then(function(retHttp) {
+      return this._openUrlWithTimeout('http://' + urlAddr + ':' + this.httpPort + '/serverinfo?' + this._buildUidStr(), this.ppkstr).then(function(retHttp) {
         var parsed = this._parseServerInfo(retHttp);
         if (!parsed) return Promise.reject("Failed to parse server info from HTTP");
         return parsed;
       }.bind(this));
     }
     // Try HTTPS first
-    return sendMessage('openUrl', [
-      'https://' + urlAddr + ':' + this.httpsPort + '/serverinfo?' + this._buildUidStr(), this.ppkstr, false
-    ]).then(function(ret) {
+    return this._openUrlWithTimeout('https://' + urlAddr + ':' + this.httpsPort + '/serverinfo?' + this._buildUidStr(), this.ppkstr).then(function(ret) {
       if (!this._parseServerInfo(ret)) { // If that fails
         console.error('%c[utils.js, refreshServerInfoAtAddress]', 'color: gray;', 'Error: Failed to parse server info from HTTPS, falling back to HTTP...');
         // Try HTTP as a failover. Useful to clients who aren't paired yet
-        return sendMessage('openUrl', [
-          'http://' + urlAddr + ':' + this.httpPort + '/serverinfo?' + this._buildUidStr(), this.ppkstr, false
-        ]).then(function(retHttp) {
+        return this._openUrlWithTimeout('http://' + urlAddr + ':' + this.httpPort + '/serverinfo?' + this._buildUidStr(), this.ppkstr).then(function(retHttp) {
           var parsed = this._parseServerInfo(retHttp);
           if (!parsed) return Promise.reject("Failed to parse server info from HTTP");
           return parsed;
@@ -221,9 +220,7 @@ NvHTTP.prototype = {
     }.bind(this), function(error) {
       if (error == -100) { // GS_CERT_MISMATCH
         console.warn('%c[utils.js, refreshServerInfoAtAddress]', 'color: gray;', 'Warning: Certificate mismatch. Retrying over HTTP...', this);
-        return sendMessage('openUrl', [
-          'http://' + urlAddr + ':' + this.httpPort + '/serverinfo?' + this._buildUidStr(), this.ppkstr, false
-        ]).then(function(retHttp) {
+        return this._openUrlWithTimeout('http://' + urlAddr + ':' + this.httpPort + '/serverinfo?' + this._buildUidStr(), this.ppkstr).then(function(retHttp) {
           var parsed = this._parseServerInfo(retHttp);
           if (!parsed) return Promise.reject("Failed to parse server info from HTTP");
           return parsed;
@@ -486,18 +483,9 @@ NvHTTP.prototype = {
   },
 
   getAppListWithCacheFlush: function() {
-    return Promise.race([
-      sendMessage('openUrl', [
-        this._baseUrlHttps + '/applist?' + this._buildUidStr(), this.ppkstr, false
-      ]),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout retrieving app list')), 5000))
-    ]).catch(error => {
-      // If it's our timeout error, instruct the C++ layer to abort the hung network request
-      if (error.message === 'Timeout retrieving app list') {
-        sendMessage('cancelRequest', []);
-      }
-      throw error;
-    }).then(function(ret) {
+    return sendMessage('openUrl', [
+      this._baseUrlHttps + '/applist?' + this._buildUidStr(), this.ppkstr, false
+    ]).then(function(ret) {
       $xml = this._parseXML(ret);
       $root = $xml.find('root');
 
