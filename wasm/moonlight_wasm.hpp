@@ -266,7 +266,7 @@ class MoonlightInstance {
   std::atomic<bool> m_VideoStarted;
   std::atomic<samsung::wasm::SessionId> m_AudioSessionId;
   std::atomic<samsung::wasm::SessionId> m_VideoSessionId;
-  std::unique_ptr<samsung::html::HTMLMediaElement> m_MediaElement;
+  samsung::html::HTMLMediaElement m_MediaElement;
   std::unique_ptr<samsung::wasm::ElementaryMediaStreamSource> m_Source;
   SourceListener m_SourceListener;
   AudioTrackListener m_AudioTrackListener;

@@ -146,7 +146,7 @@ bool MoonlightInstance::InitializeRenderingSurface(int width, int height) {
 
 int MoonlightInstance::StartupVidDecSetup(int videoFormat, int width, int height, int redrawRate, void* context, int drFlags) {
   // Bind the media source to the media element
-  g_Instance->m_MediaElement->SetSrc(g_Instance->m_Source.get());
+  g_Instance->m_MediaElement.SetSrc(g_Instance->m_Source.get());
 
   ClLogMessage("Waiting to close\n");
 
@@ -249,7 +249,7 @@ int MoonlightInstance::StartupVidDecSetup(int videoFormat, int width, int height
   });
 
   ClLogMessage("Source ready to open\n");
-  g_Instance->m_MediaElement->Play([](EmssOperationResult err) {
+  g_Instance->m_MediaElement.Play([](EmssOperationResult err) {
     if (err != EmssOperationResult::kSuccess) {
       ClLogMessage("Play error\n");
     } else {

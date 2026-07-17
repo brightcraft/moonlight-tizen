@@ -2301,10 +2301,6 @@ function showStreamMode() {
   $('#listener').addClass('fullscreen');
   $('#loadingSpinner').css('display', 'inline-block');
 
-  // Unhide the video element immediately so Tizen's hardware decoder will accept play commands during C++ setup
-  $('#wasm_module').css('display', '');
-  $('#wasm_module').focus();
-
   isInGame = true;
   fullscreenWasmModule();
   handleOnScreenOverlays();
@@ -2649,22 +2645,6 @@ function cancelStreamAndReturn() {
   Module.stopStream();
 }
 
-// Destroy and recreate the video element to prevent Tizen WebKit's sticky DOM state from hanging the next stream
-function resetVideoElement() {
-  var oldVideo = document.getElementById('wasm_module');
-  if (oldVideo) {
-    // Explicitly flush the old video element to force Tizen to release the hardware decoder resources
-    // BEFORE removing it from the DOM. If we remove it first, the Tizen media engine will leak them.
-    oldVideo.src = '';
-    oldVideo.removeAttribute('src');
-    oldVideo.remove();
-    console.log('[index.js, resetVideoElement] Flushed and removed old video element.');
-  }
-  // Inject a fresh video element after the snackbar
-  $('#snackbar').after('<video id="wasm_module" autoplay style="display: none;" tabindex="-1"></video>');
-  // Re-bind the special keys (like XF86Back) since the old element was destroyed
-  initSpecialKeys();
-}
 
 let indexedDB = null;
 const dbVersion = 1.0;

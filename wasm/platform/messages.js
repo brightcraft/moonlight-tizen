@@ -105,10 +105,6 @@ function handleMessage(msg) {
         snackbarLogLong('Connection terminated');
         break;
     }
-    // We need to completely destroy and recreate the video DOM element to unstick the Tizen media pipeline
-    if (typeof resetVideoElement === 'function') {
-      resetVideoElement();
-    }
 
     // Hide the RTSP spinner (if it was showing from a connection attempt)
     $('#loadingSpinner').hide();
@@ -132,6 +128,8 @@ function handleMessage(msg) {
     $('body').css('backgroundColor', 'transparent');
     $('#wasm_module').css('display', '');
     $('#wasm_module').focus();
+    // Stream is now fully connected; allow the RED button to stop it
+    isStreamCancelable = true;
   } else if (msg.indexOf('ProgressMsg: ') === 0) {
     // Show progress message under loading spinner
     $('#loadingSpinnerMessage').text(msg.replace('ProgressMsg: ', ''));
