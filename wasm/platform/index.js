@@ -328,6 +328,7 @@ function beginBackgroundPollingOfHost(host) {
     if (hostCell) {
       hostCell.classList.add('host-cell-inactive');
     }
+    updateHostStatusIndicator(host);
 
     // Start background polling to detect when the host comes back online
     activePolls[host.serverUid] = window.setInterval(function() {
@@ -337,6 +338,7 @@ function beginBackgroundPollingOfHost(host) {
         } else {
           if (hostCell) hostCell.classList.add('host-cell-inactive');
         }
+        updateHostStatusIndicator(returnedHost);
       });
     }, 5000);
   });
