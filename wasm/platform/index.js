@@ -987,7 +987,7 @@ function addHostToGrid(host, ismDNSDiscovered) {
     isClickPrevented = true;
     // Select the host when the Click key is pressed
     hostChosen(host);
-    // Reset the click flag after 2 second delay
+    // Reset the click flag after 2000ms delay
     setTimeout(() => isClickPrevented = false, 2000);
   });
 
