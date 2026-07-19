@@ -107,13 +107,6 @@ function handleMessage(msg) {
         snackbarLogLong('Connection terminated');
         break;
     }
-
-    // Hide the RTSP spinner (if it was showing from a connection attempt)
-    $('#loadingSpinner').hide();
-    
-    // We must explicitly re-enter Apps Mode before showing the apps
-    showAppsMode();
-    
     // Return to the app list with new current game
     showApps(api);
     setTimeout(() => {
@@ -130,8 +123,6 @@ function handleMessage(msg) {
     $('body').css('backgroundColor', 'transparent');
     $('#wasm_module').css('display', '');
     $('#wasm_module').focus();
-    // Stream is now fully connected; allow the RED button to stop it
-    isStreamCancelable = true;
   } else if (msg.indexOf('ProgressMsg: ') === 0) {
     // Show progress message under loading spinner
     $('#loadingSpinnerMessage').text(msg.replace('ProgressMsg: ', ''));
