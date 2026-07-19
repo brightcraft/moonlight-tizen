@@ -51,12 +51,7 @@ function remoteControllerHandler(e) {
     case tvKey.KEY_RED:
       // Terminate the connection
       if (isInGame === true) {
-        if (isStreamCancelable === true) {
-          // Cancel the active stream and return to the apps list
-          cancelStreamAndReturn();
-        } else {
-          console.log('%c[remote_controller.js]', 'color: orange;', 'Red button disabled during stream RTSP initialization.');
-        }
+        Module.stopStream();
       }
       break;
     case tvKey.KEY_YELLOW:
