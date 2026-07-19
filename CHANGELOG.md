@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## v1.13.0
+
+### Added
+- Added automatic local network host discovery using a HTTP subnet scanner
+- Added support for IPv6 addresses and DNS hostname when connecting to hosts
+- Added Wake-on-LAN (WoL) support for hosts connected via IPv6 networks
+- Added centered status icons to indicate whether hosts are offline or unpaired
+
+### Changed
+- Optimized dependency downloads to significantly reduce Docker image build times
+
+### Fixed
+- Fixed an issue where automatic host discovery could occasionally restore outdated IP addresses
+- Fixed a race condition where the first app was selected before the app list had fully loaded
+- Fixed pairing deadlocks causing pairing requests to remain stuck after canceling
+- Fixed network hangs that could leave the app stuck on the 'Loading Apps' screen
+
 ## v1.12.1
 
 ### Changed

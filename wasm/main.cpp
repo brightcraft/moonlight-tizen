@@ -446,6 +446,13 @@ void MoonlightInstance::Pair_private(int callbackId, std::string serverMajorVers
   }
 }
 
+extern "C" void http_cancel_request();
+
+void MoonlightInstance::CancelRequest() {
+  ClLogMessage("%s: Canceling any ongoing HTTP request\n", __func__);
+  http_cancel_request();
+}
+
 void MoonlightInstance::Pair(int callbackId, std::string serverMajorVersion, std::string address, int httpPort, std::string randomNumber) {
   ClLogMessage("%s with host address: %s:%d\n", __func__, address.c_str(), httpPort);
   m_Dispatcher.post_job(std::bind(&MoonlightInstance::Pair_private, this, callbackId, serverMajorVersion, address, httpPort, randomNumber), false);
@@ -491,15 +498,33 @@ void MoonlightInstance::WakeOnLan(int callbackId, std::string macAddress) {
   addr.sin_addr.s_addr = INADDR_BROADCAST;
   addr.sin_port = htons(9); // Wake-on-LAN typically uses port 9
 
-  // Send the magic packet
+  // Send the magic packet over IPv4
   if (sendto(udpSocket, magicPacket, sizeof(magicPacket), 0, (struct sockaddr*) &addr, sizeof(addr)) == -1) {
     ClLogMessage("Failed to send magic packet");
   } else {
     ClLogMessage("Magic packet sent successfully to MAC address: %s\n", macAddress.c_str());
   }
 
-  // Close the socket
+  // Close the IPv4 socket
   close(udpSocket);
+
+  // Send the magic packet over IPv6
+  int udp6Socket = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
+  if (udp6Socket != -1) {
+    struct sockaddr_in6 addr6;
+    memset(&addr6, 0, sizeof(addr6));
+    addr6.sin6_family = AF_INET6;
+    addr6.sin6_port = htons(9); // Wake-on-LAN typically uses port 9
+    // ff02::1 is the link-local all-nodes multicast address
+    inet_pton(AF_INET6, "ff02::1", &addr6.sin6_addr);
+
+    if (sendto(udp6Socket, magicPacket, sizeof(magicPacket), 0, (struct sockaddr*) &addr6, sizeof(addr6)) == -1) {
+      ClLogMessage("Failed to send IPv6 magic packet");
+    } else {
+      ClLogMessage("IPv6 Magic packet sent successfully to MAC address: %s\n", macAddress.c_str());
+    }
+    close(udp6Socket);
+  }
 }
 
 bool MoonlightInstance::Init(uint32_t argc, const char* argn[], const char* argv[]) {
@@ -566,6 +591,10 @@ void pair(int callbackId, std::string serverMajorVersion, std::string address, i
   g_Instance->Pair(callbackId, serverMajorVersion, address, httpPort, randomNumber);
 }
 
+void cancelRequest() {
+  g_Instance->CancelRequest();
+}
+
 void wakeOnLan(int callbackId, std::string macAddress) {
   g_Instance->WakeOnLan(callbackId, macAddress);
 }
@@ -607,5 +636,6 @@ EMSCRIPTEN_BINDINGS(handle_message) {
   emscripten::function("toggleStats", &toggleStats);
   emscripten::function("stun", &stun);
   emscripten::function("pair", &pair);
+  emscripten::function("cancelRequest", &cancelRequest);
   emscripten::function("wakeOnLan", &wakeOnLan);
 }

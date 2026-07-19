@@ -7,6 +7,7 @@
 #include <chrono>
 #include <thread>
 #include <cmath>
+#include <map>
 
 #include <Limelight.h>
 #include <emscripten/emscripten.h>
@@ -165,7 +166,7 @@ void MoonlightInstance::PollGamepads() {
   const auto activeGamepadMask = GetActiveGamepadMask(numGamepads);
 
   // Prevent repeated trigger while the button combo is held down
-  static bool comboTriggered = false;
+  static std::map<int, bool> comboTriggered;
 
   // Iterate through connected gamepads and process their input
   for (int gamepadID = 0; gamepadID < numGamepads; ++gamepadID) {
@@ -208,25 +209,28 @@ void MoonlightInstance::PollGamepads() {
       stopStream();
       return;
     } else if (buttonFlags == PERF_STATS_BUTTONS) {
-      if (!comboTriggered) {
+      if (!comboTriggered[gamepadID]) {
         // Toggle performance stats overlay
         toggleStats();
         // Mark combo as triggered until buttons are released
-        comboTriggered = true;
+        comboTriggered[gamepadID] = true;
       }
     } else {
       // Reset when buttons are released
-      comboTriggered = false;
+      comboTriggered[gamepadID] = false;
     }
 
     // Check if the mouse emulation switch is checked
     if (mouseEmulationSwitch) {
-      static auto activatePressTime = std::chrono::steady_clock::now();
+      static std::map<int, std::chrono::time_point<std::chrono::steady_clock>> activatePressTimes;
       // Toggle mouse emulation on and off based on how long the PLAY/START button is pressed
       if (buttonFlags & PLAY_FLAG) {
+        if (activatePressTimes.find(gamepadID) == activatePressTimes.end()) {
+          activatePressTimes[gamepadID] = std::chrono::steady_clock::now();
+        }
         auto currentTime = std::chrono::steady_clock::now();
         // Calculate the duration in milliseconds since the PLAY/START button was pressed
-        auto durationTime = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - activatePressTime).count();
+        auto durationTime = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - activatePressTimes[gamepadID]).count();
         // If the button has been pressed for at least 1000 milliseconds (1 second)
         if (durationTime >= 1000) {
           // Toggle mouse emulation state
@@ -240,11 +244,11 @@ void MoonlightInstance::PollGamepads() {
             PostToJs(std::string("mouseEmulationOff"));
           }
           // Reset the PLAY/START press time to the current time after toggling
-          activatePressTime = std::chrono::steady_clock::now();
+          activatePressTimes[gamepadID] = std::chrono::steady_clock::now();
         }
       } else {
         // If the PLAY/START button is not pressed, reset PLAY/START press time to the current time
-        activatePressTime = std::chrono::steady_clock::now();
+        activatePressTimes[gamepadID] = std::chrono::steady_clock::now();
       }
     } else {
       // Deactivate mouse emulation if the mouse emulation switch is unchecked

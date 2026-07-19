@@ -212,6 +212,16 @@ static char* x509_to_curl_ppk_string(X509* x509) {
     return ret;
 }
 
+// Safely wraps IPv6 addresses in brackets for URL construction.
+// IPv4 addresses and DNS hostnames do not contain colons, so they are untouched.
+static void format_address_for_url(const char* address, char* host_for_url, size_t max_len) {
+  if (strchr(address, ':') != NULL && address[0] != '[') {
+      snprintf(host_for_url, max_len, "[%s]", address);
+  } else {
+      snprintf(host_for_url, max_len, "%s", address);
+  }
+}
+
 static unsigned short sanitize_http_port(unsigned short httpPort) {
   if (httpPort == 0) {
     return 47989;
@@ -232,7 +242,10 @@ int gs_unpair(const char* address, unsigned short httpPort) {
   if (data == NULL)
     return GS_OUT_OF_MEMORY;
 
-  snprintf(url, sizeof(url), "http://%s:%u/unpair?uniqueid=%s", address, sanitizedHttpPort, g_UniqueId);
+  char host_for_url[256];
+  format_address_for_url(address, host_for_url, sizeof(host_for_url));
+
+  snprintf(url, sizeof(url), "http://%s:%u/unpair?uniqueid=%s", host_for_url, sanitizedHttpPort, g_UniqueId);
   ret = http_request(url, NULL, data);
 
   http_free_data(data);
@@ -250,7 +263,10 @@ int gs_pair(int serverMajorVersion, const char* address, unsigned short httpPort
   RAND_bytes(salt_data, 16);
   bytes_to_hex(salt_data, salt_hex, 16);
 
-  snprintf(url, sizeof(url), "http://%s:%u/pair?uniqueid=%s&devicename=roth&updateState=1&phrase=getservercert&salt=%s&clientcert=%s", address, sanitizedHttpPort, g_UniqueId, salt_hex, g_CertHex);
+  char host_for_url[256];
+  format_address_for_url(address, host_for_url, sizeof(host_for_url));
+
+  snprintf(url, sizeof(url), "http://%s:%u/pair?uniqueid=%s&devicename=roth&updateState=1&phrase=getservercert&salt=%s&clientcert=%s", host_for_url, sanitizedHttpPort, g_UniqueId, salt_hex, g_CertHex);
   PHTTP_DATA data = http_create_data();
   if (data == NULL)
     return GS_OUT_OF_MEMORY;
@@ -295,7 +311,7 @@ int gs_pair(int serverMajorVersion, const char* address, unsigned short httpPort
   AES_encrypt(challenge_data, challenge_enc, &enc_key);
   bytes_to_hex(challenge_enc, challenge_hex, 16);
 
-  snprintf(url, sizeof(url), "http://%s:%u/pair?uniqueid=%s&devicename=roth&updateState=1&clientchallenge=%s", address, sanitizedHttpPort, g_UniqueId, challenge_hex);
+  snprintf(url, sizeof(url), "http://%s:%u/pair?uniqueid=%s&devicename=roth&updateState=1&clientchallenge=%s", host_for_url, sanitizedHttpPort, g_UniqueId, challenge_hex);
   if ((ret = http_request(url, NULL, data)) != GS_OK)
     goto cleanup;
 
@@ -349,7 +365,7 @@ int gs_pair(int serverMajorVersion, const char* address, unsigned short httpPort
   }
   bytes_to_hex(challenge_response_hash_enc, challenge_response_hex, 32);
 
-  snprintf(url, sizeof(url), "http://%s:%u/pair?uniqueid=%s&devicename=roth&updateState=1&serverchallengeresp=%s", address, sanitizedHttpPort, g_UniqueId, challenge_response_hex);
+  snprintf(url, sizeof(url), "http://%s:%u/pair?uniqueid=%s&devicename=roth&updateState=1&serverchallengeresp=%s", host_for_url, sanitizedHttpPort, g_UniqueId, challenge_response_hex);
   if ((ret = http_request(url, NULL, data)) != GS_OK)
     goto cleanup;
 
@@ -393,7 +409,7 @@ int gs_pair(int serverMajorVersion, const char* address, unsigned short httpPort
   memcpy(client_pairing_secret + 16, signature, 256);
   bytes_to_hex(client_pairing_secret, client_pairing_secret_hex, 16 + 256);
 
-  snprintf(url, sizeof(url), "http://%s:%u/pair?uniqueid=%s&devicename=roth&updateState=1&clientpairingsecret=%s", address, sanitizedHttpPort, g_UniqueId, client_pairing_secret_hex);
+  snprintf(url, sizeof(url), "http://%s:%u/pair?uniqueid=%s&devicename=roth&updateState=1&clientpairingsecret=%s", host_for_url, sanitizedHttpPort, g_UniqueId, client_pairing_secret_hex);
   if ((ret = http_request(url, NULL, data)) != GS_OK)
     goto cleanup;
 
