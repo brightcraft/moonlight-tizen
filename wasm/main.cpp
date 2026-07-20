@@ -370,6 +370,16 @@ MessageResult MoonlightInstance::StopStream() {
   return MessageResult::Resolve();
 }
 
+extern "C" void http_cancel_request();
+
+MessageResult MoonlightInstance::CancelRequest() {
+  ClLogMessage("%s: Canceling any ongoing HTTP request...\n", __func__);
+  // Begin canceling the HTTP request
+  http_cancel_request();
+
+  return MessageResult::Resolve();
+}
+
 void MoonlightInstance::STUN_private(int callbackId) {
   unsigned int wanAddr;
   char addrStr[128] = {};
@@ -397,13 +407,6 @@ void MoonlightInstance::Pair_private(int callbackId, std::string serverMajorVers
   } else {
     PostPromiseMessage(callbackId, "reject", std::to_string(err));
   }
-}
-
-extern "C" void http_cancel_request();
-
-void MoonlightInstance::CancelRequest() {
-  ClLogMessage("%s: Canceling any ongoing HTTP request\n", __func__);
-  http_cancel_request();
 }
 
 void MoonlightInstance::Pair(int callbackId, std::string serverMajorVersion, std::string address, int httpPort, std::string randomNumber) {
@@ -528,9 +531,12 @@ MessageResult stopStream() {
   return g_Instance->StopStream();
 }
 
-MessageResult toggleStats() {
+MessageResult cancelRequest() {
+  return g_Instance->CancelRequest();
+}
+
+void toggleStats() {
   g_Instance->TogglePerformanceStats();
-  return MessageResult::Resolve();
 }
 
 void stun(int callbackId) {
@@ -543,11 +549,6 @@ void pair(int callbackId, std::string serverMajorVersion, std::string address, i
   }
   g_UniqueId = strdup(uniqueId.c_str());
   g_Instance->Pair(callbackId, serverMajorVersion, address, httpPort, randomNumber);
-}
-
-MessageResult cancelRequest() {
-  g_Instance->CancelRequest();
-  return MessageResult::Resolve();
 }
 
 void wakeOnLan(int callbackId, std::string macAddress) {
@@ -588,9 +589,9 @@ EMSCRIPTEN_BINDINGS(handle_message) {
   emscripten::value_object<MessageResult>("MessageResult").field("type", &MessageResult::type).field("ret", &MessageResult::ret);
   emscripten::function("startStream", &startStream);
   emscripten::function("stopStream", &stopStream);
+  emscripten::function("cancelRequest", &cancelRequest);
   emscripten::function("toggleStats", &toggleStats);
   emscripten::function("stun", &stun);
   emscripten::function("pair", &pair);
-  emscripten::function("cancelRequest", &cancelRequest);
   emscripten::function("wakeOnLan", &wakeOnLan);
 }
