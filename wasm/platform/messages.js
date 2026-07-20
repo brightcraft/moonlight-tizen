@@ -113,7 +113,9 @@ function handleMessage(msg) {
       // Scroll to the current game row
       Navigation.switch();
       // Switch to Apps view
-      Navigation.change(Views.Apps);
+      if (!window.isDialogOpen) {
+        Navigation.change(Views.Apps);
+      }
     }, 1500);
   } else if (msg === 'Connection Established') {
     // Prepare the screen for video stream

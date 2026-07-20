@@ -12,6 +12,9 @@ void MoonlightInstance::ClStageStarting(int stage) {
 }
 
 void MoonlightInstance::ClStageFailed(int stage, int errorCode) {
+  if (g_Instance && g_Instance->m_ConnectionCancelled) {
+    return;
+  }
   PostToJs(std::string("DialogMsg: ") + std::string(LiGetStageName(stage)) + std::string(" failed (error ") + std::to_string(errorCode) + std::string(")"));
 }
 
@@ -27,6 +30,9 @@ void MoonlightInstance::ClConnectionTerminated(int errorCode) {
 }
 
 void MoonlightInstance::ClDisplayMessage(const char* message) {
+  if (g_Instance && g_Instance->m_ConnectionCancelled) {
+    return;
+  }
   PostToJs(std::string("DialogMsg: ") + std::string(message));
 }
 

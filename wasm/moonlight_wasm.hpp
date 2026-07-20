@@ -265,6 +265,8 @@ class MoonlightInstance {
   EmssReadyState m_EmssReadyState;
   std::atomic<bool> m_AudioStarted;
   std::atomic<bool> m_VideoStarted;
+  std::atomic<bool> m_ConnectionCancelled;
+  pthread_t m_StopThread;
   std::atomic<samsung::wasm::SessionId> m_AudioSessionId;
   std::atomic<samsung::wasm::SessionId> m_VideoSessionId;
   samsung::html::HTMLMediaElement m_MediaElement;
@@ -274,6 +276,8 @@ class MoonlightInstance {
   VideoTrackListener m_VideoTrackListener;
   samsung::wasm::ElementaryMediaTrack m_AudioTrack;
   samsung::wasm::ElementaryMediaTrack m_VideoTrack;
+  std::atomic<bool> m_SourceClosed;
+  std::condition_variable m_SourceClosedCV;
 };
 
 extern MoonlightInstance* g_Instance;

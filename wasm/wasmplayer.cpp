@@ -150,6 +150,10 @@ int MoonlightInstance::StartupVidDecSetup(int videoFormat, int width, int height
   g_Instance->WaitFor(&g_Instance->m_EmssStateChanged, [] {
     return g_Instance->m_EmssReadyState == EmssReadyState::kClosed;
   });
+  if (g_Instance->m_ConnectionCancelled) {
+    ClLogMessage("Connection cancelled during initial close wait\n");
+    return -1;
+  }
   ClLogMessage("Closed\n");
 
   {
@@ -241,8 +245,13 @@ int MoonlightInstance::StartupVidDecSetup(int videoFormat, int width, int height
   ClLogMessage("Inb4 source open\n");
   g_Instance->m_Source->Open([](EmssOperationResult){});
   g_Instance->WaitFor(&g_Instance->m_EmssStateChanged, [] {
-    return g_Instance->m_EmssReadyState == EmssReadyState::kOpenPending;
+    return g_Instance->m_EmssReadyState == EmssReadyState::kOpenPending || 
+           g_Instance->m_EmssReadyState == EmssReadyState::kOpen;
   });
+  if (g_Instance->m_ConnectionCancelled) {
+    ClLogMessage("Connection cancelled during open wait\n");
+    return -1;
+  }
 
   ClLogMessage("Source ready to open\n");
   g_Instance->m_MediaElement.Play([](EmssOperationResult err) {
@@ -260,6 +269,10 @@ int MoonlightInstance::StartupVidDecSetup(int videoFormat, int width, int height
   g_Instance->WaitFor(&g_Instance->m_EmssVideoStateChanged, [] {
     return g_Instance->m_VideoStarted.load();
   });
+  if (g_Instance->m_ConnectionCancelled) {
+    ClLogMessage("Connection cancelled during audio/video wait\n");
+    return -1;
+  }
 
   ClLogMessage("Started\n");
   return 0;
@@ -716,7 +729,7 @@ void MoonlightInstance::TogglePerformanceStats() {
 
 void MoonlightInstance::WaitFor(std::condition_variable* variable, std::function<bool()> condition) {
   std::unique_lock<std::mutex> lock(m_Mutex);
-  variable->wait(lock, condition);
+  variable->wait(lock, [&]() { return m_ConnectionCancelled.load() || condition(); });
 }
 
 DECODER_RENDERER_CALLBACKS MoonlightInstance::s_DrCallbacks = {
