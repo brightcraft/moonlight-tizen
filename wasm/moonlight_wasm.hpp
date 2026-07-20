@@ -95,9 +95,10 @@ class MoonlightInstance {
     bool disableWarnings, bool performanceStats);
   MessageResult StopStream();
 
+  MessageResult CancelRequest();
+
   void STUN(int callbackId);
   void Pair(int callbackId, std::string serverMajorVersion, std::string address, int httpPort, std::string randomNumber);
-  void CancelRequest();
   void WakeOnLan(int callbackId, std::string macAddress);
 
   virtual ~MoonlightInstance();
@@ -298,6 +299,8 @@ MessageResult startStream(std::string host, int httpPort, std::string width, std
   std::string audioConfig, bool audioSync, bool playHostAudio, std::string videoCodec, bool hdrMode, bool fullRange, bool gameMode,
   bool disableWarnings, bool performanceStats);
 MessageResult stopStream();
+
+MessageResult cancelRequest();
 
 void toggleStats();
 void stun(int callbackId);

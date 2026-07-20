@@ -241,8 +241,15 @@ function updateHostStatusIndicator(host) {
 }
 
 function beginBackgroundPollingOfHost(host) {
-  // Assign methods of NvHTTP to the host object
-  Object.assign(host, NvHTTP.prototype);
+  // Clear any existing polling interval for this host before starting a new one.
+  // Without this, every call to beginBackgroundPollingOfHost (e.g. on each navigation
+  // back to the host view) would leak the old setInterval, causing multiple overlapping
+  // poll loops that corrupt the _pollCompletionCallbacks deduplication guard and
+  // prevent the host from ever recovering to the online state.
+  if (activePolls[host.serverUid]) {
+    window.clearInterval(activePolls[host.serverUid]);
+    delete activePolls[host.serverUid];
+  }
 
   // Refresh server info before attempting to start background polling of the host
   host.refreshServerInfo().then(function(ret) {
@@ -297,6 +304,43 @@ function beginBackgroundPollingOfHost(host) {
     }
   }, function(failedRefreshInfo) {
     console.error('%c[index.js, beginBackgroundPollingOfHost]', 'color: green;', 'Error: Failed to refresh server info! Returned error was: ' + failedRefreshInfo + '! Failed server was: ' + '\n', host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
+
+    // Set host to offline and clear the app list cache
+    host.online = false;
+    host._memCachedApplist = null;
+
+    // Reset poll state so that recovery polls from the interval below start with
+    // a clean slate. Without this, stale _pollCompletionCallbacks entries from
+    // previous (leaked) intervals can block the deduplication guard and prevent
+    // pollServer from ever starting a new poll.
+    // Note: resetting _consecutivePollFailures to 0 here is always safe. If the
+    // host was previously online, this counter was already 0 (it is reset to 0 on
+    // every successful poll). Online *recovery* (host.online = true) is set
+    // unconditionally in pollServer's success callback regardless of this counter;
+    // the counter only gates the *offline* direction (host.online = false after
+    // >= 2 consecutive failures inside pollServer), so resetting it here does not
+    // interfere with future offline detection either.
+    host._consecutivePollFailures = 0;
+    host._pollCompletionCallbacks = [];
+
+    // Update the UI to show the host as offline
+    var hostCell = document.querySelector('#host-' + host.serverUid);
+    if (hostCell) {
+      hostCell.classList.add('host-cell-inactive');
+    }
+    updateHostStatusIndicator(host);
+
+    // Start background polling to detect when the host comes back online
+    activePolls[host.serverUid] = window.setInterval(function() {
+      host.pollServer(function(returnedHost) {
+        if (returnedHost.online) {
+          if (hostCell) hostCell.classList.remove('host-cell-inactive');
+        } else {
+          if (hostCell) hostCell.classList.add('host-cell-inactive');
+        }
+        updateHostStatusIndicator(returnedHost);
+      });
+    }, 5000);
   });
 }
 
@@ -360,6 +404,11 @@ function showHostsMode() {
 
   Navigation.start();
   Navigation.pop();
+  // Stop any existing polls before starting new ones to prevent setInterval leaks.
+  // Without this, navigating back to the host view multiple times accumulates
+  // duplicate polling intervals for each host, which causes race conditions in
+  // _pollCompletionCallbacks and prevents the host from recovering to online.
+  stopPollingHosts();
   startPollingHosts();
 }
 
@@ -1015,11 +1064,13 @@ function addHostToGrid(host, ismDNSDiscovered) {
 // Function to correctly update and store the valid MAC address of the host in IndexedDB
 function updateMacAddress(host) {
   getData('hosts', function(previousValue) {
-    hosts = previousValue.hosts != null ? previousValue.hosts : {};
+    var dbHosts = previousValue.hosts != null ? previousValue.hosts : {};
     if (host.macAddress != '00:00:00:00:00:00') {
-      if (hosts[host.serverUid] && hosts[host.serverUid].macAddress != host.macAddress) {
-        console.log('%c[index.js, updateMacAddress]', 'color: green;', 'Updated MAC address for host ' + host.hostname + ' from ' + hosts[host.serverUid].macAddress + ' to ' + host.macAddress);
-        hosts[host.serverUid].macAddress = host.macAddress;
+      if (dbHosts[host.serverUid] && dbHosts[host.serverUid].macAddress != host.macAddress) {
+        console.log('%c[index.js, updateMacAddress]', 'color: green;', 'Updated MAC address for host ' + host.hostname + ' from ' + dbHosts[host.serverUid].macAddress + ' to ' + host.macAddress);
+        if (hosts[host.serverUid]) {
+          hosts[host.serverUid].macAddress = host.macAddress;
+        }
         saveHosts();
       }
     }
@@ -2118,7 +2169,7 @@ function showApps(host) {
     $('#wasmSpinnerMessage').text('Loading Apps...');
 
     // Remove all game container elements from the game grid and from any other div elements
-    $('#game-grid .game-container').remove();
+    $('#game-grid').empty();
     $('div.game-container').remove();
 
     setTimeout(() => {
@@ -3728,6 +3779,7 @@ function loadHTTPCertsCb() {
           revivedHost.externalIP = hosts[hostUID].externalIP;
           revivedHost.hostname = hosts[hostUID].hostname;
           revivedHost.ppkstr = hosts[hostUID].ppkstr;
+          hosts[hostUID] = revivedHost;
           addHostToGrid(revivedHost);
         }
         startPollingHosts();

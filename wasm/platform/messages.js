@@ -12,9 +12,9 @@ const SyncFunctions = {
   // no parameters
   'stopRequest': (...args) => Module.stopStream(...args),
   // no parameters
-  'toggleStats': (...args) => Module.toggleStats(...args),
-  // no parameters
   'cancelRequest': (...args) => Module.cancelRequest(...args),
+  // no parameters
+  'toggleStats': (...args) => Module.toggleStats(...args),
 };
 
 const AsyncFunctions = {
