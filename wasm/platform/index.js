@@ -3791,9 +3791,11 @@ function loadHTTPCertsCb() {
         }
         startPollingHosts();
         console.log('%c[index.js, loadHTTPCertsCb]', 'color: green;', 'Loading previously connected hosts...');
-
         // Start subnet scanning silently in the background after hosts are fully loaded
-        startSubnetScanner();
+        setTimeout(() => {
+          snackbarLog('Scanning the local network to discover new hosts...');
+          startSubnetScanner();
+        }, 1000);
       });
     });
   });

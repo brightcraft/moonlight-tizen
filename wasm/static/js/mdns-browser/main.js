@@ -91,7 +91,6 @@ function startSubnetScanner() {
       } else {
         var subnet = parts[0] + '.' + parts[1] + '.' + parts[2];
         console.log('%c[main.js, startSubnetScanner]', 'color: green;', 'Starting subnet /24 scan on', subnet + '.0/24');
-        snackbarLog('Scanning the local network to discover new hosts...');
         // Scan the /24 subnet (1-254) for hosts responding on port 47989
         for (var i = 1; i <= 254; i++) {
           (function(ip) {
@@ -101,7 +100,7 @@ function startSubnetScanner() {
               if (abortCtrl) {
                 abortCtrl.abort();
               }
-            }, 1800);
+            }, 3000);
             // Use fetch() to probe the host for the /serverinfo endpoint on port 47989
             fetch('http://' + ip + ':47989/serverinfo',
               abortCtrl ? { signal: abortCtrl.signal } : {}
