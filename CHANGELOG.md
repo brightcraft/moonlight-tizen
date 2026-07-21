@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## v1.13.1
+
+### Fixed
+- Fixed an issue where hosts could fail to recover correctly after coming back online
+- Fixed an issue where offline hosts could incorrectly appear as online after becoming unreachable
+- Fixed an issue where cached app lists could remain accessible after the host was disconnected
+- Fixed an issue where streaming sessions could fail to reconnect after disconnecting in some cases
+- Fixed an issue where automatic host discovery could occasionally fail to find new hosts
+- Fixed an issue where gamepad shortcuts did not work when multiple gamepads were connected
+- Fixed an issue where certain gamepads could unexpectedly stop responding during streaming
+- Fixed an issue where gamepad action buttons would trigger rapidly when held down during UI navigation
+
 ## v1.13.0
 
 ### Added
