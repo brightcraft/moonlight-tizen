@@ -28,35 +28,3 @@ jobs:
         with:
           commit_message: "chore(i18n): sync locale source-of-truth"
           file_pattern: "wasm/static/locales/*.json"
-
-      - name: Install Crowdin CLI
-        run: npm install --global @crowdin/cli
-      
-      - name: Push source strings to Crowdin
-        env:
-          CROWDIN_PROJECT_ID: ${{ secrets.CROWDIN_PROJECT_ID }}
-          CROWDIN_PERSONAL_TOKEN: ${{ secrets.CROWDIN_PERSONAL_TOKEN }}
-        run: crowdin upload sources
-
-      # TMS example (Transifex) - intentionally commented
-      # - name: Install Transifex CLI
-      #   if: ${{ secrets.TX_TOKEN != '' }}
-      #   run: npm install --global @transifex/cli
-      #
-      # - name: Push source strings to Transifex
-      #   if: ${{ secrets.TX_TOKEN != '' }}
-      #   env:
-      #     TX_TOKEN: ${{ secrets.TX_TOKEN }}
-      #   run: tx push -s
-
-      # TMS example (Weblate) - intentionally commented
-      # - name: Push source strings to Weblate
-      #   if: ${{ secrets.WEBLATE_TOKEN != '' }}
-      #   env:
-      #     WEBLATE_TOKEN: ${{ secrets.WEBLATE_TOKEN }}
-      #   run: |
-      #     curl -sS -X POST \
-      #       -H "Authorization: Token ${WEBLATE_TOKEN}" \
-      #       -H "Content-Type: application/json" \
-      #       "https://hosted.weblate.org/api/projects/<project-slug>/repository/" \
-      #       -d '{"operation":"push"}'
