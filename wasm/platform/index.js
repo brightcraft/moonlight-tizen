@@ -2324,23 +2324,6 @@ function showApps(host) {
         showAppsMode();
         reject(failedAppList);
       });
-    }, function(failedAppList) {
-        // Hide the spinner if the host has failed to retrieve the app list
-        $('#wasmSpinner').hide();
-
-        // Show the main header after the loading screen is complete
-        $('#main-header').children().show();
-        $('#main-header').css({'backgroundColor': '#333846', 'boxShadow': '0 0 4px 0 rgba(0, 0, 0, 1)'});
-
-        console.error('%c[index.js, showApps]', 'color: green;', 'Error: Failed to get app list from ' + host.hostname + '. Host object: ', host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
-        var errorAppListImg = new Image();
-        errorAppListImg.src = 'static/res/applist_error.svg';
-        $('#game-grid').html(errorAppListImg);
-        snackbarLogLong(t('Unable to retrieve your list of apps at this time. Please refresh the list of apps or try again later!'));
-      });
-
-      // Navigate to the Apps view
-      showAppsMode();
     }, 500);
   });
 }
