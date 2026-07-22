@@ -3,7 +3,7 @@ name: i18n CI
 on:
   push:
     branches:
-      - main
+      - master
 
 permissions:
   contents: write
@@ -29,17 +29,16 @@ jobs:
           commit_message: "chore(i18n): sync locale source-of-truth"
           file_pattern: "wasm/static/locales/*.json"
 
-      # TMS example (Crowdin) - intentionally commented
-      # - name: Install Crowdin CLI
-      #   if: ${{ secrets.CROWDIN_PROJECT_ID != '' && secrets.CROWDIN_PERSONAL_TOKEN != '' }}
-      #   run: npm install --global @crowdin/cli
-      #
-      # - name: Push source strings to Crowdin
-      #   if: ${{ secrets.CROWDIN_PROJECT_ID != '' && secrets.CROWDIN_PERSONAL_TOKEN != '' }}
-      #   env:
-      #     CROWDIN_PROJECT_ID: ${{ secrets.CROWDIN_PROJECT_ID }}
-      #     CROWDIN_PERSONAL_TOKEN: ${{ secrets.CROWDIN_PERSONAL_TOKEN }}
-      #   run: crowdin upload sources
+      - name: Install Crowdin CLI
+        if: ${{ secrets.CROWDIN_PROJECT_ID != '' && secrets.CROWDIN_PERSONAL_TOKEN != '' }}
+        run: npm install --global @crowdin/cli
+      
+      - name: Push source strings to Crowdin
+        if: ${{ secrets.CROWDIN_PROJECT_ID != '' && secrets.CROWDIN_PERSONAL_TOKEN != '' }}
+        env:
+          CROWDIN_PROJECT_ID: ${{ secrets.CROWDIN_PROJECT_ID }}
+          CROWDIN_PERSONAL_TOKEN: ${{ secrets.CROWDIN_PERSONAL_TOKEN }}
+        run: crowdin upload sources
 
       # TMS example (Transifex) - intentionally commented
       # - name: Install Transifex CLI
