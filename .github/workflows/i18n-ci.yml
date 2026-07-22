@@ -30,11 +30,9 @@ jobs:
           file_pattern: "wasm/static/locales/*.json"
 
       - name: Install Crowdin CLI
-        if: ${{ secrets.CROWDIN_PROJECT_ID != '' && secrets.CROWDIN_PERSONAL_TOKEN != '' }}
         run: npm install --global @crowdin/cli
       
       - name: Push source strings to Crowdin
-        if: ${{ secrets.CROWDIN_PROJECT_ID != '' && secrets.CROWDIN_PERSONAL_TOKEN != '' }}
         env:
           CROWDIN_PROJECT_ID: ${{ secrets.CROWDIN_PROJECT_ID }}
           CROWDIN_PERSONAL_TOKEN: ${{ secrets.CROWDIN_PERSONAL_TOKEN }}
