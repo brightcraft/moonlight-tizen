@@ -293,5 +293,9 @@
   "YELLOW": "YELLOW",
   "Yes": "Yes",
   "Your list is currently empty. Please add your favorite apps to the list.": "Your list is currently empty. Please add your favorite apps to the list.",
-  "Your network connection isn't performing well. Reduce your video bitrate setting or try a faster connection.": "Your network connection isn't performing well. Reduce your video bitrate setting or try a faster connection."
+  "Your network connection isn't performing well. Reduce your video bitrate setting or try a faster connection.": "Your network connection isn't performing well. Reduce your video bitrate setting or try a faster connection.",
+  "Gamepad %1$s has been connected.": "Gamepad %1$s has been connected.",
+  "Gamepad %1$s has been disconnected.": "Gamepad %1$s has been disconnected.",
+  "A pairing request is currently in progress. Please wait for it to timeout or finish before trying again.": "A pairing request is currently in progress. Please wait for it to timeout or finish before trying again.",
+  "Scanning the local network to discover new hosts...": "Scanning the local network to discover new hosts..."
 }

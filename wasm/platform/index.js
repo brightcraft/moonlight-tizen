@@ -515,7 +515,7 @@ function restoreUiAfterWasmLoad() {
 
 function hostChosen(host) {
   if (isPairingInProgress) {
-    snackbarLogLong('A pairing request is currently in progress. Please wait for it to timeout or finish before trying again.');
+    snackbarLogLong(t('A pairing request is currently in progress. Please wait for it to timeout or finish before trying again.'));
     return;
   }
 
@@ -1279,7 +1279,7 @@ function deleteHostDialog(host) {
 function deleteAllHostsDialog() {
   if (Object.keys(hosts).length === 0) {
     // If there are no hosts, show snackbar message
-    snackbarLog('No host exists.');
+    snackbarLog(t('No host exists.'));
     return;
   } else {
     // Find the existing overlay and dialog elements
@@ -1326,7 +1326,7 @@ function deleteAllHostsDialog() {
         }
       }
       // If all hosts removed, show snackbar message
-      snackbarLog('All hosts have been deleted successfully.');
+      snackbarLog(t('All hosts have been deleted successfully.'));
       deleteHostOverlay.style.display = 'none';
       deleteHostDialog.close();
       isDialogOpen = false;
@@ -1820,7 +1820,7 @@ function updateAppDialog(latestVersion, releaseNotes) {
 // Check for updates when the Check for Updates button is pressed
 function checkForAppUpdates() {
   console.log('%c[index.js, checkForAppUpdates]', 'color: green;', 'Checking for new application updates...');
-  snackbarLog('Checking for available Moonlight updates...');
+  snackbarLog(t('Checking for available Moonlight updates...'));
   // Fetch the latest release data from the GitHub API
   fetchLatestRelease().then(({ latestVersion, releaseNotes }) => {
     setTimeout(() => {
@@ -1915,7 +1915,7 @@ function restoreDefaultsDialog() {
     // Reset any settings to their default state and save the updated values
     restoreDefaultsSettingsValues();
     // If the settings have been reset to default, show snackbar message
-    snackbarLog('Settings have been restored to their default values.');
+    snackbarLog(t('Settings have been restored to their default values.'));
     restoreDefaultsDialogOverlay.style.display = 'none';
     restoreDefaultsDialog.close();
     isDialogOpen = false;
@@ -2318,7 +2318,7 @@ function showApps(host) {
         var errorAppListImg = new Image();
         errorAppListImg.src = 'static/res/applist_error.svg';
         $('#game-grid').html(errorAppListImg);
-        snackbarLogLong('Unable to retrieve your list of apps at this time. Please refresh the list of apps or try again later!');
+        snackbarLogLong(t('Unable to retrieve your list of apps at this time. Please refresh the list of apps or try again later!'));
 
         // Navigate to the Apps view
         showAppsMode();
@@ -2670,7 +2670,7 @@ function stopGame(host, callbackFunction) {
   host.refreshServerInfo().then(function(ret) {
     host.getAppById(host.currentGame).then(function(runningApp) {
       if (!runningApp) {
-        snackbarLog('No app is currently running.');
+        snackbarLog(t('No app is currently running.'));
         return;
       }
       var appTitle = runningApp.title;
@@ -3149,7 +3149,7 @@ function saveVideoCodec() {
   if (enabledHdrMode && chosenVideoCodec === selectedH264Codec) { // Selecting H.264 while HDR mode is enabled
     // H.264 does not support HDR profile, so stay on H.264 codec
     updateVideoCodec('#h264', selectedH264Codec);
-    snackbarLog('HDR has been disabled due to unsupported H.264 codec.');
+    snackbarLog(t('HDR has been disabled due to unsupported H.264 codec.'));
     // Turn off the HDR mode switch and save the state
     $('#hdrModeSwitch').parent().removeClass('is-checked');
     updateHdrMode();
@@ -3854,7 +3854,7 @@ function loadHTTPCertsCb() {
         console.log('%c[index.js, loadHTTPCertsCb]', 'color: green;', 'Loading previously connected hosts...');
         // Start subnet scanning silently in the background after hosts are fully loaded
         setTimeout(() => {
-          snackbarLog('Scanning the local network to discover new hosts...');
+          snackbarLog(t('Scanning the local network to discover new hosts...'));
           startSubnetScanner();
         }, 1000);
       });
@@ -3879,7 +3879,7 @@ window.addEventListener('gamepadconnected', function(e) {
   const gamepadIndex = connectedGamepad.index;
   const rumbleFeedbackSwitch = document.getElementById('rumbleFeedbackSwitch');
   console.log('%c[index.js, gamepadconnected]', 'color: green;', 'Gamepad connected:\n' + JSON.stringify(connectedGamepad), connectedGamepad);
-  snackbarLog('Gamepad ' + gamepadIndex + ' has been connected.');
+  snackbarLog(t('Gamepad %1$s has been connected.', gamepadIndex));
   // Check if the rumble feedback switch is checked
   if (rumbleFeedbackSwitch.checked) {
     // Check if the connected gamepad has a vibrationActuator associated with it
@@ -3902,6 +3902,6 @@ window.addEventListener('gamepaddisconnected', function(e) {
   const disconnectedGamepad = e.gamepad;
   const gamepadIndex = disconnectedGamepad.index;
   console.log('%c[index.js, gamepaddisconnected]', 'color: green;', 'Gamepad disconnected:\n' + JSON.stringify(disconnectedGamepad), disconnectedGamepad);
-  snackbarLog('Gamepad ' + gamepadIndex + ' has been disconnected.');
+  snackbarLog(t('Gamepad %1$s has been disconnected.', gamepadIndex));
   console.warn('%c[index.js, gamepaddisconnected]', 'color: green;', 'Warning: Lost connection to gamepad ' + gamepadIndex + '. Please reconnect your gamepad!');
 });
