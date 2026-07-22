@@ -2855,17 +2855,6 @@ function saveFramerate() {
   warnResolutionFramerate();
 }
 
-function saveLanguagePreference() {
-  var chosenLanguage = $(this).data('value') || 'auto';
-  $('#selectLanguage').text($(this).text()).data('value', chosenLanguage);
-  console.log('%c[index.js, saveLanguagePreference]', 'color: green;', 'Saving language preference value: ' + chosenLanguage);
-  if (window.i18n && typeof window.i18n.applyLanguagePreference === 'function') {
-    window.i18n.applyLanguagePreference(chosenLanguage).catch((error) => {
-      console.warn('%c[index.js, saveLanguagePreference]', 'color: green;', 'Warning: failed to apply language: ' + error);
-    });
-  }
-}
-
 function warnResolutionFramerate() {
   var chosenResolutionWidth = $('#selectResolution').data('value').split(':')[0];
   var chosenResolutionHeight = $('#selectResolution').data('value').split(':')[1];
@@ -3024,6 +3013,17 @@ function saveFramePacing() {
     console.log('%c[index.js, saveFramePacing]', 'color: green;', 'Saving frame pacing state: ' + chosenFramePacing);
     storeData('framePacing', chosenFramePacing, null);
   }, 100);
+}
+
+function saveLanguagePreference() {
+  var chosenLanguage = $(this).data('value') || 'auto';
+  $('#selectLanguage').text($(this).text()).data('value', chosenLanguage);
+  console.log('%c[index.js, saveLanguagePreference]', 'color: green;', 'Saving language preference value: ' + chosenLanguage);
+  if (window.i18n && typeof window.i18n.applyLanguagePreference === 'function') {
+    window.i18n.applyLanguagePreference(chosenLanguage).catch((error) => {
+      console.warn('%c[index.js, saveLanguagePreference]', 'color: green;', 'Warning: failed to apply language: ' + error);
+    });
+  }
 }
 
 function saveIpAddressFieldMode() {
@@ -3264,9 +3264,9 @@ function handleUnlockAllFps() {
     if (!$('.videoFramerateMenu').find('li[data-value="90"], li[data-value="120"], li[data-value="144"]').length) {
       // Insert all higher FPS options in correct order (90, 120, 144)
       addFramerate.after(`
-        <li class="mdl-menu__item" data-value="90">90 FPS</li>
-        <li class="mdl-menu__item" data-value="120">120 FPS</li>
-        <li class="mdl-menu__item" data-value="144">144 FPS</li>
+        <li class="mdl-menu__item" data-value="90" data-i18n="90 FPS">90 FPS</li>
+        <li class="mdl-menu__item" data-value="120" data-i18n="120 FPS">120 FPS</li>
+        <li class="mdl-menu__item" data-value="144" data-i18n="144 FPS">144 FPS</li>
       `);
       // Attach click listeners only to the newly added FPS options
       $('.videoFramerateMenu li[data-value="90"], li[data-value="120"], li[data-value="144"]').on('click', saveFramerate);

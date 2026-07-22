@@ -70,6 +70,7 @@
   "Are you sure you want to delete %1$s?": "Você tem certeza de que deseja excluir %1$s?",
   "Are you sure you want to delete all existing hosts?": "Você tem certeza de que deseja excluir todos os hosts existentes?",
   "Are you sure you want to delete this host?": "Você tem certeza de que deseja excluir este host?",
+  "This is a warning message, proceed with caution!": "Esta é uma mensagem de aviso, prossiga com cautela!",
   "Are you sure you want to exit Moonlight?": "Você tem certeza de que deseja sair do Moonlight?",
   "Are you sure you want to quit %1$s? All unsaved data will be lost.": "Você tem certeza de que deseja sair de %1$s? Todos os dados não salvos serão perdidos.",
   "Are you sure you want to restart Moonlight?": "Você tem certeza de que deseja reiniciar o Moonlight?",
@@ -117,7 +118,7 @@
   "DOWN": "BAIXO",
   "DOWN ARROW": "SETA PARA BAIXO",
   "ENTER": "ENTER",
-  "Enter IP or IP:Port...": "Insira o IP ou IP:Porta...",
+  "Enter IP, Hostname or [IP]:Port...": "Insira o IP, o nome do host ou [IP]:Porta...",
   "Error %1$s: %2$s": "Erro %1$s: %2$s",
   "Error: %1$s is currently busy!<br><br>You must stop the running app in order to pair with the host.": "Erro: %1$s está ocupado no momento!<br><br>Você deve encerrar o app em execução para parear com o host.",
   "Error: Failed to pair with %1$s.<br><br>Please, try pairing with the host again.": "Erro: Falha ao parear com %1$s.<br><br>Por favor, tente parear com o host novamente.",
@@ -301,5 +302,8 @@
   "Scanning the local network to discover new hosts...": "Analisando a rede local para descobrir novos hosts...",
   "UI Settings": "Configurações de UI",
   "Game Mode (Ultra Low Latency) is not compatible with Tizen %1$s due to platform changes introduced by Samsung. Enabling this option may result in video freezing on the first rendered frame, black screen, unstable performance, and other streaming issues.<br><br>For more information about this incompatibility, including available workarounds and potential limitations, please refer to the <b>Known Issues &amp; Limitations</b> page on the Wiki.": "O Modo Jogo (Latência Ultrabaixa) não é compatível com o Tizen devido a alterações na plataforma introduzidas pela Samsung. Ativar esta opção pode resultar em congelamento do vídeo no primeiro quadro renderizado, tela preta, desempenho instável e outros problemas de streaming.<br><br>Para obter mais informações sobre essa incompatibilidade, incluindo soluções alternativas disponíveis e possíveis limitações, consulte a página <b>Problemas e Limitações Conhecidos</b> na Wiki.",
-  "Game Mode (Ultra Low Latency) is not supported on Tizen %1$s due to platform limitations and lack of support from the WASM player. Attempting to enable this option will have no effect, as the decoder will force a fallback to standard Low Latency mode to maintain streaming stability.<br><br>Since the Game Mode cannot be enabled, you may experience slightly higher latency while streaming. To further reduce latency, it is highly recommended to open your TV's Picture Settings menu and disable post-processing features such as <b>Picture Clarity</b>, <b>Contrast Enhancer</b>, and other video enhancements.": "O Modo Jogo (Latência Ultrabaixa) não é compatível com o Tizen devido a limitações da plataforma e à falta de suporte do player WASM. Tentar ativar essa opção não terá efeito, pois o decodificador forçará o retorno ao modo de Baixa Latência padrão para manter a estabilidade da transmissão.<br><br>Como o Modo Jogo não pode ser ativado, você poderá experimentar uma latência ligeiramente maior durante a transmissão. Para reduzir ainda mais a latência, é altamente recomendável abrir o menu Configurações de Imagem da sua TV e desativar recursos de pós-processamento, como <b>Nitidez da Imagem</b>, <b>Aprimoramento de Contraste</b> e outros aprimoramentos de vídeo."
+  "Game Mode (Ultra Low Latency) is not supported on Tizen %1$s due to platform limitations and lack of support from the WASM player. Attempting to enable this option will have no effect, as the decoder will force a fallback to standard Low Latency mode to maintain streaming stability.<br><br>Since the Game Mode cannot be enabled, you may experience slightly higher latency while streaming. To further reduce latency, it is highly recommended to open your TV's Picture Settings menu and disable post-processing features such as <b>Picture Clarity</b>, <b>Contrast Enhancer</b>, and other video enhancements.": "O Modo Jogo (Latência Ultrabaixa) não é compatível com o Tizen devido a limitações da plataforma e à falta de suporte do player WASM. Tentar ativar essa opção não terá efeito, pois o decodificador forçará o retorno ao modo de Baixa Latência padrão para manter a estabilidade da transmissão.<br><br>Como o Modo Jogo não pode ser ativado, você poderá experimentar uma latência ligeiramente maior durante a transmissão. Para reduzir ainda mais a latência, é altamente recomendável abrir o menu Configurações de Imagem da sua TV e desativar recursos de pós-processamento, como <b>Nitidez da Imagem</b>, <b>Aprimoramento de Contraste</b> e outros aprimoramentos de vídeo.",
+  "90 FPS": "90 FPS",
+  "120 FPS": "120 FPS",
+  "144 FPS": "144 FPS"
 }
