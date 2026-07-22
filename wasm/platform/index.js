@@ -118,8 +118,8 @@ function attachListeners() {
 
   registerMenu('selectResolution', Views.SelectResolutionMenu);
   registerMenu('selectFramerate', Views.SelectFramerateMenu);
-  registerMenu('selectLanguage', Views.SelectLanguageMenu);
   registerMenu('selectBitrate', Views.SelectBitrateMenu);
+  registerMenu('selectLanguage', Views.SelectLanguageMenu);
   registerMenu('selectAudio', Views.SelectAudioMenu);
   registerMenu('selectCodec', Views.SelectCodecMenu);
 
@@ -1553,6 +1553,9 @@ function handleSettingsView(category) {
   switch (category) {
     case 'basicSettings': // Navigate to the BasicSettings view
       navigateSettingsView(Views.BasicSettings);
+      break;
+    case 'interfaceSettings': // Navigate to the InterfaceSettings view
+      navigateSettingsView(Views.InterfaceSettings);
       break;
     case 'hostSettings': // Navigate to the HostSettings view
       navigateSettingsView(Views.HostSettings);

@@ -884,7 +884,6 @@ const Views = {
   },
   BasicSettings: {
     view: new ListView(() => [
-      'selectLanguage',
       'selectResolution',
       'selectFramerate',
       'selectBitrate',
@@ -988,43 +987,6 @@ const Views = {
       unmark(this.view.current());
     },
   },
-  SelectLanguageMenu: {
-    isActive: () => isPopupActive('languageMenu'),
-    view: new ListView(() =>
-      document.getElementById('languageMenu')
-      .parentNode.children[3].children[1].children),
-    up: function() {
-      this.view.prevOption();
-      document.getElementById(this.view.current()).focus();
-    },
-    down: function() {
-      this.view.nextOption();
-      document.getElementById(this.view.current()).focus();
-    },
-    left: function() {},
-    right: function() {},
-    select: function() {
-      this.view.current().click();
-      document.getElementById('selectLanguage').focus();
-    },
-    accept: function() {
-      this.view.current().click();
-      Navigation.pop();
-      document.getElementById('selectLanguage').focus();
-    },
-    back: function() {
-      document.getElementById('selectLanguage').click();
-      document.getElementById('selectLanguage').focus();
-    },
-    press: function() {},
-    switch: function() {},
-    enter: function() {
-      mark(this.view.current());
-    },
-    leave: function() {
-      unmark(this.view.current());
-    },
-  },
   SelectBitrateMenu: {
     isActive: () => isPopupMenuActive('videoBitrateMenu'),
     view: new ListView(() => 
@@ -1049,6 +1011,76 @@ const Views = {
       closePopupMenu('selectBitrate');
       closeActiveVisibleMenu();
       focusElement('selectBitrate');
+    },
+    press: function() {},
+    switch: function() {},
+    enter: function() {
+      mark(this.view.current());
+    },
+    leave: function() {
+      unmark(this.view.current());
+    },
+  },
+  InterfaceSettings: {
+    view: new ListView(() => [
+      'selectLanguage'
+    ]),
+    up: function() {
+      this.view.prevOption();
+      focusElement(this.view.current());
+    },
+    down: function() {
+      this.view.nextOption();
+      focusElement(this.view.current());
+    },
+    left: function() {},
+    right: function() {},
+    accept: function() {
+      clickElement(this.view.current());
+    },
+    back: function() {
+      // Remove focus from the current element before changing the view
+      blurElement(this.view.current());
+      // Reset the current settings view before navigating to the next settings view
+      resetSettingsView();
+      // Navigate to the Settings view
+      Navigation.change(Views.Settings);
+      // Set focus on the category item in Settings view when transitioning from InterfaceSettings view
+      focusElement(Views.Settings.view.current());
+    },
+    press: function() {},
+    switch: function() {
+      focusElement(this.view.current());
+    },
+    enter: function() {
+      mark(this.view.current());
+    },
+    leave: function() {
+      unmark(this.view.current());
+    },
+  },
+  SelectLanguageMenu: {
+    isActive: () => isPopupMenuActive('languageMenu'),
+    view: new ListView(() =>
+      document.getElementById('languageMenu')
+      .parentNode.children[3].children[1].children),
+    up: function() {
+      this.view.prevOption();
+    },
+    down: function() {
+      this.view.nextOption();
+    },
+    left: function() {},
+    right: function() {},
+    accept: function() {
+	  clickElement(this.view.current());
+	  closeActiveVisibleMenu();
+	  setTimeout(() => focusElement('selectLanguage'), 250);
+    },
+    back: function() {
+      closePopupMenu('selectLanguage');
+      closeActiveVisibleMenu();
+      focusElement('selectLanguage');
     },
     press: function() {},
     switch: function() {},

@@ -65,6 +65,10 @@
               <i class="settings-category-icons material-icons">tune</i>
               <label data-i18n="Basic Settings">Basic Settings</label>
             </div>
+            <div class="settings-category" data-category="interfaceSettings" onclick="handleSettingsView('interfaceSettings')">
+              <i class="settings-category-icons material-icons">dashboard_customize</i>
+              <label>UI Settings</label>
+            </div>
             <div class="settings-category" data-category="hostSettings" onclick="handleSettingsView('hostSettings')">
               <i class="settings-category-icons material-icons">desktop_windows</i>
               <label data-i18n="Host Settings">Host Settings</label>
@@ -94,14 +98,6 @@
         <!-- Right Pane: Settings Options -->
         <div id="settings-right-pane">
           <div id="basicSettings" class="settings-options">
-            <div class="setting-option">
-              <label data-i18n="Language">Language</label>
-              <span class="mdl-list__item-text-body" data-i18n="- Choose Auto to follow your TV locale, or select a language manually.">- Choose Auto to follow your TV locale, or select a language manually.</span>
-              <div id="languageMenu">
-                <button type="button" id="selectLanguage" class="mdl-button mdl-js-button mdl-js-ripple-effect" data-value="auto">Auto</button>
-              </div>
-              <ul class="languageMenu mdl-menu mdl-menu--bottom-left mdl-js-menu mdl-js-ripple-effect" for="selectLanguage"></ul>
-            </div>
             <div class="setting-option">
               <label data-i18n="Video resolution">Video resolution</label>
               <span class="mdl-list__item-text-body">
@@ -156,6 +152,16 @@
                   <span class="mdl-switch__label" data-i18n="Allow frame pacing to balance video latency and smoothness">Allow frame pacing to balance video latency and smoothness</span>
                 </label>
               </div>
+            </div>
+          </div>
+          <div id="interfaceSettings" class="settings-options">
+            <div class="setting-option">
+              <label data-i18n="Language">Language</label>
+              <span class="mdl-list__item-text-body" data-i18n="- Choose Auto to follow your TV locale, or select a language manually.">- Choose Auto to follow your TV locale, or select a language manually.</span>
+              <div id="languageMenu">
+                <button type="button" id="selectLanguage" class="mdl-button mdl-js-button mdl-js-ripple-effect" data-value="auto">Auto</button>
+              </div>
+              <ul class="languageMenu mdl-menu mdl-menu--bottom-left mdl-js-menu mdl-js-ripple-effect" for="selectLanguage"></ul>
             </div>
           </div>
           <div id="hostSettings" class="settings-options">
