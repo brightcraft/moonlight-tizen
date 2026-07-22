@@ -160,14 +160,14 @@
           </div>
           <div id="hostSettings" class="settings-options">
             <div class="setting-option">
-              <label data-i18n="IP address field mode">IP address field mode</label>
+              <label data-i18n="Host address field mode">Host address field mode</label>
               <span class="mdl-list__item-text-body">
-                <span data-i18n="- Recommended for devices that have issues with the TV keyboard when entering the host IP address.">- Recommended for devices that have issues with the TV keyboard when entering the host IP address.</span>
+                <span data-i18n="- Recommended for devices that have issues with the TV keyboard when entering the host address.">- Recommended for devices that have issues with the TV keyboard when entering the host address.</span>
               </span>
               <div id="ipAddressFieldModeMenu">
                 <label id="ipAddressFieldModeBtn" class="mdl-switch mdl-js-switch mdl-js-ripple-effect" for="ipAddressFieldModeSwitch">
                   <input type="checkbox" id="ipAddressFieldModeSwitch" class="mdl-switch__input" onchange="handleIpAddressFieldMode()">
-                  <span class="mdl-switch__label" data-i18n="Change the IP address input text field to numeric input mode">Change the IP address input text field to numeric input mode</span>
+                  <span class="mdl-switch__label" data-i18n="Change the host address input to numeric (IPv4) mode">Change the host address input to numeric (IPv4) mode</span>
                 </label>
               </div>
             </div>
@@ -463,13 +463,13 @@
       <h3 id="addHostDialogTitle" class="mdl-dialog__title" data-i18n="Add Host">Add Host</h3>
       <div id="ipAddressInputField" class="mdl-dialog__content">
         <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label">
-          <label class="mdl-textfield__label" for="ipAddressTextInput" data-i18n="IP address of host PC">IP address of host PC</label>
-          <input type="text" id="ipAddressTextInput" class="mdl-textfield__input" maxlength="21" placeholder="Enter IP or IP:Port..." data-i18n-placeholder="Enter IP or IP:Port...">
+          <label class="mdl-textfield__label" for="ipAddressTextInput" data-i18n="IP address or hostname of host PC">IP address or hostname of host PC</label>
+          <input type="text" id="ipAddressTextInput" class="mdl-textfield__input" maxlength="253" placeholder="Enter IP, Hostname or [IP]:Port..." data-i18n-placeholder="Enter IP, Hostname or [IP]:Port...">
         </div>
       </div>
       <div id="ipAddressSelectFields" class="mdl-dialog__content">
         <div class="select-option-field select-option-field-floating-label">
-          <label class="mdl-textfield__label" data-i18n="IP address of host PC">IP address of host PC</label>
+          <label class="mdl-textfield__label" data-i18n="IP address or hostname of host PC">IP address or hostname of host PC</label>
           <select id="ipAddressField1" class="ip-address-select-field" name="ipAddressField1" tabindex="-1"></select>
           <select id="ipAddressField2" class="ip-address-select-field" name="ipAddressField2" tabindex="-1"></select>
           <select id="ipAddressField3" class="ip-address-select-field" name="ipAddressField3" tabindex="-1"></select>

@@ -12,6 +12,8 @@ const SyncFunctions = {
   // no parameters
   'stopRequest': (...args) => Module.stopStream(...args),
   // no parameters
+  'cancelRequest': (...args) => Module.cancelRequest(...args),
+  // no parameters
   'toggleStats': (...args) => Module.toggleStats(...args),
 };
 
@@ -19,7 +21,7 @@ const AsyncFunctions = {
   // url, ppk, binaryResponse
   'openUrl': (...args) => Module.openUrl(...args),
   // no parameters
-  'STUN': (...args) => Module.STUN(...args),
+  'STUN': (...args) => Module.stun(...args),
   // serverMajorVersion, address, httpPort, randomNumber
   'pair': (...args) => Module.pair(...args),
   // macAddress
@@ -179,7 +181,9 @@ function handleMessage(msg) {
       // Scroll to the current game row
       Navigation.switch();
       // Switch to Apps view
-      Navigation.change(Views.Apps);
+      if (!window.isDialogOpen) {
+        Navigation.change(Views.Apps);
+      }
     }, 1500);
   } else if (msg === 'Connection Established') {
     // Prepare the screen for video stream

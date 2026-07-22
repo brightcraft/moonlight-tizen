@@ -4,12 +4,33 @@ var platformVer = tizen.systeminfo.getCapability("http://tizen.org/feature/platf
 var modelSeries = webapis.productinfo.getModel(); // Retrieve the device model series
 var modelName = webapis.productinfo.getRealModel(); // Retrieve the device model name
 var modelGroup = webapis.productinfo.getModelCode(); // Retrieve the device model group
-var is4kPanel = webapis.productinfo.isUdPanelSupported(); // Check if the device supports 4K panel
+var is4kPanel = typeof webapis.productinfo.isUdPanelSupported === 'function' && webapis.productinfo.isUdPanelSupported(); // Check if the device supports 4K panel
+var is8kPanel = typeof webapis.productinfo.is8KPanelSupported === 'function' && webapis.productinfo.is8KPanelSupported(); // Check if the device supports 8K panel
+
+var maxSupportedWidth = 1920;
+var maxSupportedHeight = 1080;
+try {
+  if (is8kPanel) {
+    maxSupportedWidth = 7680;
+    maxSupportedHeight = 4320;
+  } else if (is4kPanel) {
+    maxSupportedWidth = 3840;
+    maxSupportedHeight = 2160;
+  } else {
+    // Check if the physical screen resolution happens to be 1440p
+    if (window.screen.width >= 2560 || window.screen.height >= 1440) {
+      maxSupportedWidth = 2560;
+      maxSupportedHeight = 1440;
+    }
+  }
+} catch (e) {
+  console.error("Error fetching panel capabilities: " + e.message);
+}
 var isHdrCapable = webapis.avinfo.isHdrTvSupport(); // Check if the device supports HDR
 var hosts = {}; // Hosts is an associative array of NvHTTP objects, keyed by server UID
 var activePolls = {}; // Hosts currently being polled. An associated array of polling IDs, keyed by server UID
 var pairingCert; // Loads the generated certificate
-var myUniqueid = '0123456789ABCDEF'; // Use the same UID as other Moonlight clients to allow them to quit each other's games
+var myUniqueid;
 var api; // The `api` should only be set if we're in a host-specific screen, on the initial screen it should always be null
 var isInGame = false; // Flag indicating whether the game has started, initial value is false
 var isDialogOpen = false; // Flag indicating whether the dialog is open, initial value is false
@@ -49,6 +70,7 @@ function attachListeners() {
     }
   });
   initIpAddressFields();
+  filterUnsupportedResolutions();
 
   $('#addHostContainer').on('click', addHostDialog);
   $('#settingsBtn').on('click', showSettings);
@@ -56,7 +78,7 @@ function attachListeners() {
   $('#goBackBtn').on('click', showHosts);
   $('#restoreDefaultsBtn').on('click', restoreDefaultsDialog);
   $('#quitRunningAppBtn').on('click', quitAppDialog);
-  $('.videoResolutionMenu li').on('click', saveResolution);
+  $('.videoResolutionMenu li:not(.unsupported-resolution)').on('click', saveResolution);
   $('.videoFramerateMenu li').on('click', saveFramerate);
   $('#bitrateSlider').on('input', saveBitrate);
   $('#framePacingSwitch').on('click', saveFramePacing);
@@ -113,10 +135,12 @@ function attachListeners() {
       if (type === 'button') {
         // Handle button mapping
         const buttonMapping = {
-          0: () => Navigation.accept(),
-          1: () => Navigation.back(),
-          8: () => Navigation.press(),
-          9: () => Navigation.switch(),
+          0: () => delayedNavigation(() => Navigation.accept()),
+          1: () => delayedNavigation(() => Navigation.back()),
+          8: () => delayedNavigation(() => Navigation.move()),
+        };
+        // Handle D-Pad mapping
+        const dPadMapping = {
           12: () => Navigation.up(),
           13: () => Navigation.down(),
           14: () => Navigation.left(),
@@ -126,8 +150,13 @@ function attachListeners() {
         if (pressed) {
           if (buttonMapping[index]) {
             buttonMapping[index]();
-            // Set repeat action and timeout to the mapped button
-            repeatAction = buttonMapping[index];
+            // Clear repeat action and timeout for non-navigation buttons
+            repeatAction = null;
+            clearTimeout(repeatTimeout);
+          } else if (dPadMapping[index]) {
+            dPadMapping[index]();
+            // Set repeat action and timeout to the mapped D-Pad button
+            repeatAction = dPadMapping[index];
             lastInvokeTime = Date.now();
             repeatTimeout = setTimeout(() => requestAnimationFrame(repeatActionHandler), REPEAT_DELAY);
           }
@@ -208,9 +237,38 @@ function delayedNavigation(callback) {
   navigationTimeout = setTimeout(callback, NAVIGATION_DELAY);
 }
 
+// Updates the host status indicator based on the host's online and paired status
+function updateHostStatusIndicator(host) {
+  var indicator = document.querySelector('#host-status-' + host.serverUid);
+  // If the indicator element is not found, exit the function early
+  if (!indicator) {
+    return;
+  }
+  // Set the appropriate status indicator based on the host status
+  if (host.online === undefined || host.online === null) {
+    indicator.style.display = 'none';
+  } else if (!host.online) {
+    indicator.style.display = 'block';
+    indicator.innerHTML = 'warning';
+  } else if (host.online && !host.paired) {
+    indicator.style.display = 'block';
+    indicator.innerHTML = 'lock';
+  } else {
+    indicator.style.display = 'none';
+    indicator.innerHTML = '';
+  }
+}
+
 function beginBackgroundPollingOfHost(host) {
-  // Assign methods of NvHTTP to the host object
-  Object.assign(host, NvHTTP.prototype);
+  // Clear any existing polling interval for this host before starting a new one.
+  // Without this, every call to beginBackgroundPollingOfHost (e.g. on each navigation
+  // back to the host view) would leak the old setInterval, causing multiple overlapping
+  // poll loops that corrupt the _pollCompletionCallbacks deduplication guard and
+  // prevent the host from ever recovering to the online state.
+  if (activePolls[host.serverUid]) {
+    window.clearInterval(activePolls[host.serverUid]);
+    delete activePolls[host.serverUid];
+  }
 
   // Refresh server info before attempting to start background polling of the host
   host.refreshServerInfo().then(function(ret) {
@@ -221,6 +279,7 @@ function beginBackgroundPollingOfHost(host) {
     if (host.online) {
       // If the host is online, show it as active
       hostCell.classList.remove('host-cell-inactive');
+      updateHostStatusIndicator(host);
       // The host was already online, so start polling in the background now
       activePolls[host.serverUid] = window.setInterval(function() {
         // Every 5 seconds, poll at the address to check for any status changes
@@ -231,11 +290,13 @@ function beginBackgroundPollingOfHost(host) {
           } else {
             hostCell.classList.add('host-cell-inactive');
           }
+          updateHostStatusIndicator(returnedHost);
         });
       }, 5000);
     } else {
       // If the host is offline, show it as inactive
       hostCell.classList.add('host-cell-inactive');
+      updateHostStatusIndicator(host);
       // The host was offline, so poll immediately to check the host's status
       host.pollServer(function(returnedHost) {
         // Check if the host is currently online
@@ -244,6 +305,7 @@ function beginBackgroundPollingOfHost(host) {
         } else {
           hostCell.classList.add('host-cell-inactive');
         }
+        updateHostStatusIndicator(returnedHost);
         // Now that the initial poll is done, start the background polling
         activePolls[host.serverUid] = window.setInterval(function() {
           // Every 5 seconds, poll at the address to check for any status changes
@@ -254,12 +316,50 @@ function beginBackgroundPollingOfHost(host) {
             } else {
               hostCell.classList.add('host-cell-inactive');
             }
+            updateHostStatusIndicator(returnedHost);
           });
         }, 5000);
       });
     }
   }, function(failedRefreshInfo) {
     console.error('%c[index.js, beginBackgroundPollingOfHost]', 'color: green;', 'Error: Failed to refresh server info! Returned error was: ' + failedRefreshInfo + '! Failed server was: ' + '\n', host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
+
+    // Set host to offline and clear the app list cache
+    host.online = false;
+    host._memCachedApplist = null;
+
+    // Reset poll state so that recovery polls from the interval below start with
+    // a clean slate. Without this, stale _pollCompletionCallbacks entries from
+    // previous (leaked) intervals can block the deduplication guard and prevent
+    // pollServer from ever starting a new poll.
+    // Note: resetting _consecutivePollFailures to 0 here is always safe. If the
+    // host was previously online, this counter was already 0 (it is reset to 0 on
+    // every successful poll). Online *recovery* (host.online = true) is set
+    // unconditionally in pollServer's success callback regardless of this counter;
+    // the counter only gates the *offline* direction (host.online = false after
+    // >= 2 consecutive failures inside pollServer), so resetting it here does not
+    // interfere with future offline detection either.
+    host._consecutivePollFailures = 0;
+    host._pollCompletionCallbacks = [];
+
+    // Update the UI to show the host as offline
+    var hostCell = document.querySelector('#host-' + host.serverUid);
+    if (hostCell) {
+      hostCell.classList.add('host-cell-inactive');
+    }
+    updateHostStatusIndicator(host);
+
+    // Start background polling to detect when the host comes back online
+    activePolls[host.serverUid] = window.setInterval(function() {
+      host.pollServer(function(returnedHost) {
+        if (returnedHost.online) {
+          if (hostCell) hostCell.classList.remove('host-cell-inactive');
+        } else {
+          if (hostCell) hostCell.classList.add('host-cell-inactive');
+        }
+        updateHostStatusIndicator(returnedHost);
+      });
+    }, 5000);
   });
 }
 
@@ -325,6 +425,11 @@ function showHostsMode() {
 
   Navigation.start();
   Navigation.pop();
+  // Stop any existing polls before starting new ones to prevent setInterval leaks.
+  // Without this, navigating back to the host view multiple times accumulates
+  // duplicate polling intervals for each host, which causes race conditions in
+  // _pollCompletionCallbacks and prevents the host from recovering to online.
+  stopPollingHosts();
   startPollingHosts();
 }
 
@@ -403,6 +508,7 @@ function restoreUiAfterWasmLoad() {
   //   }
   // });
 
+
   // Automatically check for a new update after 10 seconds delay at application startup once every 24 hours
   setTimeout(() => checkForAppUpdatesAtStartup(), 10000);
 }
@@ -431,28 +537,26 @@ function hostChosen(host) {
     pairingDialog(host, function() {
       // After pairing the host, save the host object, show the apps, and navigate to the Apps view
       saveHosts();
-      showApps(host);
       Navigation.push(Views.Apps);
-      setTimeout(() => {
+      showApps(host).then(() => {
         // Scroll to the current game row
         Navigation.switch();
         // Switch to Apps view
         Navigation.change(Views.Apps);
-      }, 1500);
+      }).catch(console.error);
     }, function() {
       // Start polling the host after pairing flow
       startPollingHosts();
     });
   } else {
     // But if the host is already paired and online, then we show the apps and navigate to the Apps view as usual.
-    showApps(host);
     Navigation.push(Views.Apps);
-    setTimeout(() => {
+    showApps(host).then(() => {
       // Scroll to the current game row
       Navigation.switch();
       // Switch to Apps view
       Navigation.change(Views.Apps);
-    }, 1500);
+    }).catch(console.error);
   }
 }
 
@@ -518,82 +622,49 @@ function initIpAddressFields() {
   });
 }
 
+function filterUnsupportedResolutions() {
+  $('.videoResolutionMenu li').each(function() {
+    var resData = $(this).data('value');
+    if (resData) {
+      var resWidth = parseInt(resData.split(':')[0], 10);
+      if (resWidth > maxSupportedWidth) {
+        $(this).addClass('mdl-menu__item--full-bleed-divider unsupported-resolution');
+        $(this).attr('disabled', 'disabled');
+        $(this).text($(this).text() + ' [Unsupported]');
+      }
+    }
+  });
+}
+
 function isValidPort(port) {
   return Number.isInteger(port) && port > 0 && port <= 65535;
 }
 
-function isValidIpv4Address(address) {
+function isValidHostAddress(address) {
   if (!address) {
     return false;
   }
 
-  const octets = address.split('.');
-  if (octets.length !== 4) {
-    return false;
-  }
+  // IPv4 regex
+  const ipv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+  
+  // IPv6 regex
+  const ipv6Regex = /^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:))$/;
+  
+  // Hostname regex (FQDN or short hostname)
+  const hostnameRegex = /^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$/;
 
-  for (const octet of octets) {
-    if (!/^\d{1,3}$/.test(octet)) {
-      return false;
-    }
-
-    const octetValue = parseInt(octet, 10);
-    if (octetValue < 0 || octetValue > 255) {
-      return false;
-    }
-  }
-
-  return true;
+  return ipv4Regex.test(address) || ipv6Regex.test(address) || hostnameRegex.test(address);
 }
 
-function isPotentialIpv4AddressWithOptionalPort(rawInput) {
+function isPotentialAddressWithOptionalPort(rawInput) {
   const input = (rawInput || '').trim();
   if (!input) {
     return true;
   }
 
-  const rawParts = input.split(':');
-  if (rawParts.length > 2) {
-    return false;
-  }
-
-  const addrPart = rawParts[0];
-  const portPart = rawParts.length === 2 ? rawParts[1] : null;
-
-  if (!/^\d{0,3}(\.\d{0,3}){0,3}$/.test(addrPart)) {
-    return false;
-  }
-
-  const octets = addrPart.split('.');
-  if (octets.length > 4) {
-    return false;
-  }
-
-  for (const octet of octets) {
-    if (!octet) {
-      continue;
-    }
-
-    const octetValue = parseInt(octet, 10);
-    if (octetValue < 0 || octetValue > 255) {
-      return false;
-    }
-  }
-
-  if (portPart != null) {
-    if (!/^\d{0,5}$/.test(portPart)) {
-      return false;
-    }
-
-    if (portPart.length > 0) {
-      const parsedPort = parseInt(portPart, 10);
-      if (!isValidPort(parsedPort)) {
-        return false;
-      }
-    }
-  }
-
-  return true;
+  // Relaxed validation while typing: allow alphanumeric, dots, hyphens, colons, and brackets
+  return /^[a-zA-Z0-9.:\[\]\-]*$/.test(input);
 }
 
 function updateIpAddressInputValidationState() {
@@ -606,7 +677,7 @@ function updateIpAddressInputValidationState() {
   }
 
   const inputValue = ipAddressInput.value;
-  const isPotentialValue = isPotentialIpv4AddressWithOptionalPort(inputValue);
+  const isPotentialValue = isPotentialAddressWithOptionalPort(inputValue);
 
   if (!inputValue.trim()) {
     ipAddressInput.setCustomValidity('');
@@ -627,21 +698,44 @@ function parseHostAndPortInput(rawInput) {
   const input = (rawInput || '').trim();
 
   if (!input) {
-    return { valid: false, error: 'Please enter a valid host IP address!' };
+    return { valid: false, error: 'Please enter a valid host address!' };
   }
 
-  const firstColon = input.indexOf(':');
-  const lastColon = input.lastIndexOf(':');
-  if (firstColon > 0 && firstColon === lastColon) {
-    const hostPart = input.substring(0, firstColon).trim();
-    const portPart = input.substring(firstColon + 1).trim();
+  let hostPart = input;
+  let portPart = '';
 
-    if (!hostPart) {
-      return { valid: false, error: 'Please enter a valid host IP address!' };
+  // Check for IPv6 with port like [fe80::1]:47989
+  const ipv6PortMatch = input.match(/^\[(.*)\]:(\d+)$/);
+  // Check for IPv6 surrounded by brackets without port like [fe80::1]
+  const ipv6BracketMatch = input.match(/^\[(.*)\]$/);
+  
+  if (ipv6PortMatch) {
+    hostPart = ipv6PortMatch[1];
+    portPart = ipv6PortMatch[2];
+  } else if (ipv6BracketMatch) {
+    hostPart = ipv6BracketMatch[1];
+  } else {
+    // Check if it has a port but is not an IPv6 address
+    const firstColon = input.indexOf(':');
+    const lastColon = input.lastIndexOf(':');
+    
+    if (firstColon > 0 && firstColon === lastColon) {
+      hostPart = input.substring(0, firstColon).trim();
+      portPart = input.substring(firstColon + 1).trim();
+    } else {
+      hostPart = input;
     }
-    if (!isValidIpv4Address(hostPart)) {
-      return { valid: false, error: 'Please enter a valid host IPv4 address!' };
-    }
+  }
+
+  if (!hostPart) {
+    return { valid: false, error: 'Please enter a valid host address!' };
+  }
+
+  if (!isValidHostAddress(hostPart)) {
+    return { valid: false, error: 'Please enter a valid host address!' };
+  }
+
+  if (portPart) {
     if (!/^\d{1,5}$/.test(portPart)) {
       return { valid: false, error: 'Port must be a numeric value between 1 and 65535!' };
     }
@@ -654,11 +748,7 @@ function parseHostAndPortInput(rawInput) {
     return { valid: true, addr: hostPart, port: parsedPort };
   }
 
-  if (!isValidIpv4Address(input)) {
-    return { valid: false, error: 'Please enter a valid host IPv4 address!' };
-  }
-
-  return { valid: true, addr: input, port: 47989 };
+  return { valid: true, addr: hostPart, port: 47989 };
 }
 
 // If the `Add Host +` is selected on the host grid, then show the 
@@ -819,6 +909,9 @@ function pairingDialog(nvhttpHost, onSuccess, onFailure) {
     var pairingDialog = document.querySelector('#pairingDialog');
     var randomNumber = String('0000' + (Math.random() * 10000 | 0)).slice(-4);
 
+    // Rollback to 'Cancel' button text when opening
+    $('#cancelPairing').text('Cancel');
+
     // Change the dialog text element to include the random PIN number
     $('#pairingDialogText').html(
       t('Please enter the following PIN on the target PC: %1$s<br><br>If your host PC is running Sunshine (all GPUs), navigate to the Sunshine Web UI to enter the PIN.<br><br>Alternatively, if your host PC has NVIDIA GameStream (NVIDIA-only), navigate to the GeForce Experience to enter the PIN.<br><br>This dialog will close once the pairing is complete.', randomNumber)
@@ -837,6 +930,7 @@ function pairingDialog(nvhttpHost, onSuccess, onFailure) {
     $('#cancelPairing').off('click');
     $('#cancelPairing').on('click', function() {
       console.log('%c[index.js, pairingDialog]', 'color: green;', 'Closing app dialog and returning.');
+      sendMessage('cancelRequest', []);
       wasPairingCanceled = true;
       pairingOverlay.style.display = 'none';
       pairingDialog.close();
@@ -863,6 +957,9 @@ function pairingDialog(nvhttpHost, onSuccess, onFailure) {
       }
       console.error('%c[index.js, pairingDialog]', 'color: green;', 'Error: Failed API object:\n', nvhttpHost, '\n' + nvhttpHost.toString()); // Logging both object (for console) and toString-ed object (for text logs)
       snackbarLog(t('Failed to pair with %1$s', nvhttpHost.hostname));
+      // Keep the modal opened, but change the button for "Close"
+      $('#cancelPairing').text('Close');
+
       // If the host is already in a streaming session or failed during pairing,
       // change the dialog text element to include the hostname and display the returned error message
       if (nvhttpHost.currentGame != 0) {
@@ -912,6 +1009,12 @@ function addHostToGrid(host, ismDNSDiscovered) {
     'aria-label': host.hostname + ' menu'
   });
 
+  // Create the host center icon to indicate the host's status (online/offline/unpaired)
+  var hostStatusIndicator = $('<i>', {
+    id: 'host-status-' + host.serverUid,
+    class: 'material-icons host-center-icon'
+  });
+
   // Append the host text to the host title wrapper
   hostTitle.append(hostText);
 
@@ -932,6 +1035,12 @@ function addHostToGrid(host, ismDNSDiscovered) {
 
   // Append the host menu button to the host container
   hostContainer.append(hostMenu);
+
+  // Append the host status indicator to the host container
+  hostContainer.append(hostStatusIndicator);
+
+  // Set initial status
+  updateHostStatusIndicator(host);
 
   // Attach the click event listener to the host container
   hostContainer.off('click');
@@ -972,11 +1081,13 @@ function addHostToGrid(host, ismDNSDiscovered) {
 // Function to correctly update and store the valid MAC address of the host in IndexedDB
 function updateMacAddress(host) {
   getData('hosts', function(previousValue) {
-    hosts = previousValue.hosts != null ? previousValue.hosts : {};
+    var dbHosts = previousValue.hosts != null ? previousValue.hosts : {};
     if (host.macAddress != '00:00:00:00:00:00') {
-      if (hosts[host.serverUid] && hosts[host.serverUid].macAddress != host.macAddress) {
-        console.log('%c[index.js, updateMacAddress]', 'color: green;', 'Updated MAC address for host ' + host.hostname + ' from ' + hosts[host.serverUid].macAddress + ' to ' + host.macAddress);
-        hosts[host.serverUid].macAddress = host.macAddress;
+      if (dbHosts[host.serverUid] && dbHosts[host.serverUid].macAddress != host.macAddress) {
+        console.log('%c[index.js, updateMacAddress]', 'color: green;', 'Updated MAC address for host ' + host.hostname + ' from ' + dbHosts[host.serverUid].macAddress + ' to ' + host.macAddress);
+        if (hosts[host.serverUid]) {
+          hosts[host.serverUid].macAddress = host.macAddress;
+        }
         saveHosts();
       }
     }
@@ -2053,158 +2164,182 @@ function showAppsMode() {
 
 // Show the Apps grid
 function showApps(host) {
-  // Safety checking should happen before attempting to show the app list
-  if (!host || !host.paired) {
-    console.error('%c[index.js, showApps]', 'color: green;', 'Error: Unable to initialize the host properly! Host object: ', host);
-    return;
-  } else {
-    console.log('%c[index.js, showApps]', 'color: green;', 'Current host object: \n', host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
-  }
+  return new Promise((resolve, reject) => {
+    // Safety checking should happen before attempting to show the app list
+    if (!host || !host.paired) {
+      console.error('%c[index.js, showApps]', 'color: green;', 'Error: Unable to initialize the host properly! Host object: ', host);
+      reject('Unable to initialize the host properly');
+      return;
+    } else {
+      console.log('%c[index.js, showApps]', 'color: green;', 'Current host object: \n', host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
+    }
 
-  // Stop navigation before showing the loading screen
-  Navigation.stop();
+    // Stop navigation before showing the loading screen
+    Navigation.stop();
 
-  // Hide the main header before showing a loading screen
-  $('#main-header').children().hide();
-  $('#main-header').css({'backgroundColor': 'transparent', 'boxShadow': 'none'});
-  $('#host-grid, #settings-list').hide();
+    // Hide the main header before showing a loading screen
+    $('#main-header').children().hide();
+    $('#main-header').css({'backgroundColor': 'transparent', 'boxShadow': 'none'});
+    $('#host-grid, #settings-list').hide();
 
-  // Show a spinner while the app list loads
-  $('#wasmSpinner').css('display', 'inline-block');
-  $('#wasmSpinnerLogo').hide();
-  $('#wasmSpinnerMessage').text(t('Loading Apps...'));
+    // Show a spinner while the app list loads
+    $('#wasmSpinner').css('display', 'inline-block');
+    $('#wasmSpinnerLogo').hide();
+    $('#wasmSpinnerMessage').text(t('Loading Apps...'));
 
-  // Remove all game container elements from the game grid and from any other div elements
-  $('#game-grid .game-container').remove();
-  $('div.game-container').remove();
+    // Remove all game container elements from the game grid and from any other div elements
+    $('#game-grid').empty();
+    $('div.game-container').remove();
 
-  setTimeout(() => {
-    host.getAppList().then(function(appList) {
-      // Hide the spinner after the host has successfully retrieved the app list
-      $('#wasmSpinner').hide();
+    setTimeout(() => {
+      host.getAppList().then(function(appList) {
+        // Hide the spinner after the host has successfully retrieved the app list
+        $('#wasmSpinner').hide();
 
-      // Show the main header after the loading screen is complete
-      $('#main-header').children().show();
-      $('#main-header').css({'backgroundColor': '#333846', 'boxShadow': '0 0 4px 0 rgba(0, 0, 0, 1)'});
+        // Show the main header after the loading screen is complete
+        $('#main-header').children().show();
+        $('#main-header').css({'backgroundColor': '#333846', 'boxShadow': '0 0 4px 0 rgba(0, 0, 0, 1)'});
 
-      // Show the game grid section
-      $('#game-grid').show();
+        // Show the game grid section
+        $('#game-grid').show();
 
-      if (appList.length == 0) {
-        console.warn('%c[index.js, showApps]', 'Warning: Your app list is empty. Please add some apps to your list!');
-        var emptyAppListImg = new Image();
-        emptyAppListImg.src = 'static/res/applist_empty.svg';
-        $('#game-grid').html(emptyAppListImg);
-        snackbarLogLong(t('Your list is currently empty. Please add your favorite apps to the list.'));
-        return;
-      }
-
-      // Find the existing switch element
-      const sortAppsListSwitch = document.getElementById('sortAppsListSwitch');
-      // Defines the sort order based on the state of the switch
-      const sortOrder = sortAppsListSwitch.checked ? 'DESC' : 'ASC';
-      // If game grid is populated, sort the app list
-      const sortedAppList = sortTitles(appList, sortOrder);
-
-      sortedAppList.forEach(function(app) {
-        // Double clicking the button will cause multiple box arts to appear.
-        // To mitigate this, we ensure that we don't add a duplicate box art.
-        // This isn't perfect: there's lots of RTTs before the logic prevents anything.
-        if ($('#game-container-' + app.id).length === 0) {
-          // Create the game container with the appropriate attributes for the game card
-          var gameContainer = $('<div>', {
-            id: 'game-container-' + app.id,
-            class: 'game-container mdl-card mdl-shadow--4dp',
-            role: 'link',
-            tabindex: 0,
-            'aria-label': app.title
-          });
-
-          // Create the game cell to serve as a holder for the game box
-          var gameCell = $('<div>', {
-            id: 'game-' + app.id,
-            class: 'mdl-card__title mdl-card--expand'
-          });
-
-          // Create the game title wrapper to hold the game title text
-          var gameTitle = $('<div>', {
-            class: 'game-title mdl-card__title-text'
-          });
-
-          // Create the game text placeholder that will contain the game name
-          var gameText = $('<span>', {
-            class: 'game-text',
-            html: app.title
-          });
-
-          // Append the game text to the game title wrapper
-          gameTitle.append(gameText);
-
-          // Handle animation state based on game title text length
-          if (app.title.length <= 20) {
-            // For game title text of 20 characters or less, disable scrolling text animation
-            gameText.addClass('disable-animation');
-          } else {
-            // For game title text longer than 20 characters, enable scrolling text animation
-            gameText.removeClass('disable-animation');
-          }
-
-          // Append the game title to the game cell
-          gameCell.append(gameTitle);
-
-          // Append the game cell to the game container
-          gameContainer.append(gameCell);
-
-          // Attach the click event listener to the game container
-          gameContainer.off('click');
-          gameContainer.on('click', function() {
-            // Prevent further clicks
-            if (isClickPrevented) {
-              return;
-            }
-            // Block subsequent clicks immediately
-            isClickPrevented = true;
-            // Start the game when the Click key is pressed
-            startGame(host, app.id);
-            // Reset the click flag after 2 second delay
-            setTimeout(() => isClickPrevented = false, 2000);
-          });
-
-          // Append the game container to the game grid
-          $('#game-grid').append(gameContainer);
-
-          // Apply style to the game container to indicate whether the game is active or not
-          setTimeout(() => stylizeBoxArt(host, app.id), 100);
+        if (appList.length == 0) {
+          console.warn('%c[index.js, showApps]', 'Warning: Your app list is empty. Please add some apps to your list!');
+          var emptyAppListImg = new Image();
+          emptyAppListImg.src = 'static/res/applist_empty.svg';
+          $('#game-grid').html(emptyAppListImg);
+          snackbarLogLong(t('Your list is currently empty. Please add your favorite apps to the list.'));
+          return;
         }
-        // Load box art
-        var boxArtPlaceholderImg = new Image();
-        host.getBoxArt(app.id).then(function(resolvedPromise) {
-          boxArtPlaceholderImg.src = resolvedPromise;
-        }, function(failedPromise) {
-          console.error('%c[index.js, showApps]', 'color: green;', 'Error: Failed to retrieve box art for app ID: ' + app.id + '. Returned value was: ' + failedPromise + '. Host object: ', host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
-          boxArtPlaceholderImg.src = 'static/res/placeholder_error.svg';
+
+        // Find the existing switch element
+        const sortAppsListSwitch = document.getElementById('sortAppsListSwitch');
+        // Defines the sort order based on the state of the switch
+        const sortOrder = sortAppsListSwitch.checked ? 'DESC' : 'ASC';
+        // If game grid is populated, sort the app list
+        const sortedAppList = sortTitles(appList, sortOrder);
+
+        sortedAppList.forEach(function(app) {
+          // Double clicking the button will cause multiple box arts to appear.
+          // To mitigate this, we ensure that we don't add a duplicate box art.
+          // This isn't perfect: there's lots of RTTs before the logic prevents anything.
+          if ($('#game-container-' + app.id).length === 0) {
+            // Create the game container with the appropriate attributes for the game card
+            var gameContainer = $('<div>', {
+              id: 'game-container-' + app.id,
+              class: 'game-container mdl-card mdl-shadow--4dp',
+              role: 'link',
+              tabindex: 0,
+              'aria-label': app.title
+            });
+
+            // Create the game cell to serve as a holder for the game box
+            var gameCell = $('<div>', {
+              id: 'game-' + app.id,
+              class: 'mdl-card__title mdl-card--expand'
+            });
+
+            // Create the game title wrapper to hold the game title text
+            var gameTitle = $('<div>', {
+              class: 'game-title mdl-card__title-text'
+            });
+
+            // Create the game text placeholder that will contain the game name
+            var gameText = $('<span>', {
+              class: 'game-text',
+              html: app.title
+            });
+
+            // Append the game text to the game title wrapper
+            gameTitle.append(gameText);
+
+            // Handle animation state based on game title text length
+            if (app.title.length <= 20) {
+              // For game title text of 20 characters or less, disable scrolling text animation
+              gameText.addClass('disable-animation');
+            } else {
+              // For game title text longer than 20 characters, enable scrolling text animation
+              gameText.removeClass('disable-animation');
+            }
+
+            // Append the game title to the game cell
+            gameCell.append(gameTitle);
+
+            // Append the game cell to the game container
+            gameContainer.append(gameCell);
+
+            // Attach the click event listener to the game container
+            gameContainer.off('click');
+            gameContainer.on('click', function() {
+              // Prevent further clicks
+              if (isClickPrevented) {
+                return;
+              }
+              // Block subsequent clicks immediately
+              isClickPrevented = true;
+              // Start the game when the Click key is pressed
+              startGame(host, app.id);
+              // Reset the click flag after 2 second delay
+              setTimeout(() => isClickPrevented = false, 2000);
+            });
+
+            // Append the game container to the game grid
+            $('#game-grid').append(gameContainer);
+
+            // Apply style to the game container to indicate whether the game is active or not
+            setTimeout(() => stylizeBoxArt(host, app.id), 100);
+          }
+          // Load box art
+          var boxArtPlaceholderImg = new Image();
+          host.getBoxArt(app.id).then(function(resolvedPromise) {
+            boxArtPlaceholderImg.src = resolvedPromise;
+          }, function(failedPromise) {
+            console.error('%c[index.js, showApps]', 'color: green;', 'Error: Failed to retrieve box art for app ID: ' + app.id + '. Returned value was: ' + failedPromise + '. Host object: ', host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
+            boxArtPlaceholderImg.src = 'static/res/placeholder_error.svg';
+          });
+          boxArtPlaceholderImg.onload = e => boxArtPlaceholderImg.classList.add('fade-in');
+          $(gameContainer).append(boxArtPlaceholderImg);
         });
-        boxArtPlaceholderImg.onload = e => boxArtPlaceholderImg.classList.add('fade-in');
-        $(gameContainer).append(boxArtPlaceholderImg);
+        // Navigate to the Apps view
+        showAppsMode();
+        resolve();
+      }, function(failedAppList) {
+        // Hide the spinner if the host has failed to retrieve the app list
+        $('#wasmSpinner').hide();
+
+        // Show the main header after the loading screen is complete
+        $('#main-header').children().show();
+        $('#main-header').css({'backgroundColor': '#333846', 'boxShadow': '0 0 4px 0 rgba(0, 0, 0, 1)'});
+
+        console.error('%c[index.js, showApps]', 'color: green;', 'Error: Failed to get app list from ' + host.hostname + '. Host object: ', host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
+        var errorAppListImg = new Image();
+        errorAppListImg.src = 'static/res/applist_error.svg';
+        $('#game-grid').html(errorAppListImg);
+        snackbarLogLong('Unable to retrieve your list of apps at this time. Please refresh the list of apps or try again later!');
+
+        // Navigate to the Apps view
+        showAppsMode();
+        reject(failedAppList);
       });
     }, function(failedAppList) {
-      // Hide the spinner if the host has failed to retrieve the app list
-      $('#wasmSpinner').hide();
+        // Hide the spinner if the host has failed to retrieve the app list
+        $('#wasmSpinner').hide();
 
-      // Show the main header after the loading screen is complete
-      $('#main-header').children().show();
-      $('#main-header').css({'backgroundColor': '#333846', 'boxShadow': '0 0 4px 0 rgba(0, 0, 0, 1)'});
+        // Show the main header after the loading screen is complete
+        $('#main-header').children().show();
+        $('#main-header').css({'backgroundColor': '#333846', 'boxShadow': '0 0 4px 0 rgba(0, 0, 0, 1)'});
 
-      console.error('%c[index.js, showApps]', 'color: green;', 'Error: Failed to get app list from ' + host.hostname + '. Host object: ', host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
-      var errorAppListImg = new Image();
-      errorAppListImg.src = 'static/res/applist_error.svg';
-      $('#game-grid').html(errorAppListImg);
-      snackbarLogLong(t('Unable to retrieve your list of apps at this time. Please refresh the list of apps or try again later!'));
-    });
+        console.error('%c[index.js, showApps]', 'color: green;', 'Error: Failed to get app list from ' + host.hostname + '. Host object: ', host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
+        var errorAppListImg = new Image();
+        errorAppListImg.src = 'static/res/applist_error.svg';
+        $('#game-grid').html(errorAppListImg);
+        snackbarLogLong(t('Unable to retrieve your list of apps at this time. Please refresh the list of apps or try again later!'));
+      });
 
-    // Navigate to the Apps view
-    showAppsMode();
-  }, 500);
+      // Navigate to the Apps view
+      showAppsMode();
+    }, 500);
+  });
 }
 
 // Show a confirmation with the Quit App dialog before stopping the running app
@@ -2436,13 +2571,12 @@ function startGame(host, appID) {
           if (status_code != 200) {
             $('#loadingSpinnerMessage').text('');
             snackbarLogLong(t('Error %1$s: %2$s', status_code, status_message));
-            showApps(host);
-            setTimeout(() => {
+            showApps(host).then(() => {
               // Scroll to the current game row
               Navigation.switch();
               // Switch to Apps view
               Navigation.change(Views.Apps);
-            }, 1500);
+            });
             return;
           }
           // Start stream request
@@ -2456,13 +2590,12 @@ function startGame(host, appID) {
         }, function(failedResumeApp) {
           console.error('%c[index.js, startGame]', 'color: green;', 'Error: Failed to resume app with id: ' + appID + '\n Returned error was: ' + failedResumeApp + '!');
           snackbarLog(t('Failed to resume %1$s', appToStart.title));
-          showApps(host);
-          setTimeout(() => {
+          showApps(host).then(() => {
             // Scroll to the current game row
             Navigation.switch();
             // Switch to Apps view
             Navigation.change(Views.Apps);
-          }, 1500);
+          });
           return;
         });
       }
@@ -2490,13 +2623,12 @@ function startGame(host, appID) {
           }
           $('#loadingSpinnerMessage').text('');
           snackbarLogLong(t('Error %1$s: %2$s', status_code, status_message));
-          showApps(host);
-          setTimeout(() => {
+          showApps(host).then(() => {
             // Scroll to the current game row
             Navigation.switch();
             // Switch to Apps view
             Navigation.change(Views.Apps);
-          }, 1500);
+          });
           return;
         }
         // Start stream request
@@ -2510,13 +2642,12 @@ function startGame(host, appID) {
       }, function(failedLaunchApp) {
         console.error('%c[index.js, startGame]', 'color: green;', 'Error: Failed to launch app with id: ' + appID + '\n Returned error was: ' + failedLaunchApp + '!');
         snackbarLog(t('Failed to launch %1$s.', appToStart.title));
-        showApps(host);
-        setTimeout(() => {
+        showApps(host).then(() => {
           // Scroll to the current game row
           Navigation.switch();
           // Switch to Apps view
           Navigation.change(Views.Apps);
-        }, 1500);
+        });
         return;
       });
     });
@@ -2545,8 +2676,9 @@ function stopGame(host, callbackFunction) {
         snackbarLog(t('Successfully quit %1$s', appTitle));
         host.refreshServerInfo().then(function(ret3) {
           // Refresh to show no app is currently running
-          showApps(host);
-          if (typeof(callbackFunction) === "function") callbackFunction();
+          showApps(host).finally(() => {
+            if (typeof(callbackFunction) === "function") callbackFunction();
+          });
         }, function(failedRefreshInfo2) {
           console.error('%c[index.js, stopGame]', 'color: green;', 'Error: Failed to refresh server info! Returned error was: ' + failedRefreshInfo2 + '! Failed server was: ' + '\n', host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
         });
@@ -3362,7 +3494,7 @@ function loadSystemInfo() {
     console.log('%c[index.js, loadSystemInfo]', 'color: green;', 'HDR Capable: ' + (isHdrCapable ? 'Yes' : 'No'));
     // Insert the system information into the placeholder
     systemInfoPlaceholder.innerText =
-      t('App Version: %1$s v%2$s', appInfo.name, buildVer + '\n' +
+      t('App Version: %1$s v%2$s', appInfo.name, buildVer) + '\n' +
       t('Platform Version: Tizen %1$s', platformVer ? platformVer : t('Unknown')) + '\n' +
       t('TV Model Series: %1$s', modelSeries ? modelSeries : t('Unknown')) + '\n' +
       t('TV Model Name: %1$s', modelName ? modelName : t('Unknown')) + '\n' +
@@ -3400,6 +3532,11 @@ function loadUserDataCb() {
   console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored resolution preferences.');
   getData('resolution', function(previousValue) {
     if (previousValue.resolution != null) {
+      var resWidth = parseInt(previousValue.resolution.split(':')[0], 10);
+      if (resWidth > maxSupportedWidth) {
+        previousValue.resolution = maxSupportedWidth >= 3840 ? '3840:2160' : '1920:1080';
+        storeData('resolution', previousValue.resolution, null);
+      }
       $('.videoResolutionMenu li').each(function() {
         if ($(this).data('value') === previousValue.resolution) {
           // Update the video resolution field based on the given value
@@ -3664,13 +3801,12 @@ function loadHTTPCertsCb() {
     }
 
     getData('uniqueid', function(savedUniqueid) {
-      // See comment on myUniqueid
-      /*if (savedUniqueid.uniqueid != null) { // We have a saved uniqueid
+      if (savedUniqueid && savedUniqueid.uniqueid != null) { // We have a saved uniqueid
         myUniqueid = savedUniqueid.uniqueid;
       } else {
         myUniqueid = uniqueid();
         storeData('uniqueid', myUniqueid, null);
-      }*/
+      }
 
       if (!pairingCert) { // We couldn't load a cert. Let's attempt to generate a new one.
         console.warn('%c[index.js, loadHTTPCertsCb]', 'color: green;', 'Warning: Local certificate not found! Generating a new one...');
@@ -3700,6 +3836,7 @@ function loadHTTPCertsCb() {
         hosts = previousValue.hosts != null ? previousValue.hosts : {};
         for (var hostUID in hosts) { // Programmatically add each new host
           var revivedHost = new NvHTTP(hosts[hostUID].address, myUniqueid, hosts[hostUID].userEnteredAddress, hosts[hostUID].macAddress);
+          Object.assign(revivedHost, hosts[hostUID]);
           revivedHost.httpPort = hosts[hostUID].httpPort || ((hosts[hostUID].httpsPort || 47984) + 5);
           revivedHost.httpsPort = hosts[hostUID].httpsPort || (revivedHost.httpPort - 5);
           revivedHost.externalPort = hosts[hostUID].externalPort || revivedHost.httpPort;
@@ -3707,10 +3844,16 @@ function loadHTTPCertsCb() {
           revivedHost.externalIP = hosts[hostUID].externalIP;
           revivedHost.hostname = hosts[hostUID].hostname;
           revivedHost.ppkstr = hosts[hostUID].ppkstr;
+          hosts[hostUID] = revivedHost;
           addHostToGrid(revivedHost);
         }
         startPollingHosts();
         console.log('%c[index.js, loadHTTPCertsCb]', 'color: green;', 'Loading previously connected hosts...');
+        // Start subnet scanning silently in the background after hosts are fully loaded
+        setTimeout(() => {
+          snackbarLog('Scanning the local network to discover new hosts...');
+          startSubnetScanner();
+        }, 1000);
       });
     });
   });

@@ -95,6 +95,8 @@ class MoonlightInstance {
     bool disableWarnings, bool performanceStats);
   MessageResult StopStream();
 
+  MessageResult CancelRequest();
+
   void STUN(int callbackId);
   void Pair(int callbackId, std::string serverMajorVersion, std::string address, int httpPort, std::string randomNumber);
   void WakeOnLan(int callbackId, std::string macAddress);
@@ -264,6 +266,8 @@ class MoonlightInstance {
   EmssReadyState m_EmssReadyState;
   std::atomic<bool> m_AudioStarted;
   std::atomic<bool> m_VideoStarted;
+  std::atomic<bool> m_ConnectionCancelled;
+  pthread_t m_StopThread;
   std::atomic<samsung::wasm::SessionId> m_AudioSessionId;
   std::atomic<samsung::wasm::SessionId> m_VideoSessionId;
   samsung::html::HTMLMediaElement m_MediaElement;
@@ -273,6 +277,8 @@ class MoonlightInstance {
   VideoTrackListener m_VideoTrackListener;
   samsung::wasm::ElementaryMediaTrack m_AudioTrack;
   samsung::wasm::ElementaryMediaTrack m_VideoTrack;
+  std::atomic<bool> m_SourceClosed;
+  std::condition_variable m_SourceClosedCV;
 };
 
 extern MoonlightInstance* g_Instance;
@@ -294,9 +300,11 @@ MessageResult startStream(std::string host, int httpPort, std::string width, std
   bool disableWarnings, bool performanceStats);
 MessageResult stopStream();
 
+MessageResult cancelRequest();
+
 void toggleStats();
 void stun(int callbackId);
-void pair(int callbackId, std::string serverMajorVersion, std::string address, int httpPort, std::string randomNumber);
+void pair(int callbackId, std::string serverMajorVersion, std::string address, int httpPort, std::string randomNumber, std::string uniqueId);
 void wakeOnLan(int callbackId, std::string macAddress);
 
 EM_BOOL handleKeyDown(int eventType, const EmscriptenKeyboardEvent* keyEvent, void* userData);

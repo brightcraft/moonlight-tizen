@@ -8,6 +8,8 @@
 #include <pairing.h>
 #include <iostream>
 
+extern char* g_UniqueId;
+
 #include <emscripten.h>
 #include <emscripten/html5.h>
 
@@ -58,7 +60,10 @@ MoonlightInstance::MoonlightInstance()
     m_AudioTrackListener(this),
     m_VideoTrackListener(this),
     m_AudioTrack(),
-    m_VideoTrack() {
+    m_VideoTrack(),
+    m_ConnectionCancelled(false),
+    m_StopThread(0),
+    m_SourceClosed(false) {
       m_Dispatcher.start();
     }
 
@@ -83,12 +88,15 @@ void MoonlightInstance::OnConnectionStopped(uint32_t error) {
 }
 
 void MoonlightInstance::StopConnection() {
-  pthread_t t;
+  m_ConnectionCancelled = true;
+  g_Instance->m_EmssStateChanged.notify_all();
+  g_Instance->m_EmssAudioStateChanged.notify_all();
+  g_Instance->m_EmssVideoStateChanged.notify_all();
 
   // Stopping needs to happen in a separate thread to avoid a potential deadlock
   // caused by us getting a callback to the main thread while inside
   // LiStopConnection.
-  pthread_create(&t, NULL, MoonlightInstance::StopThreadFunc, NULL);
+  pthread_create(&m_StopThread, NULL, MoonlightInstance::StopThreadFunc, NULL);
 
   // We'll need to call the listener ourselves since our connection terminated
   // callback won't be invoked for a manually requested termination.
@@ -117,6 +125,33 @@ void* MoonlightInstance::StopThreadFunc(void* context) {
 
   // Stop the connection
   LiStopConnection();
+
+  // Close the media source and release tracks to ensure WebKit garbage collection
+  if (g_Instance && g_Instance->m_Source) {
+    g_Instance->m_Source->Close([](samsung::wasm::OperationResult err) {
+      g_Instance->m_AudioTrack = samsung::wasm::ElementaryMediaTrack();
+      g_Instance->m_VideoTrack = samsung::wasm::ElementaryMediaTrack();
+      
+      std::unique_lock<std::mutex> lock(g_Instance->m_Mutex);
+      g_Instance->m_SourceClosed = true;
+      g_Instance->m_SourceClosedCV.notify_all();
+    });
+    
+    // Synchronously wait for the source to close before exiting,
+    // which prevents the next StartStream from stomping on our teardown.
+    std::unique_lock<std::mutex> lock(g_Instance->m_Mutex);
+    g_Instance->m_SourceClosedCV.wait(lock, [] {
+      return g_Instance->m_SourceClosed.load();
+    });
+    
+    // Reset EMSS state variables for the next stream
+    g_Instance->m_EmssReadyState = EmssReadyState::kDetached;
+    g_Instance->m_AudioStarted = false;
+    g_Instance->m_VideoStarted = false;
+    g_Instance->m_AudioSessionId = 0;
+    g_Instance->m_VideoSessionId = 0;
+  }
+
   return NULL;
 }
 
@@ -189,7 +224,11 @@ void* MoonlightInstance::ConnectionThreadFunc(void* context) {
   if (err != 0) {
     // Notify the JS code that the stream has ended!
     // NB: We pass error code 0 here to avoid triggering a "Connection terminated" warning message.
-    PostToJs(MSG_STREAM_TERMINATED + std::to_string(0));
+    if (me->m_ConnectionCancelled) {
+      PostToJs(MSG_STREAM_TERMINATED + std::to_string(0));
+    } else {
+      PostToJs(MSG_STREAM_TERMINATED + std::to_string(err));
+    }
     return NULL;
   }
 
@@ -212,6 +251,14 @@ MessageResult MoonlightInstance::StartStream(std::string host, int httpPort, std
   bool framePacing, bool optimizeGames, bool rumbleFeedback, bool mouseEmulation, bool flipABfaceButtons, bool flipXYfaceButtons,
   std::string audioConfig, bool audioSync, bool playHostAudio, std::string videoCodec, bool hdrMode, bool fullRange, bool gameMode,
   bool disableWarnings, bool performanceStats) {
+  
+  if (m_StopThread != 0) {
+    pthread_join(m_StopThread, NULL);
+    m_StopThread = 0;
+  }
+  m_ConnectionCancelled = false;
+  m_SourceClosed = false;
+
   PostToJs("Setting the Host address to: " + host + ":" + std::to_string(httpPort));
   PostToJs("Setting the Video resolution to: " + width + "x" + height);
   PostToJs("Setting the Video frame rate to: " + fps + " FPS");
@@ -368,6 +415,16 @@ MessageResult MoonlightInstance::StopStream() {
   return MessageResult::Resolve();
 }
 
+extern "C" void http_cancel_request();
+
+MessageResult MoonlightInstance::CancelRequest() {
+  ClLogMessage("%s: Canceling any ongoing HTTP request...\n", __func__);
+  // Begin canceling the HTTP request
+  http_cancel_request();
+
+  return MessageResult::Resolve();
+}
+
 void MoonlightInstance::STUN_private(int callbackId) {
   unsigned int wanAddr;
   char addrStr[128] = {};
@@ -442,15 +499,33 @@ void MoonlightInstance::WakeOnLan(int callbackId, std::string macAddress) {
   addr.sin_addr.s_addr = INADDR_BROADCAST;
   addr.sin_port = htons(9); // Wake-on-LAN typically uses port 9
 
-  // Send the magic packet
+  // Send the magic packet over IPv4
   if (sendto(udpSocket, magicPacket, sizeof(magicPacket), 0, (struct sockaddr*) &addr, sizeof(addr)) == -1) {
     ClLogMessage("Failed to send magic packet");
   } else {
     ClLogMessage("Magic packet sent successfully to MAC address: %s\n", macAddress.c_str());
   }
 
-  // Close the socket
+  // Close the IPv4 socket
   close(udpSocket);
+
+  // Send the magic packet over IPv6
+  int udp6Socket = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
+  if (udp6Socket != -1) {
+    struct sockaddr_in6 addr6;
+    memset(&addr6, 0, sizeof(addr6));
+    addr6.sin6_family = AF_INET6;
+    addr6.sin6_port = htons(9); // Wake-on-LAN typically uses port 9
+    // ff02::1 is the link-local all-nodes multicast address
+    inet_pton(AF_INET6, "ff02::1", &addr6.sin6_addr);
+
+    if (sendto(udp6Socket, magicPacket, sizeof(magicPacket), 0, (struct sockaddr*) &addr6, sizeof(addr6)) == -1) {
+      ClLogMessage("Failed to send IPv6 magic packet");
+    } else {
+      ClLogMessage("IPv6 Magic packet sent successfully to MAC address: %s\n", macAddress.c_str());
+    }
+    close(udp6Socket);
+  }
 }
 
 bool MoonlightInstance::Init(uint32_t argc, const char* argn[], const char* argv[]) {
@@ -501,6 +576,10 @@ MessageResult stopStream() {
   return g_Instance->StopStream();
 }
 
+MessageResult cancelRequest() {
+  return g_Instance->CancelRequest();
+}
+
 void toggleStats() {
   g_Instance->TogglePerformanceStats();
 }
@@ -509,7 +588,11 @@ void stun(int callbackId) {
   g_Instance->STUN(callbackId);
 }
 
-void pair(int callbackId, std::string serverMajorVersion, std::string address, int httpPort, std::string randomNumber) {
+void pair(int callbackId, std::string serverMajorVersion, std::string address, int httpPort, std::string randomNumber, std::string uniqueId) {
+  if (g_UniqueId) {
+    free(g_UniqueId);
+  }
+  g_UniqueId = strdup(uniqueId.c_str());
   g_Instance->Pair(callbackId, serverMajorVersion, address, httpPort, randomNumber);
 }
 
@@ -551,6 +634,7 @@ EMSCRIPTEN_BINDINGS(handle_message) {
   emscripten::value_object<MessageResult>("MessageResult").field("type", &MessageResult::type).field("ret", &MessageResult::ret);
   emscripten::function("startStream", &startStream);
   emscripten::function("stopStream", &stopStream);
+  emscripten::function("cancelRequest", &cancelRequest);
   emscripten::function("toggleStats", &toggleStats);
   emscripten::function("stun", &stun);
   emscripten::function("pair", &pair);
