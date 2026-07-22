@@ -67,7 +67,7 @@
             </div>
             <div class="settings-category" data-category="interfaceSettings" onclick="handleSettingsView('interfaceSettings')">
               <i class="settings-category-icons material-icons">dashboard_customize</i>
-              <label>UI Settings</label>
+              <label data-i18n="UI Settings">UI Settings</label>
             </div>
             <div class="settings-category" data-category="hostSettings" onclick="handleSettingsView('hostSettings')">
               <i class="settings-category-icons material-icons">desktop_windows</i>
@@ -100,8 +100,8 @@
           <div id="basicSettings" class="settings-options">
             <div class="setting-option">
               <label data-i18n="Video resolution">Video resolution</label>
-              <span class="mdl-list__item-text-body">
-                <span data-i18n="- Increase to improve image clarity or decrease for better performance on lower-end devices and slower networks.">- Increase to improve image clarity or decrease for better performance on lower-end devices and slower networks.</span>
+              <span class="mdl-list__item-text-body" data-i18n="- Increase to improve image clarity or decrease for better performance on lower-end devices and slower networks.">
+                - Increase to improve image clarity or decrease for better performance on lower-end devices and slower networks.
               </span>
               <div id="videoResolutionMenu">
                 <button type="button" id="selectResolution" class="mdl-button mdl-js-button mdl-js-ripple-effect" data-value="1280:720" data-i18n="1280 x 720 (720p)">1280 x 720 (720p)</button>
@@ -116,8 +116,8 @@
             </div>
             <div class="setting-option">
               <label data-i18n="Video frame rate">Video frame rate</label>
-              <span class="mdl-list__item-text-body">
-                <span data-i18n="- Increase for smoother video stream or decrease for better performance on lower-end devices.">- Increase for smoother video stream or decrease for better performance on lower-end devices.</span>
+              <span class="mdl-list__item-text-body" data-i18n="- Increase for smoother video stream or decrease for better performance on lower-end devices.">
+                - Increase for smoother video stream or decrease for better performance on lower-end devices.
               </span>
               <div id="videoFramerateMenu">
                 <button type="button" id="selectFramerate" class="mdl-button mdl-js-button mdl-js-ripple-effect" data-value="60" data-i18n="60 FPS">60 FPS</button>
@@ -129,8 +129,8 @@
             </div>
             <div class="setting-option">
               <label data-i18n="Video bitrate">Video bitrate</label>
-              <span class="mdl-list__item-text-body">
-                <span data-i18n="- Increase for better image quality or decrease to improve performance on slower connections.">- Increase for better image quality or decrease to improve performance on slower connections.</span>
+              <span class="mdl-list__item-text-body" data-i18n="- Increase for better image quality or decrease to improve performance on slower connections.">
+                - Increase for better image quality or decrease to improve performance on slower connections.
               </span>
               <div id="videoBitrateMenu">
                 <button type="button" id="selectBitrate" class="mdl-button mdl-js-button mdl-js-ripple-effect">10 Mbps</button>
@@ -143,13 +143,15 @@
             </div>
             <div class="setting-option">
               <label data-i18n="Video frame pacing">Video frame pacing</label>
-              <span class="mdl-list__item-text-body">
-                <span data-i18n="- This can help reduce micro-stutter by delaying frames that arrive too early while streaming.">- This can help reduce micro-stutter by delaying frames that arrive too early while streaming.</span>
+              <span class="mdl-list__item-text-body" data-i18n="- This can help reduce micro-stutter by delaying frames that arrive too early while streaming.">
+                - This can help reduce micro-stutter by delaying frames that arrive too early while streaming.
               </span>
               <div id="videoFramePacingMenu">
                 <label id="framePacingBtn" class="mdl-switch mdl-js-switch mdl-js-ripple-effect" for="framePacingSwitch">
                   <input type="checkbox" id="framePacingSwitch" class="mdl-switch__input">
-                  <span class="mdl-switch__label" data-i18n="Allow frame pacing to balance video latency and smoothness">Allow frame pacing to balance video latency and smoothness</span>
+                  <span class="mdl-switch__label" data-i18n="Allow frame pacing to balance video latency and smoothness">
+                    Allow frame pacing to balance video latency and smoothness
+                  </span>
                 </label>
               </div>
             </div>
@@ -157,7 +159,9 @@
           <div id="interfaceSettings" class="settings-options">
             <div class="setting-option">
               <label data-i18n="Language">Language</label>
-              <span class="mdl-list__item-text-body" data-i18n="- Choose Auto to follow your TV locale, or select a language manually.">- Choose Auto to follow your TV locale, or select a language manually.</span>
+              <span class="mdl-list__item-text-body" data-i18n="- Choose Auto to match your TV locale, or manually select your desired language from the list.">
+                - Choose Auto to match your TV locale, or manually select your desired language from the list.
+              </span>
               <div id="languageMenu">
                 <button type="button" id="selectLanguage" class="mdl-button mdl-js-button mdl-js-ripple-effect" data-value="auto">Auto</button>
               </div>
@@ -167,37 +171,43 @@
           <div id="hostSettings" class="settings-options">
             <div class="setting-option">
               <label data-i18n="Host address field mode">Host address field mode</label>
-              <span class="mdl-list__item-text-body">
-                <span data-i18n="- Recommended for devices that have issues with the TV keyboard when entering the host address.">- Recommended for devices that have issues with the TV keyboard when entering the host address.</span>
+              <span class="mdl-list__item-text-body" data-i18n="- Recommended for devices that have issues with the TV keyboard when entering the host address.">
+                - Recommended for devices that have issues with the TV keyboard when entering the host address.
               </span>
               <div id="ipAddressFieldModeMenu">
                 <label id="ipAddressFieldModeBtn" class="mdl-switch mdl-js-switch mdl-js-ripple-effect" for="ipAddressFieldModeSwitch">
                   <input type="checkbox" id="ipAddressFieldModeSwitch" class="mdl-switch__input" onchange="handleIpAddressFieldMode()">
-                  <span class="mdl-switch__label" data-i18n="Change the host address input to numeric (IPv4) mode">Change the host address input to numeric (IPv4) mode</span>
+                  <span class="mdl-switch__label" data-i18n="Change the host address input to numeric (IPv4) mode">
+                    Change the host address input to numeric (IPv4) mode
+                  </span>
                 </label>
               </div>
             </div>
             <div class="setting-option">
               <label data-i18n="Sort the list of apps">Sort the list of apps</label>
-              <span class="mdl-list__item-text-body">
-                <span data-i18n="- Sorts the list of host apps from ascending order (A to Z) to descending order (Z to A) based on their titles.">- Sorts the list of host apps from ascending order (A to Z) to descending order (Z to A) based on their titles.</span>
+              <span class="mdl-list__item-text-body" data-i18n="- Sorts the list of host apps from ascending order (A to Z) to descending order (Z to A) based on their titles.">
+                - Sorts the list of host apps from ascending order (A to Z) to descending order (Z to A) based on their titles.
               </span>
               <div id="sortAppsListMenu">
                 <label id="sortAppsListBtn" class="mdl-switch mdl-js-switch mdl-js-ripple-effect" for="sortAppsListSwitch">
                   <input type="checkbox" id="sortAppsListSwitch" class="mdl-switch__input">
-                  <span class="mdl-switch__label" data-i18n="Allow sorting the list of apps and games in descending order">Allow sorting the list of apps and games in descending order</span>
+                  <span class="mdl-switch__label" data-i18n="Allow sorting the list of apps and games in descending order">
+                    Allow sorting the list of apps and games in descending order
+                  </span>
                 </label>
               </div>
             </div>
             <div class="setting-option">
               <label data-i18n="Optimize game settings">Optimize game settings</label>
-              <span class="mdl-list__item-text-body">
-                <span data-i18n="- Adjusts the host resolution to match the client resolution when the display device is configured on Sunshine.">- Adjusts the host resolution to match the client resolution when the display device is configured on Sunshine.</span>
+              <span class="mdl-list__item-text-body" data-i18n="- Adjusts the host resolution to match the client resolution when the display device is configured on Sunshine.">
+                - Adjusts the host resolution to match the client resolution when the display device is configured on Sunshine.
               </span>
               <div id="optimizeGamesMenu">
                 <label id="optimizeGamesBtn" class="mdl-switch mdl-js-switch mdl-js-ripple-effect" for="optimizeGamesSwitch">
                   <input type="checkbox" id="optimizeGamesSwitch" class="mdl-switch__input">
-                  <span class="mdl-switch__label" data-i18n="Allow the host to modify game settings for optimal streaming">Allow the host to modify game settings for optimal streaming</span>
+                  <span class="mdl-switch__label" data-i18n="Allow the host to modify game settings for optimal streaming">
+                    Allow the host to modify game settings for optimal streaming
+                  </span>
                 </label>
               </div>
             </div>
@@ -206,7 +216,9 @@
               <span class="mdl-list__item-text-body"></span>
               <div id="removeAllHostsMenu">
                 <button type="button" id="removeAllHostsBtn" class="mdl-button mdl-js-button mdl-js-ripple-effect" aria-label="Remove All Hosts">
-                  <span data-i18n="Remove all currently saved hosts from the list">Remove all currently saved hosts from the list</span>
+                  <span data-i18n="Remove all currently saved hosts from the list">
+                    Remove all currently saved hosts from the list
+                  </span>
                   <img src="static/res/ic_remove_from_queue_white_48px.svg" id="removeAllHostsIcon">
                 </button>
               </div>
@@ -219,7 +231,9 @@
               <div id="rumbleFeedbackMenu">
                 <label id="rumbleFeedbackBtn" class="mdl-switch mdl-js-switch mdl-js-ripple-effect" for="rumbleFeedbackSwitch">
                   <input type="checkbox" id="rumbleFeedbackSwitch" class="mdl-switch__input">
-                  <span class="mdl-switch__label" data-i18n="Allow gamepad rumble feedback support while streaming">Allow gamepad rumble feedback support while streaming</span>
+                  <span class="mdl-switch__label" data-i18n="Allow gamepad rumble feedback support while streaming">
+                    Allow gamepad rumble feedback support while streaming
+                  </span>
                 </label>
               </div>
             </div>
@@ -229,7 +243,9 @@
               <div id="mouseEmulationMenu">
                 <label id="mouseEmulationBtn" class="mdl-switch mdl-js-switch mdl-js-ripple-effect" for="mouseEmulationSwitch">
                   <input type="checkbox" id="mouseEmulationSwitch" class="mdl-switch__input">
-                  <span class="mdl-switch__label" data-i18n="Allow gamepad to switch to mouse mode when holding the Start button">Allow gamepad to switch to mouse mode when holding the Start button</span>
+                  <span class="mdl-switch__label" data-i18n="Allow gamepad to switch to mouse mode when holding the Start button">
+                    Allow gamepad to switch to mouse mode when holding the Start button
+                  </span>
                 </label>
               </div>
             </div>
@@ -239,7 +255,9 @@
               <div id="flipABfaceButtonsMenu">
                 <label id="flipABfaceButtonsBtn" class="mdl-switch mdl-js-switch mdl-js-ripple-effect" for="flipABfaceButtonsSwitch">
                   <input type="checkbox" id="flipABfaceButtonsSwitch" class="mdl-switch__input">
-                  <span class="mdl-switch__label" data-i18n="Swap A and B face buttons on the gamepad while streaming">Swap A and B face buttons on the gamepad while streaming</span>
+                  <span class="mdl-switch__label" data-i18n="Swap A and B face buttons on the gamepad while streaming">
+                    Swap A and B face buttons on the gamepad while streaming
+                  </span>
                 </label>
               </div>
             </div>
@@ -249,16 +267,20 @@
               <div id="flipXYfaceButtonsMenu">
                 <label id="flipXYfaceButtonsBtn" class="mdl-switch mdl-js-switch mdl-js-ripple-effect" for="flipXYfaceButtonsSwitch">
                   <input type="checkbox" id="flipXYfaceButtonsSwitch" class="mdl-switch__input">
-                  <span class="mdl-switch__label" data-i18n="Swap X and Y face buttons on the gamepad while streaming">Swap X and Y face buttons on the gamepad while streaming</span>
+                  <span class="mdl-switch__label" data-i18n="Swap X and Y face buttons on the gamepad while streaming">
+                    Swap X and Y face buttons on the gamepad while streaming
+                  </span>
                 </label>
               </div>
             </div>
           </div>
           <div id="audioSettings" class="settings-options">
             <div class="setting-option">
-              <label><span data-i18n="Audio configuration">Audio configuration</span><span class="badge badge-experimental" data-i18n="Experimental">Experimental</span></label>
-              <span class="mdl-list__item-text-body">
-                <span data-i18n="- Choose 5.1 or 7.1 surround sound for home-theater systems or use Stereo for general audio compatibility.">- Choose 5.1 or 7.1 surround sound for home-theater systems or use Stereo for general audio compatibility.</span>
+              <label data-i18n="Audio configuration">Audio configuration
+                <span class="badge badge-experimental" data-i18n="Experimental">Experimental</span>
+              </label>
+              <span class="mdl-list__item-text-body" data-i18n="- Choose 5.1 or 7.1 surround sound for home-theater systems or use Stereo for general audio compatibility.">
+                - Choose 5.1 or 7.1 surround sound for home-theater systems or use Stereo for general audio compatibility.
               </span>
               <div id="audioConfigMenu">
                 <button type="button" id="selectAudio" class="mdl-button mdl-js-button mdl-js-ripple-effect" data-value="Stereo" data-i18n="Stereo">Stereo</button>
@@ -271,13 +293,15 @@
             </div>
             <div class="setting-option">
               <label data-i18n="Audio synchronization">Audio synchronization</label>
-              <span class="mdl-list__item-text-body">
-                <span data-i18n="- This can help reduce delays by keeping audio in sync for a consistent sound while streaming.">- This can help reduce delays by keeping audio in sync for a consistent sound while streaming.</span>
+              <span class="mdl-list__item-text-body" data-i18n="- This can help reduce delays by keeping audio in sync for a consistent sound while streaming.">
+                - This can help reduce delays by keeping audio in sync for a consistent sound while streaming.
               </span>
               <div id="audioSyncMenu">
                 <label id="audioSyncBtn" class="mdl-switch mdl-js-switch mdl-js-ripple-effect" for="audioSyncSwitch">
                   <input type="checkbox" id="audioSyncSwitch" class="mdl-switch__input">
-                  <span class="mdl-switch__label" data-i18n="Allow audio synchronization support for optimal sound output">Allow audio synchronization support for optimal sound output</span>
+                  <span class="mdl-switch__label" data-i18n="Allow audio synchronization support for optimal sound output">
+                    Allow audio synchronization support for optimal sound output
+                  </span>
                 </label>
               </div>
             </div>
@@ -287,7 +311,9 @@
               <div id="playHostAudioMenu">
                 <label id="playHostAudioBtn" class="mdl-switch mdl-js-switch mdl-js-ripple-effect" for="playHostAudioSwitch">
                   <input type="checkbox" id="playHostAudioSwitch" class="mdl-switch__input">
-                  <span class="mdl-switch__label" data-i18n="Allow playing audio from the computer and this device">Allow playing audio from the computer and this device</span>
+                  <span class="mdl-switch__label" data-i18n="Allow playing audio from the computer and this device">
+                    Allow playing audio from the computer and this device
+                  </span>
                 </label>
               </div>
             </div>
@@ -295,8 +321,8 @@
           <div id="videoSettings" class="settings-options">
             <div class="setting-option">
               <label data-i18n="Video codec">Video codec</label>
-              <span class="mdl-list__item-text-body">
-                <span data-i18n="- Increase for better video compression and quality or decrease to improve performance on lower-end devices.">- Increase for better video compression and quality or decrease to improve performance on lower-end devices.</span>
+              <span class="mdl-list__item-text-body" data-i18n="- Increase for better video compression and quality or decrease to improve performance on lower-end devices.">
+                - Increase for better video compression and quality or decrease to improve performance on lower-end devices.
               </span>
               <div id="videoCodecMenu">
                 <button type="button" id="selectCodec" class="mdl-button mdl-js-button mdl-js-ripple-effect" data-value="H264" data-i18n="H.264">H.264</button>
@@ -309,63 +335,75 @@
             </div>
             <div class="setting-option">
               <label data-i18n="Video HDR">Video HDR</label>
-              <span class="mdl-list__item-text-body">
-                <span data-i18n="- HDR requires an HDR10-capable device, a GPU that can encode HEVC Main 10, and HDR10-enabled game.">- HDR requires an HDR10-capable device, a GPU that can encode HEVC Main 10, and HDR10-enabled game.</span>
+              <span class="mdl-list__item-text-body" data-i18n="- HDR requires an HDR10-capable device, a GPU that can encode HEVC Main 10, and HDR10-enabled game.">
+                - HDR requires an HDR10-capable device, a GPU that can encode HEVC Main 10, and HDR10-enabled game.
               </span>
               <div id="videoHdrMenu">
                 <label id="hdrModeBtn" class="mdl-switch mdl-js-switch mdl-js-ripple-effect" for="hdrModeSwitch">
                   <input type="checkbox" id="hdrModeSwitch" class="mdl-switch__input">
-                  <span class="mdl-switch__label" data-i18n="Allow high dynamic range for vibrant colors and enhanced contrast">Allow high dynamic range for vibrant colors and enhanced contrast</span>
+                  <span class="mdl-switch__label" data-i18n="Allow high dynamic range for vibrant colors and enhanced contrast">
+                    Allow high dynamic range for vibrant colors and enhanced contrast
+                  </span>
                 </label>
               </div>
             </div>
             <div class="setting-option">
               <label data-i18n="Color range">Color range</label>
-              <span class="mdl-list__item-text-body">
-                <span data-i18n="- This will cause loss of detail in light and dark areas if your device doesn't properly display full range video content.">- This will cause loss of detail in light and dark areas if your device doesn't properly display full range video content.</span>
+              <span class="mdl-list__item-text-body" data-i18n="- This will cause loss of detail in light and dark areas if your device doesn't properly display full range video content.">
+                - This will cause loss of detail in light and dark areas if your device doesn't properly display full range video content.
               </span>
               <div id="colorRangeMenu">
                 <label id="fullRangeBtn" class="mdl-switch mdl-js-switch mdl-js-ripple-effect" for="fullRangeSwitch">
                   <input type="checkbox" id="fullRangeSwitch" class="mdl-switch__input">
-                  <span class="mdl-switch__label" data-i18n="Allow full color range for more detail in dark and bright areas of content">Allow full color range for more detail in dark and bright areas of content</span>
+                  <span class="mdl-switch__label" data-i18n="Allow full color range for more detail in dark and bright areas of content">
+                    Allow full color range for more detail in dark and bright areas of content
+                  </span>
                 </label>
               </div>
             </div>
             <div class="setting-option">
               <label data-i18n="Game mode">Game mode</label>
-              <span class="mdl-list__item-text-body">
-                <span data-i18n="- Enable for ultra low latency with game mode or disable for low latency with post-processing video enhancements.">- Enable for ultra low latency with game mode or disable for low latency with post-processing video enhancements.</span>
+              <span class="mdl-list__item-text-body" data-i18n="- Enable for ultra low latency with game mode or disable for low latency with post-processing video enhancements.">
+                - Enable for ultra low latency with game mode or disable for low latency with post-processing video enhancements.
               </span>
               <div id="gameModeMenu">
                 <label id="gameModeBtn" class="mdl-switch mdl-js-switch mdl-js-ripple-effect" for="gameModeSwitch">
                   <input type="checkbox" id="gameModeSwitch" class="mdl-switch__input">
-                  <span class="mdl-switch__label" data-i18n="Allow game mode for optimal latency and performance while streaming">Allow game mode for optimal latency and performance while streaming</span>
+                  <span class="mdl-switch__label" data-i18n="Allow game mode for optimal latency and performance while streaming">
+                    Allow game mode for optimal latency and performance while streaming
+                  </span>
                 </label>
               </div>
             </div>
           </div>
           <div id="advancedSettings" class="settings-options">
             <div class="setting-option">
-              <label><span data-i18n="Unlock all frame rates">Unlock all frame rates</span><span class="badge badge-experimental" data-i18n="Experimental">Experimental</span></label>
-              <span class="mdl-list__item-text-body">
-                <span data-i18n="- Higher FPS can reduce latency on high-end devices, but may cause lag or instability on unsupported devices.">- Higher FPS can reduce latency on high-end devices, but may cause lag or instability on unsupported devices.</span>
+              <label data-i18n="Unlock all frame rates">Unlock all frame rates
+                <span class="badge badge-experimental" data-i18n="Experimental">Experimental</span>
+              </label>
+              <span class="mdl-list__item-text-body" data-i18n="- Higher FPS can reduce latency on high-end devices, but may cause lag or instability on unsupported devices.">
+                - Higher FPS can reduce latency on high-end devices, but may cause lag or instability on unsupported devices.
               </span>
               <div id="unlockAllFpsMenu">
                 <label id="unlockAllFpsBtn" class="mdl-switch mdl-js-switch mdl-js-ripple-effect" for="unlockAllFpsSwitch">
                   <input type="checkbox" id="unlockAllFpsSwitch" class="mdl-switch__input" onchange="handleUnlockAllFps()">
-                  <span class="mdl-switch__label" data-i18n="Unlock all possible frame rate options for this device">Unlock all possible frame rate options for this device</span>
+                  <span class="mdl-switch__label" data-i18n="Unlock all possible frame rate options for this device">
+                    Unlock all possible frame rate options for this device
+                  </span>
                 </label>
               </div>
             </div>
             <div class="setting-option">
               <label data-i18n="Optimize bitrate presets">Optimize bitrate presets</label>
               <span class="mdl-list__item-text-body" data-i18n="- Calculates bitrate based on selected resolution, frame rate, codec, and HDR settings to determine the optimal value.">
-                 - Calculates bitrate based on selected resolution, frame rate, codec, and HDR settings to determine the optimal value.
+                - Calculates bitrate based on selected resolution, frame rate, codec, and HDR settings to determine the optimal value.
               </span>
               <div id="optimizeBitrateMenu">
                 <label id="optimizeBitrateBtn" class="mdl-switch mdl-js-switch mdl-js-ripple-effect" for="optimizeBitrateSwitch">
                   <input type="checkbox" id="optimizeBitrateSwitch" class="mdl-switch__input">
-                  <span class="mdl-switch__label" data-i18n="Optimize bitrate to balance stream quality, performance, and bandwidth usage">Optimize bitrate to balance stream quality, performance, and bandwidth usage</span>
+                  <span class="mdl-switch__label" data-i18n="Optimize bitrate to balance stream quality, performance, and bandwidth usage">
+                    Optimize bitrate to balance stream quality, performance, and bandwidth usage
+                  </span>
                 </label>
               </div>
             </div>
@@ -375,7 +413,9 @@
               <div id="connectionWarningsMenu">
                 <label id="disableWarningsBtn" class="mdl-switch mdl-js-switch mdl-js-ripple-effect" for="disableWarningsSwitch">
                   <input type="checkbox" id="disableWarningsSwitch" class="mdl-switch__input">
-                  <span class="mdl-switch__label" data-i18n="Disable on-screen connection warning messages while streaming">Disable on-screen connection warning messages while streaming</span>
+                  <span class="mdl-switch__label" data-i18n="Disable on-screen connection warning messages while streaming">
+                    Disable on-screen connection warning messages while streaming
+                  </span>
                 </label>
               </div>
             </div>
@@ -385,7 +425,9 @@
               <div id="performanceStatsMenu">
                 <label id="performanceStatsBtn" class="mdl-switch mdl-js-switch mdl-js-ripple-effect" for="performanceStatsSwitch">
                   <input type="checkbox" id="performanceStatsSwitch" class="mdl-switch__input">
-                  <span class="mdl-switch__label" data-i18n="Display real-time stream performance information while streaming">Display real-time stream performance information while streaming</span>
+                  <span class="mdl-switch__label" data-i18n="Display real-time stream performance information while streaming">
+                    Display real-time stream performance information while streaming
+                  </span>
                 </label>
               </div>
             </div>
@@ -400,36 +442,42 @@
             </div>
             <div class="setting-option">
               <label data-i18n="Navigation guide">Navigation guide</label>
-              <span class="mdl-list__item-text-body">
-                <span data-i18n="- Useful for users who need guidance or help navigating the app.">- Useful for users who need guidance or help navigating the app.</span>
+              <span class="mdl-list__item-text-body" data-i18n="- Useful for users who need guidance or help navigating the app.">
+                - Useful for users who need guidance or help navigating the app.
               </span>
               <div id="navigationGuideMenu">
                 <button type="button" id="navigationGuideBtn" class="mdl-button mdl-js-button mdl-js-ripple-effect" aria-label="Navigation Guide">
-                  <span data-i18n="Discover navigation controls for all input devices">Discover navigation controls for all input devices</span>
+                  <span data-i18n="Discover navigation controls for all input devices">
+                    Discover navigation controls for all input devices
+                  </span>
                   <img src="static/res/ic_tv_remote_48px.svg" id="navigationGuideIcon">
                 </button>
               </div>
             </div>
             <div class="setting-option">
               <label data-i18n="Check for updates">Check for updates</label>
-              <span class="mdl-list__item-text-body">
-                <span data-i18n="- Find out if a new application update is available.">- Find out if a new application update is available.</span>
+              <span class="mdl-list__item-text-body" data-i18n="- Find out if a new application update is available.">
+                - Find out if a new application update is available.
               </span>
               <div id="checkForUpdatesMenu">
                 <button type="button" id="checkUpdatesBtn" class="mdl-button mdl-js-button mdl-js-ripple-effect" aria-label="Check for Updates">
-                  <span data-i18n="Check for new Moonlight updates">Check for new Moonlight updates</span>
+                  <span data-i18n="Check for new Moonlight updates">
+                    Check for new Moonlight updates
+                  </span>
                   <img src="static/res/ic_system_update_alt_48px.svg" id="checkUpdatesIcon">
                 </button>
               </div>
             </div>
             <div class="setting-option">
               <label data-i18n="Restart the application">Restart the application</label>
-              <span class="mdl-list__item-text-body">
-                <span data-i18n="- If you encounter issues, here you can restart the app to resolve them.">- If you encounter issues, here you can restart the app to resolve them.</span>
+              <span class="mdl-list__item-text-body" data-i18n="- If you encounter issues, here you can restart the app to resolve them.">
+                - If you encounter issues, here you can restart the app to resolve them.
               </span>
               <div id="restartAppMenu">
                 <button type="button" id="restartAppBtn" class="mdl-button mdl-js-button mdl-js-ripple-effect" aria-label="Restart Application">
-                  <span data-i18n="Restart the Moonlight app quickly">Restart the Moonlight app quickly</span>
+                  <span data-i18n="Restart the Moonlight app quickly">
+                    Restart the Moonlight app quickly
+                  </span>
                   <img src="static/res/ic_restart_alt_48px.svg" id="restartApplicationIcon">
                 </button>
               </div>
@@ -475,7 +523,7 @@
       </div>
       <div id="ipAddressSelectFields" class="mdl-dialog__content">
         <div class="select-option-field select-option-field-floating-label">
-          <label class="mdl-textfield__label" data-i18n="IP address or hostname of host PC">IP address or hostname of host PC</label>
+          <label class="mdl-textfield__label" data-i18n="IP address of host PC">IP address of host PC</label>
           <select id="ipAddressField1" class="ip-address-select-field" name="ipAddressField1" tabindex="-1"></select>
           <select id="ipAddressField2" class="ip-address-select-field" name="ipAddressField2" tabindex="-1"></select>
           <select id="ipAddressField3" class="ip-address-select-field" name="ipAddressField3" tabindex="-1"></select>

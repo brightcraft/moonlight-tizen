@@ -157,22 +157,22 @@ function handleMessage(msg) {
       case 0: // ML_ERROR_GRACEFUL_TERMINATION
         break;
       case -100: // ML_ERROR_NO_VIDEO_TRAFFIC
-        snackbarLogLong('No video received from host. Check the host PC\'s firewall and port forwarding rules.');
+        snackbarLogLong(t('No video received from host. Check the host PC\'s firewall and port forwarding rules.'));
         break;
       case -101: // ML_ERROR_NO_VIDEO_FRAME
-        snackbarLogLong('Your network connection isn\'t performing well. Reduce your video bitrate setting or try a faster connection.');
+        snackbarLogLong(t('Your network connection isn\'t performing well. Reduce your video bitrate setting or try a faster connection.'));
         break;
       case -102: // ML_ERROR_UNEXPECTED_EARLY_TERMINATION
-        snackbarLogLong('Something went wrong on your host PC when starting the stream. Restart your host PC and try again.');
+        snackbarLogLong(t('Something went wrong on your host PC when starting the stream. Restart your host PC and try again.'));
         break;
       case -103: // ML_ERROR_PROTECTED_CONTENT
-        snackbarLogLong('An issue occurred on your host PC while starting the stream. Make sure you don\'t have any DRM-protected content open on your host PC.');
+        snackbarLogLong(t('An issue occurred on your host PC while starting the stream. Make sure you don\'t have any DRM-protected content open on your host PC.'));
         break;
       case -104: // ML_ERROR_FRAME_CONVERSION
-        snackbarLogLong('The host PC reported a fatal video encoding error. Try disabling HDR mode, changing the streaming resolution, or changing your host PC\'s display resolution.');
+        snackbarLogLong(t('The host PC reported a fatal video encoding error. Try disabling HDR mode, changing the streaming resolution, or changing your host PC\'s display resolution.'));
         break;
       default:
-        snackbarLogLong('Connection terminated');
+        snackbarLogLong(t('Connection terminated'));
         break;
     }
     // Return to the app list with new current game
@@ -199,7 +199,7 @@ function handleMessage(msg) {
     snackbarLogLong(translateBackendMessage(msg.replace('TransientMsg: ', '')));
   } else if (msg.indexOf('DialogMsg: ') === 0) {
     // Show dialog message using the warning dialog
-    warningDialog('Warning', translateBackendMessage(msg.replace('DialogMsg: ', '')));
+    warningDialog(t('Warning'), translateBackendMessage(msg.replace('DialogMsg: ', '')));
   } else if (msg === 'displayVideo') {
     // Show the video stream now
     $('#listener').addClass('fullscreen');
@@ -252,9 +252,9 @@ function handleMessage(msg) {
     }
   } else if (msg.indexOf('mouseEmulationOn') === 0) {
     // Show mouse emulation enable status as a notification
-    snackbarLogLong('Mouse emulation is activated');
+    snackbarLogLong(t('Mouse emulation is activated'));
   } else if (msg.indexOf('mouseEmulationOff') === 0) {
     // Show mouse emulation disable status as notification
-    snackbarLogLong('Mouse emulation is deactivated');
+    snackbarLogLong(t('Mouse emulation is deactivated'));
   }
 }
