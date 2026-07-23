@@ -914,7 +914,10 @@ function pairingDialog(nvhttpHost, onSuccess, onFailure) {
 
     // Change the dialog text element to include the random PIN number
     $('#pairingDialogText').html(
-      t('Please enter the following PIN on the target PC: %1$s<br><br>If your host PC is running Sunshine (all GPUs), navigate to the Sunshine Web UI to enter the PIN.<br><br>Alternatively, if your host PC has NVIDIA GameStream (NVIDIA-only), navigate to the GeForce Experience to enter the PIN.<br><br>This dialog will close once the pairing is complete.', randomNumber)
+      t('Please enter the following PIN on the target PC: %1$s<br><br>', randomNumber) + 
+      t('If your host PC is running Sunshine (all GPUs), navigate to the Sunshine Web UI to enter the PIN.<br><br>') + 
+      t('Alternatively, if your host PC has NVIDIA GameStream (NVIDIA-only), navigate to the GeForce Experience to enter the PIN.<br><br>') + 
+      t('This dialog will close once the pairing is complete.')
     );
 
     // Show the dialog and push the view
@@ -3235,7 +3238,9 @@ function saveGameMode() {
       setTimeout(() => {
         // Show a warning message when enabling game mode on Tizen 9.0 platform
         warningDialog(t('Compatibility Warning'),
-          t('Game Mode (Ultra Low Latency) is not compatible with Tizen %1$s due to platform changes introduced by Samsung. Enabling this option may result in video freezing on the first rendered frame, black screen, unstable performance, and other streaming issues.<br><br>For more information about this incompatibility, including available workarounds and potential limitations, please refer to the <b>Known Issues &amp; Limitations</b> page on the Wiki.', platformVer)
+          t('Game Mode (Ultra Low Latency) is not compatible with Tizen %1$s due to platform changes introduced by Samsung.', platformVer) + 
+          t('Enabling this option may result in video freezing on the first rendered frame, black screen, unstable performance, and other streaming issues.<br><br>') + 
+          t('For more information about this incompatibility, including available workarounds and potential limitations, please refer to the <b>Known Issues &amp; Limitations</b> page on the Wiki.')
         );
       }, 250);
     } else if (parseFloat(platformVer) < 9.0 && !chosenGameMode) { // Warning other Tizen versions when disabling game mode
