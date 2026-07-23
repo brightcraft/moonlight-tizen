@@ -698,7 +698,7 @@ function parseHostAndPortInput(rawInput) {
   const input = (rawInput || '').trim();
 
   if (!input) {
-    return { valid: false, error: 'Please enter a valid host address!' };
+    return { valid: false, error: t('Please enter a valid host address!') };
   }
 
   let hostPart = input;
@@ -728,21 +728,21 @@ function parseHostAndPortInput(rawInput) {
   }
 
   if (!hostPart) {
-    return { valid: false, error: 'Please enter a valid host address!' };
+    return { valid: false, error: t('Please enter a valid host address!') };
   }
 
   if (!isValidHostAddress(hostPart)) {
-    return { valid: false, error: 'Please enter a valid host address!' };
+    return { valid: false, error: t('Please enter a valid host address!') };
   }
 
   if (portPart) {
     if (!/^\d{1,5}$/.test(portPart)) {
-      return { valid: false, error: 'Port must be a numeric value between 1 and 65535!' };
+      return { valid: false, error: t('Port must be a numeric value between 1 and 65535!') };
     }
 
     const parsedPort = parseInt(portPart, 10);
     if (!isValidPort(parsedPort)) {
-      return { valid: false, error: 'Please enter a valid port number between 1 and 65535!' };
+      return { valid: false, error: t('Please enter a valid port number between 1 and 65535!') };
     }
 
     return { valid: true, addr: hostPart, port: parsedPort };
@@ -1628,7 +1628,7 @@ function fetchLatestRelease() {
   }).then(data => {
     // Get the latest version and release notes from the released update
     let latestVersion = data.tag_name.startsWith('v') ? data.tag_name.slice(1) : data.tag_name;
-    const releaseNotes = extractReleaseNotes(data.body) || '• No relevant changes found.';
+    const releaseNotes = extractReleaseNotes(data.body) || t('• No relevant changes found.');
     return { latestVersion, releaseNotes };
   });
 }
@@ -1704,14 +1704,14 @@ function updateAppButton(latestVersion) {
   // Create the button text dynamically
   var updateAppBtnText = $('<span>', {
     id: 'updateAppBtnText',
-    text: 'New update v' + latestVersion
+    text: t('New update v%1$s', latestVersion)
   });
   // Create the button tooltip dynamically
   var updateAppBtnTooltip = $('<div>', {
     id: 'updateAppBtnTooltip',
     class: 'mdl-tooltip',
     'for': 'updateAppBtn',
-    text: 'Check what\'s new'
+    text: t('Check what\'s new')
   });
   // Create the layout spacer dynamically
   var extraLayoutSpacer = $('<div>', {
@@ -1770,7 +1770,7 @@ function updateAppDialog(latestVersion, releaseNotes) {
   $('<h3>', {
     id: 'updateAppDialogTitle',
     class: 'mdl-dialog__title',
-    text: 'Update Moonlight'
+    text: t('Update Moonlight')
   }).appendTo(updateAppDialog);
 
   // Create a content section inside the dialog
@@ -1782,8 +1782,8 @@ function updateAppDialog(latestVersion, releaseNotes) {
   $('<p>', {
     id: 'updateAppDialogText',
     class: 'update-app-text',
-    html: `Version ${latestVersion} is now available! Update manually to enjoy new features and improvements.<br><br>` +
-          `<strong>What's Changed:</strong><br>` + releaseNotes
+    html: t('Version %1$s is now available! Update manually to enjoy new features and improvements.<br><br>', latestVersion) + 
+          t('<strong>What\'s Changed:</strong><br>%1$s', releaseNotes)
   }).appendTo(updateAppDialogContent);
 
   // Create the actions section inside the dialog
@@ -1796,7 +1796,7 @@ function updateAppDialog(latestVersion, releaseNotes) {
     type: 'button',
     id: 'closeUpdateApp',
     class: 'mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect',
-    text: 'Close'
+    text: t('Close')
   });
 
   // Close the dialog if the Close button is pressed
@@ -1837,7 +1837,7 @@ function checkForAppUpdates() {
         updateAppDialog(latestVersion, releaseNotes);
       } else {
         // Otherwise, show a snackbar message to inform the user that the app is already up to date
-        snackbarLogLong(t('✅ Your app is already up to date! You\'re on the latest version.'));
+        snackbarLogLong(t('Your app is already up to date! You\'re on the latest version.'));
       }
     }, 1500);
   }).catch(error => {
@@ -1866,7 +1866,7 @@ function checkForAppUpdatesAtStartup() {
           // Check if a new version update is available
           if (checkVersionUpdate(appInfo.version, latestVersion)) {
             // Show snackbar message with new version to inform user to update the app
-            snackbarLogLong(t('🚀 Version %1$s is now available! Check out the latest features & improvements.', latestVersion));
+            snackbarLogLong(t('Version %1$s is now available! Check out the latest features & improvements.', latestVersion));
             // Create and display the Update App button with tooltip and additional layout spacer
             updateAppButton(latestVersion);
           }
@@ -2012,8 +2012,7 @@ function requiredRestartAppDialog() {
   var restartAppDialog = document.querySelector('#restartAppDialog');
 
   // Change the dialog text element to inform the user that a restart is required
-  document.getElementById('restartAppDialogText').innerHTML = t('In order for your changes to take effect, a restart of the application is required.'
-  + '<br><br>' + 'Would you like to proceed with the restart?');
+  document.getElementById('restartAppDialogText').innerHTML = t('In order for your changes to take effect, a restart of the application is required.<br><br>Would you like to proceed with the restart?');
 
   // Show the dialog and push the view
   restartAppDialogOverlay.style.display = 'flex';
@@ -2101,10 +2100,10 @@ function stylizeBoxArt(freshApi, appIdToStylize) {
     // If the game is currently running, then apply CSS stylization
     if (freshApi.currentGame === appIdToStylize) {
       appBox.classList.add('current-game-active');
-      appBox.title += ' (Running)';
+      appBox.title += t(' (Running)');
     } else {
       appBox.classList.remove('current-game-active');
-      appBox.title = appBox.title.replace(' (Running)', ''); // TODO: Replace with localized string so make it e.title = game_title
+      appBox.title = appBox.title.replace(t(' (Running)'), ''); // TODO: Replace with localized string so make it e.title = game_title
     }
   }, function(failedRefreshInfo) {
     console.error('%c[index.js, stylizeBoxArt]', 'color: green;', 'Error: Failed to refresh server info! Returned error was: ' + failedRefreshInfo + '!');
@@ -2634,7 +2633,7 @@ function startGame(host, appID) {
         ]);
       }, function(failedLaunchApp) {
         console.error('%c[index.js, startGame]', 'color: green;', 'Error: Failed to launch app with id: ' + appID + '\n Returned error was: ' + failedLaunchApp + '!');
-        snackbarLog(t('Failed to launch %1$s.', appToStart.title));
+        snackbarLog(t('Failed to launch %1$s', appToStart.title));
         showApps(host).then(() => {
           // Scroll to the current game row
           Navigation.switch();
