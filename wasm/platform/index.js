@@ -1469,6 +1469,10 @@ function showSettingsMode() {
 
   stopPollingHosts();
   Navigation.start();
+  // Register showSettingsMode to re-run every time the language changes
+  if (window.i18n && typeof window.i18n.onRefresh === 'function') {
+    window.i18n.onRefresh(showSettingsMode);
+  }
 }
 
 // Show the Settings list
