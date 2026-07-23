@@ -5,7 +5,7 @@
   const SOURCE_LOCALE = 'en-US';
   const SUPPORTED_LOCALES = ['en-US', 'pt-BR'];
   const LOCALE_LABELS = {
-    auto: 'Auto',
+    'auto': 'Auto',
     'en-US': 'English (United States)',
     'pt-BR': 'Português (Brasil)',
   };
