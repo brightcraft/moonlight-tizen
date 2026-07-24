@@ -62,41 +62,35 @@ function replaceKnownStageLabels(text) {
   return translated;
 }
 
+function replaceKnownStatsLabels(text) {
+  return text
+  	.replace(/Connection to PC has been improved/g, t('Connection to PC has been improved'))
+  	.replace(/Slow connection to PC\.\nReduce your bitrate!/g, t('Slow connection to PC.\nReduce your bitrate!'))
+    .replace(/Video stream:/g, t('Video stream:'))
+    .replace(/Codec:/g, t('Codec:'))
+    .replace(/Incoming frame rate from network:/g, t('Incoming frame rate from network:'))
+    .replace(/Decoding frame rate:/g, t('Decoding frame rate:'))
+    .replace(/Rendering frame rate:/g, t('Rendering frame rate:'))
+    .replace(/Incoming bitrate from network:/g, t('Incoming bitrate from network:'))
+    .replace(/Host processing latency min\/max\/average:/g, t('Host processing latency min/max/average:'))
+    .replace(/Frames dropped by your network connection:/g, t('Frames dropped by your network connection:'))
+    .replace(/Frames dropped due to network jitter:/g, t('Frames dropped due to network jitter:'))
+    .replace(/Average network latency:/g, t('Average network latency:'))
+    .replace(/\bvariance:/g, t('variance:'))
+    .replace(/\bN\/A\b/g, t('N/A'))
+    .replace(/Average decoding time:/g, t('Average decoding time:'))
+    .replace(/Average frame queue delay:/g, t('Average frame queue delay:'))
+    .replace(/Average rendering time:/g, t('Average rendering time:'));
+}
+
 function translateBackendMessage(text) {
   const normalized = normalizeBackendMessageText(text);
 
-  switch (normalized) {
-    case 'none':
-      return t('none');
-    case 'platform initialization':
-      return t('platform initialization');
-    case 'name resolution':
-      return t('name resolution');
-    case 'audio stream initialization':
-      return t('audio stream initialization');
-    case 'RTSP handshake':
-      return t('RTSP handshake');
-    case 'control stream initialization':
-      return t('control stream initialization');
-    case 'video stream initialization':
-      return t('video stream initialization');
-    case 'input stream initialization':
-      return t('input stream initialization');
-    case 'control stream establishment':
-      return t('control stream establishment');
-    case 'video stream establishment':
-      return t('video stream establishment');
-    case 'audio stream establishment':
-      return t('audio stream establishment');
-    case 'input stream establishment':
-      return t('input stream establishment');
-    case 'Connection to PC has been improved':
-      return t('Connection to PC has been improved');
-    case 'Slow connection to PC.\nReduce your bitrate!':
-      return t('Slow connection to PC.\nReduce your bitrate!');
-    default:
-      return replaceKnownStageLabels(t(normalized));
-  }
+  return replaceKnownStatsLabels(
+    replaceKnownStageLabels(
+      t(normalized)
+    )
+  );
 }
 
 /**
@@ -230,7 +224,7 @@ function handleMessage(msg) {
     }
     // Show the performance statistics overlay
     $('#performance-stats').css('background', 'rgba(0, 0, 0, 0.5)');
-    $('#performance-stats').text(msg.replace('StatMsg: ', ''));
+    $('#performance-stats').text(translateBackendMessage(msg.replace('StatMsg: ', '')));
   } else if (msg.indexOf('controllerRumble: ') === 0) {
     const eventData = msg.split(' ')[1].split(',');
     const gamepadIdx = parseInt(eventData[0]);

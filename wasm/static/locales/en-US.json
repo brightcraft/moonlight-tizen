@@ -323,5 +323,20 @@
   "Mouse emulation is activated": "Mouse emulation is activated",
   "Mouse emulation is deactivated": "Mouse emulation is deactivated",
   "Connection to PC has been improved": "Connection to PC has been improved",
-  "Slow connection to PC.\nReduce your bitrate!": "Slow connection to PC.\nReduce your bitrate!"
+  "Slow connection to PC.\nReduce your bitrate!": "Slow connection to PC.\nReduce your bitrate!",
+  "Video stream:": "Video stream:",
+  "Codec:": "Codec:",
+  "Incoming frame rate from network:": "Incoming frame rate from network:",
+  "Decoding frame rate:": "Decoding frame rate:",
+  "Rendering frame rate:": "Rendering frame rate:",
+  "Incoming bitrate from network:": "Incoming bitrate from network:",
+  "Host processing latency min/max/average:": "Host processing latency min/max/average:",
+  "Frames dropped by your network connection:": "Frames dropped by your network connection:",
+  "Frames dropped due to network jitter:": "Frames dropped due to network jitter:",
+  "Average network latency:": "Average network latency:",
+  "variance:": "variance:",
+  "N/A": "N/A",
+  "Average decoding time:": "Average decoding time:",
+  "Average frame queue delay:": "Average frame queue delay:",
+  "Average rendering time:": "Average rendering time:"
 }

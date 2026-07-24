@@ -323,5 +323,20 @@
   "Mouse emulation is activated": "A emulação de mouse está ativada",
   "Mouse emulation is deactivated": "A emulação de mouse está desativada",
   "Connection to PC has been improved": "A conexão com o PC foi melhorada",
-  "Slow connection to PC.\nReduce your bitrate!": "Conexão lenta com o PC.\nReduza seu bitrate!"
+  "Slow connection to PC.\nReduce your bitrate!": "Conexão lenta com o PC.\nReduza seu bitrate!",
+  "Video stream:": "Transmissão de vídeo:",
+  "Codec:": "Codec:",
+  "Incoming frame rate from network:": "Taxa de quadros recebida da rede:",
+  "Decoding frame rate:": "Taxa de quadros de decodificação:",
+  "Rendering frame rate:": "Taxa de quadros de renderização:",
+  "Incoming bitrate from network:": "Taxa de bits recebida da rede:",
+  "Host processing latency min/max/average:": "Latência de processamento do host mínima/máxima/média:",
+  "Frames dropped by your network connection:": "Quadros descartados pela sua conexão de rede:",
+  "Frames dropped due to network jitter:": "Perda de frames devido a instabilidade na rede:",
+  "Average network latency:": "Latência média da rede:",
+  "variance:": "variância:",
+  "N/A": "N/A",
+  "Average decoding time:": "Tempo médio de decodificação:",
+  "Average frame queue delay:": "Atraso médio na fila de quadros:",
+  "Average rendering time:": "Tempo médio de renderização:"
 }
