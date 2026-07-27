@@ -1128,6 +1128,7 @@ function hostMenuDialog(host) {
     {
       id: 'refreshApps-' + host.hostname,
       class: 'host-menu-button',
+      'data-i18n': 'Refresh apps',
       text: t('Refresh apps'),
       action: function() {
         // Refresh the list of apps for the target host
@@ -1139,6 +1140,7 @@ function hostMenuDialog(host) {
     {
       id: 'wakeHost-' + host.hostname,
       class: 'host-menu-button',
+      'data-i18n': 'Wake PC',
       text: t('Wake PC'),
       action: function() {
         // Send a Wake-on-LAN request to the target host
@@ -1149,6 +1151,7 @@ function hostMenuDialog(host) {
     {
       id: 'deleteHost-' + host.hostname,
       class: 'host-menu-button',
+      'data-i18n': 'Delete PC',
       text: t('Delete PC'),
       action: function() {
         // Remove the selected host from the list
@@ -1158,6 +1161,7 @@ function hostMenuDialog(host) {
     {
       id: 'viewDetails-' + host.hostname,
       class: 'host-menu-button',
+      'data-i18n': 'View Details',
       text: t('View Details'),
       action: function() {
         // View details of the selected host
@@ -1198,6 +1202,7 @@ function hostMenuDialog(host) {
     type: 'button',
     id: 'closeHostMenu',
     class: 'mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect',
+    'data-i18n': 'Close',
     text: t('Close')
   });
 
@@ -1359,6 +1364,7 @@ function hostDetailsDialog(host) {
   $('<h3>', {
     id: 'hostDetailsDialogTitle-' + host.serverUid,
     class: 'mdl-dialog__title',
+    'data-i18n': 'Host Details',
     text: t('Host Details')
   }).appendTo(hostDetailsDialog);
 
@@ -1395,6 +1401,7 @@ function hostDetailsDialog(host) {
     type: 'button',
     id: 'closeHostDetails',
     class: 'mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect',
+    'data-i18n': 'Close',
     text: t('Close')
   });
 
@@ -1704,6 +1711,8 @@ function updateAppButton(latestVersion) {
   // Create the button text dynamically
   var updateAppBtnText = $('<span>', {
     id: 'updateAppBtnText',
+    'data-i18n': 'New update v%1$s',
+    'data-param': latestVersion,
     text: t('New update v%1$s', latestVersion)
   });
   // Create the button tooltip dynamically
@@ -1711,6 +1720,7 @@ function updateAppButton(latestVersion) {
     id: 'updateAppBtnTooltip',
     class: 'mdl-tooltip',
     'for': 'updateAppBtn',
+    'data-i18n': 'Check what\'s new',
     text: t('Check what\'s new')
   });
   // Create the layout spacer dynamically
@@ -1770,6 +1780,7 @@ function updateAppDialog(latestVersion, releaseNotes) {
   $('<h3>', {
     id: 'updateAppDialogTitle',
     class: 'mdl-dialog__title',
+    'data-i18n': 'Update Moonlight',
     text: t('Update Moonlight')
   }).appendTo(updateAppDialog);
 
@@ -1796,6 +1807,7 @@ function updateAppDialog(latestVersion, releaseNotes) {
     type: 'button',
     id: 'closeUpdateApp',
     class: 'mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect',
+    'data-i18n': 'Close',
     text: t('Close')
   });
 
