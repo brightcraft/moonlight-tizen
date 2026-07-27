@@ -181,10 +181,11 @@
   function refreshUI() {
     document.querySelectorAll('[data-i18n]').forEach((element) => {
       const key = element.getAttribute('data-i18n');
+      const param = element.getAttribute('data-param');
       if (!key) {
         return;
       }
-      element.textContent = t(key);
+      element.textContent = param ? t(key, param) : t(key);
     });
 
     document.querySelectorAll('[data-i18n-placeholder]').forEach((element) => {
