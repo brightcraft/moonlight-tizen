@@ -32,4 +32,4 @@ jobs:
           title: "chore(i18n): sync locale source-of-truth"
           body: "Automated sync of locale files (wasm/static/locales/*.json)."
           labels: "i18n, automated"
-          path: "wasm/static/locales"
+          files: "wasm/static/locales/**"
