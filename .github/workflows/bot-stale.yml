@@ -18,7 +18,7 @@ jobs:
     if: ${{ github.repository == 'brightcraft/moonlight-tizen' }}
     steps:
       - name: Mark and close stale issue
-        uses: actions/stale@v10.1.0
+        uses: actions/stale@v11.0.0
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           # The number of days old an issue can be before marking it stale. Set to -1 to never mark issues as stale automatically.
