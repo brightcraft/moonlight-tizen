@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   sync-locales-and-push-to-tms:
@@ -24,13 +23,8 @@ jobs:
       - name: Sync locale files
         run: node wasm/static/js/i18n-sync.js
 
-      - name: Create pull request for locale changes
-        uses: peter-evans/create-pull-request@v5
+      - name: Auto-commit locale changes
+        uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "chore(i18n): sync locale source-of-truth"
-          branch: "i18n-sync/${{ github.run_id }}"
-          title: "chore(i18n): sync locale source-of-truth"
-          body: "Automated sync of locale files (wasm/static/locales/*.json)."
-          labels: "i18n, automated"
-          files: "wasm/static/locales/**"
+          commit_message: "chore(i18n): sync locale source-of-truth"
+          file_pattern: "wasm/static/locales/*.json"
