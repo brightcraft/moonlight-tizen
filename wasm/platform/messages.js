@@ -59,13 +59,12 @@ function replaceKnownStageLabels(text) {
     const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     translated = translated.replace(new RegExp(escapedLabel, 'gi'), t(label));
   });
+
   return translated;
 }
 
 function replaceKnownStatsLabels(text) {
   return text
-  	.replace(/Connection to PC has been improved/g, t('Connection to PC has been improved'))
-  	.replace(/Slow connection to PC\.\nReduce your bitrate!/g, t('Slow connection to PC.\nReduce your bitrate!'))
     .replace(/Video stream:/g, t('Video stream:'))
     .replace(/Codec:/g, t('Codec:'))
     .replace(/Incoming frame rate from network:/g, t('Incoming frame rate from network:'))
@@ -80,17 +79,18 @@ function replaceKnownStatsLabels(text) {
     .replace(/\bN\/A\b/g, t('N/A'))
     .replace(/Average decoding time:/g, t('Average decoding time:'))
     .replace(/Average frame queue delay:/g, t('Average frame queue delay:'))
-    .replace(/Average rendering time:/g, t('Average rendering time:'));
+    .replace(/Average rendering time:/g, t('Average rendering time:'))
+    .replace(/Slow connection to PC\.\nReduce your bitrate!/g, t('Slow connection to PC.\nReduce your bitrate!'));
 }
 
 function translateBackendMessage(text) {
   const normalized = normalizeBackendMessageText(text);
 
-  return replaceKnownStatsLabels(
-    replaceKnownStageLabels(
-      t(normalized)
-    )
-  );
+  let translated = t(normalized);
+  translated = replaceKnownStageLabels(translated);
+  translated = replaceKnownStatsLabels(translated);
+
+  return translated;
 }
 
 /**
@@ -193,7 +193,7 @@ function handleMessage(msg) {
     snackbarLogLong(translateBackendMessage(msg.replace('TransientMsg: ', '')));
   } else if (msg.indexOf('DialogMsg: ') === 0) {
     // Show dialog message using the warning dialog
-    warningDialog(t('Warning'), translateBackendMessage(msg.replace('DialogMsg: ', '')));
+    warningDialog(t('Connection Error'), translateBackendMessage(msg.replace('DialogMsg: ', '')));
   } else if (msg === 'displayVideo') {
     // Show the video stream now
     $('#listener').addClass('fullscreen');
