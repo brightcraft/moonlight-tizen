@@ -24,7 +24,7 @@ jobs:
         run: node wasm/static/js/i18n-sync.js
 
       - name: Auto-commit locale changes
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: "chore(i18n): sync locale source-of-truth"
           file_pattern: "wasm/static/locales/*.json"
