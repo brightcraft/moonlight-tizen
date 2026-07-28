@@ -2851,7 +2851,7 @@ function saveHosts() {
 
 function saveResolution() {
   var chosenResolution = $(this).data('value');
-  $('#selectResolution').text($(this).text()).data('value', chosenResolution);
+  $('#selectResolution').text($(this).text()).attr('data-value', chosenResolution).data('value', chosenResolution);
   console.log('%c[index.js, saveResolution]', 'color: green;', 'Saving resolution value: ' + chosenResolution);
   storeData('resolution', chosenResolution, null);
 
@@ -2863,7 +2863,7 @@ function saveResolution() {
 
 function saveFramerate() {
   var chosenFramerate = $(this).data('value');
-  $('#selectFramerate').text($(this).text()).data('value', chosenFramerate);
+  $('#selectFramerate').text($(this).text()).attr('data-value', chosenFramerate).data('value', chosenFramerate);
   console.log('%c[index.js, saveFramerate]', 'color: green;', 'Saving framerate value: ' + chosenFramerate);
   storeData('frameRate', chosenFramerate, null);
 
@@ -3035,7 +3035,7 @@ function saveFramePacing() {
 
 function saveLanguagePreference() {
   var chosenLanguage = $(this).data('value') || 'auto';
-  $('#selectLanguage').text($(this).text()).data('value', chosenLanguage);
+  $('#selectLanguage').text($(this).text()).attr('data-value', chosenLanguage).data('value', chosenLanguage);
   console.log('%c[index.js, saveLanguagePreference]', 'color: green;', 'Saving language preference value: ' + chosenLanguage);
   if (window.i18n && typeof window.i18n.applyLanguagePreference === 'function') {
     window.i18n.applyLanguagePreference(chosenLanguage).catch((error) => {
@@ -3102,7 +3102,7 @@ function saveFlipXYfaceButtons() {
 
 function saveAudioConfiguration() {
   var chosenAudioConfig = $(this).data('value');
-  $('#selectAudio').text($(this).text()).data('value', chosenAudioConfig);
+  $('#selectAudio').text($(this).text()).attr('data-value', chosenAudioConfig).data('value', chosenAudioConfig);
   console.log('%c[index.js, saveAudioConfiguration]', 'color: green;', 'Saving audioConfig value: ' + chosenAudioConfig);
   storeData('audioConfig', chosenAudioConfig, null);
 
@@ -3161,7 +3161,7 @@ function saveVideoCodec() {
 }
 
 function updateVideoCodec(chosenCodecId, chosenCodecValue) {
-  $('#selectCodec').text($(chosenCodecId).text()).data('value', chosenCodecValue);
+  $('#selectCodec').text($(chosenCodecId).text()).attr('data-value', chosenCodecValue).data('value', chosenCodecValue);
   console.log('%c[index.js, updateVideoCodec]', 'color: green;', 'Saving video codec value: ' + chosenCodecValue);
   storeData('videoCodec', chosenCodecValue, null);
 
