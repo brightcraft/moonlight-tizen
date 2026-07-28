@@ -1,0 +1,30 @@
+name: i18n CI
+
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+
+jobs:
+  sync-locales-and-push-to-tms:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Sync locale files
+        run: node wasm/static/js/i18n-sync.js
+
+      - name: Auto-commit locale changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(i18n): sync locale source-of-truth"
+          file_pattern: "wasm/static/locales/*.json"
