@@ -103,18 +103,20 @@ If new strings are introduced, they should first be added to `en-US.json`, which
 This repository includes several third-party dependencies required for application functionality. The following rules apply to each dependency:
 
 - `libgamestream` — modifications are allowed when required for project functionality or new features.
-- `h264bitstream` — **manual modifications are not allowed**; updates should only come from the official [upstream repository](https://github.com/cgutman/h264bitstream).
-- `moonlight-common-c` — updates should generally come from the official [upstream repository](https://github.com/moonlight-stream/moonlight-common-c). However, some project-specific changes may be required to maintain Tizen compatibility. These changes should only be handled by the maintainer.
+- `h264bitstream` — **manual modifications are not allowed**; updates should only come from the official [upstream repository](https://github.com/cgutman/h264bitstream) and be performed by the maintainer.
+- `moonlight-common-c` — updates should generally come from the official [upstream repository](https://github.com/moonlight-stream/moonlight-common-c). However, some project-specific changes may be required to maintain Tizen compatibility. Any upstream updates and project-specific changes should only be performed by the maintainer.
 
-  **The following files currently require manual updates to preserve Tizen-specific functionality:**
+  The following files currently require manual updates to preserve Tizen-specific functionality:
   - `moonlight-common-c/.gitmodules`
   - `moonlight-common-c/src/Platform.h`
   - `moonlight-common-c/src/PlatformSockets.c`
-- `enet` (submodule of `moonlight-common-c`) — updates should generally come from the official [upstream repository](https://github.com/cgutman/enet). The same Tizen-specific exceptions and maintainer-only changes described for `moonlight-common-c` also apply here.
 
-  **The following file currently requires manual updates to preserve Tizen-specific functionality:**
+- `enet` (submodule of `moonlight-common-c`) — updates should generally come from the official [upstream repository](https://github.com/cgutman/enet). The same update policy and Tizen-specific exceptions described for `moonlight-common-c` also apply here.
+
+  The following file currently requires manual updates to preserve Tizen-specific functionality:
   - `moonlight-common-c/enet/unix.c`
-- `opus` — **manual modifications are not allowed**; updates should only come from the official [upstream repository](https://github.com/xiph/opus).
+- `opus` — **manual modifications are not allowed**; updates should only come from the official [upstream repository](https://github.com/xiph/opus) and be performed by the maintainer.
+- `ports` — **manual modifications are not allowed**; there is no dedicated upstream repository. Updates, if ever required, should only be performed by the maintainer.
 
 ### Dependency Guidelines
 
