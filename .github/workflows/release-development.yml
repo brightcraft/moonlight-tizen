@@ -144,8 +144,7 @@ jobs:
             # Moonlight Tizen v${{ env.TIMESTAMP }}
 
             - Ensure your setup meets the necessary [requirements](https://github.com/brightcraft/moonlight-tizen#%EF%B8%8F-prerequisites) for the best possible streaming experience.
-            - Download `Moonlight.wgt` from the release assets.
-            - Follow the instructions from one of the recommended [installation methods](https://github.com/brightcraft/moonlight-tizen/wiki/Installation-Guide) to install the application on your TV.
+            - Choose one of the available [installation methods](https://github.com/brightcraft/moonlight-tizen/wiki/Installation-Guide) and follow the instructions to install the application on your TV.
 
             ## What's Changed:
 

@@ -97,10 +97,7 @@ jobs:
             # Moonlight Tizen v${{ env.VERSION }}
 
             - Ensure your setup meets the necessary [requirements](https://github.com/brightcraft/moonlight-tizen#%EF%B8%8F-prerequisites) for the best possible streaming experience.
-            - Choose the appropriate variant from the release assets:
-              - **Tizen 5.5 or higher:** Download `Moonlight.wgt` (recommended for most users).
-              - **Tizen 9.0 (experimental):** Download `Moonlight-ForceGM.wgt`, which includes the required Game Mode metadata to force Game Mode. See the [documentation](https://github.com/brightcraft/moonlight-tizen/wiki/Known-Issues-&-Limitations#streaming-issues-when-game-mode-is-enabled-tizen-90) for more details about using this variant and its limitations.
-            - Follow the instructions from one of the recommended [installation methods](https://github.com/brightcraft/moonlight-tizen/wiki/Installation-Guide) to install the application on your TV.
+            - Choose one of the available [installation methods](https://github.com/brightcraft/moonlight-tizen/wiki/Installation-Guide) and follow the instructions to install the application on your TV.
 
             ## What's Changed:
 

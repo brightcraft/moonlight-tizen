@@ -135,8 +135,7 @@ jobs:
             # Moonlight Tizen USB v${{ env.VERSION }}
 
             - Ensure your setup meets the necessary [requirements](https://github.com/brightcraft/moonlight-tizen#%EF%B8%8F-prerequisites) for the best possible streaming experience.
-            - Download `MoonlightUSB.zip` from the release assets.
-            - Follow the instructions from the recommended [installation method](https://github.com/brightcraft/moonlight-tizen/wiki/Installation-Guide#installation-using-usb) to install the application on your TV.
+            - Choose one of the available [installation methods](https://github.com/brightcraft/moonlight-tizen/wiki/Installation-Guide) and follow the instructions to install the application on your TV.
 
             > [!NOTE]
             > This package is based on the stable release and includes all the latest changes.
