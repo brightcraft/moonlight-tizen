@@ -1,0 +1,45 @@
+# Auto Comment (https://github.com/wow-actions/auto-comment)
+
+# This workflow automatically comments on open/closed issues and pull requests.
+name: Bot (Auto Comment)
+# Both `issues` and `pull_request_target` event types are required for this Action to work properly.
+on:
+  issues:
+    types: [opened, closed]
+  pull_request_target:
+    types: [opened, closed]
+# By specifying the access of one of the scopes, all of those that are not specified are set to 'none'.
+permissions:
+  issues: write
+  pull-requests: write
+# There is a single job in this workflow. It's configured to run on the latest available version of Ubuntu.
+jobs:
+  auto-comment:
+    runs-on: ubuntu-latest
+    if: ${{ github.repository == 'brightcraft/moonlight-tizen' }}
+    # Add comments on open or closed issues and pull requests and notify the author that they will receive feedback soon.
+    steps:
+      - name: Auto-comment on issue or pull request
+        uses: wow-actions/auto-comment@v1.1.2
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Add a comment when a new issue is opened.
+          issuesOpened: >
+            Hi @{{ author }},
+
+            Thank you for raising an issue. We will investigate the matter and get back to you as soon as possible.
+
+            Please make sure you have given us as much context as possible.
+          # Add a comment when an issue is closed.
+          issuesClosed: >
+            This issue is now closed. Thank you for bringing it to our attention!
+          # Add a comment when a new pull request is opened.
+          pullRequestOpened: >
+            Hi @{{ author }},
+
+            Thank you for creating a pull request. We will review the proposed changes and provide you with feedback as soon as possible.
+
+            Please make sure you have followed our contributing guidelines.
+          # Add a comment when a pull request is merged.
+          pullRequestMerged: >
+            This pull request has been merged. Thank you for your contribution!

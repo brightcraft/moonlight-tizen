@@ -9,29 +9,11 @@ Moonlight Tizen is a port of [Moonlight ChromeOS](https://github.com/moonlight-s
 
 This application allows you to stream your collection of games, programs, or your full desktop from your powerful PC to your Samsung Smart TV.
 
----
-
-## ✨ Features
-
-- Compatible with all supported Tizen versions (5.5 or higher).
-- Supports streaming using NVIDIA GameStream or Sunshine (including popular forks).
-- Modern UI & UX with a clean interface and smooth navigation.
-- Up to 4K 120 FPS HDR streaming with Stereo sound.
-- H.264, HEVC, and AV1 codec support (requires a supported host GPU).
-- Dedicated settings page organized by categories and options.
-- Sort apps list (ascending/descending) or remove all hosts with one click.
-- Wake-on-LAN (WoL) support to wake up your PC remotely.
-- Automatically adjust host resolution to match the client via *Optimize Game Settings*.
-- Automatically toggles HDR state on the host PC to match the client’s HDR setting.
-- Keyboard and mouse support for browsing and productivity use.
-- Local co-op with up to 4 connected controllers.
-- Gamepad axis support for in-app navigation.
-- Force feedback and mouse control via gamepad by long-pressing *Start*.
-- Swap face buttons to match your specific gamepad layout.
-- Play audio from the host computer and your client device.
-- Game mode switching, full color range, and custom port support.
-- Connection warnings and performance statistics overlays.
-- ...and many more features and improvements!
+> [!NOTE]
+>
+> Currently, as an active maintainer with **limited time to work** on this project, my personal focus is primarily on addressing critical issues and integrating community contributions, with necessary improvements or new features **occurring only as my schedule permits**.
+>
+> Since the core functionality is now almost fully implemented, the project is gradually moving into its **final maintenance phase**. Moving forward, you can expect developments on my part to be slower and responses to support requests to be delayed.
 
 ---
 
@@ -60,6 +42,7 @@ Preparing Moonlight for installation is a straightforward process, although the 
 For in-depth guides, technical support, and comprehensive documentation, please refer to the [Wiki](https://github.com/brightcraft/moonlight-tizen/wiki) or jump directly to a relevant section below:
 - 🚀 Install the app step-by-step: [Installation Guide](https://github.com/brightcraft/moonlight-tizen/wiki/Installation-Guide)
 - 🔄 Update your application version: [Updating Guide](https://github.com/brightcraft/moonlight-tizen/wiki/Updating-Guide)
+- ✨ Explore available app features: [Feature Overview](https://github.com/brightcraft/moonlight-tizen/wiki/Feature-Overview)
 - ❓ Common questions and tips: [Frequently Asked Questions](https://github.com/brightcraft/moonlight-tizen/wiki/Frequently-Asked-Questions)
 - ⚠️ Review limitations and notes: [Known Issues & Limitations](https://github.com/brightcraft/moonlight-tizen/wiki/Known-Issues-&-Limitations)
 - 🔮 Instructions for building the app: [Development Guide](https://github.com/brightcraft/moonlight-tizen/wiki/Development-Guide)
@@ -75,9 +58,6 @@ Although it remained only a proof-of-concept at that stage, the work was later t
 In **September 2023**, I started development on a fork repository, where I made significant changes, including a **brand-new app logo** and **extensive improvements** focused on delivering a modern, reliable, and user-friendly experience. When the [upstream repository](https://github.com/KyroFrCode/moonlight-chrome-tizen) became inactive and was eventually abandoned, I migrated all my work to this new dedicated repository as a fresh and **standalone continuation**, offering a cleaner structure, easier maintenance, and greater flexibility for future development.
 
 Since then, [this repository](https://github.com/brightcraft/moonlight-tizen) has been actively maintained with frequent updates. Over time, I have refactored the codebase, updated core libraries, fixed bugs, polished the UI/UX, and introduced many new features and improvements. Thanks to more than two years of dedicated work, this has become the **most enhanced and feature-rich Moonlight client** available for Samsung Tizen TVs.
-
-> [!NOTE]
-> Currently, as the primary maintainer with **limited time to work** on this project, my personal focus is strictly on addressing critical issues and integrating community contributions, with necessary improvements or new features **occurring only as my schedule permits**. Since the core functionality is now almost fully implemented and well established, the project is gradually moving into its **final maintenance phase**. Going forward, you can expect development from my end to be significantly slower and responses to support requests to be delayed. That said, this repository (including releases) will **always remain open and available** for the community to use, download, and build upon.
 
 ---
 
@@ -122,9 +102,11 @@ This project is made possible thanks to the people who dedicate their time, know
   <img src="https://contrib.rocks/image?repo=brightcraft/moonlight-tizen"/>
 </a>
 
-Special thanks to:
-- [Moonlight Game Streaming Project](https://github.com/moonlight-stream) — for adapting the core implementation of the NVIDIA GameStream protocol and the development of Moonlight for Chrome OS client.
-- [Samsung Developers Forum](https://github.com/SamsungDForum/moonlight-chrome) — for creating a port based on Chrome OS (NaCl) and adapting the Moonlight implementation for Tizen OS (WASM), including converting video and audio channels using Tizen WASM Player and more.
-- [KyroFrCode](https://github.com/KyroFrCode/moonlight-chrome-tizen) — for creating a method for building the application, adding 1440p resolution, including a shortcut combo to stop the streaming session, and allowing audio volume changes using the remote.
-- [OneLiberty](https://github.com/OneLiberty/moonlight-chrome-tizen) — for expanding the core functionality by implementing video codec selection, mouse emulation using the gamepad, Wake-on-LAN (WoL), providing a new IP address input mode, and several improvements.
-- [ToyPoodleGaming](https://github.com/toypoodlegaming/moonlight-chrome-tizen) — for expanding the core functionality by implementing 5.1 and 7.1 surround sound within the audio configuration selection, performance statistics, and providing an enhanced bitrate calculation.
+### Special thanks to:
+
+- [Moonlight Game Streaming Project](https://github.com/moonlight-stream) — for creating the core Moonlight implementation, adapting the NVIDIA GameStream protocol, and developing the Moonlight Chrome OS client. The project's open-source work made it possible to bring Moonlight streaming support to additional platforms and serves as the foundation for the entire Tizen port.
+- [Samsung Developers Forum](https://github.com/SamsungDForum/moonlight-chrome) — for creating the first Tizen OS (WASM) adaptation based on the Moonlight Chrome OS client. Their work made Moonlight available on Samsung Smart TVs by integrating the client with Tizen's WASM environment, including video and audio playback through Tizen WASM Player, platform-specific adjustments, and the initial groundwork required for running Moonlight on Tizen devices.
+- [KyroFrCode](https://github.com/KyroFrCode/moonlight-chrome-tizen) — for further developing the Tizen implementation by introducing improvements such as a dedicated application build method, 1440p resolution support, a shortcut combo to stop the streaming session, and audio volume control using the remote. This project was later continued from this codebase before becoming a standalone repository.
+- [OneLiberty](https://github.com/OneLiberty/moonlight-chrome-tizen) — for expanding the Tizen implementation in their fork with features such as video codec selection, mouse emulation using the gamepad, Wake-on-LAN (WoL), a new IP address input mode, and other improvements. These changes provided useful references and inspiration for additional adaptations in this project.
+- [ToyPoodleGaming](https://github.com/toypoodlegaming/moonlight-chrome-tizen) — for further expanding the functionality in their fork with features such as 5.1 and 7.1 surround sound configuration, performance statistics, and enhanced bitrate calculation. These changes provided useful references and inspiration for additional adaptations in this project.
+- [EduardoMozart](https://github.com/eduardomozart) — for contributing directly to this repository by adding localization support with Tizen-first locale detection, HTTP subnet scanning, IPv6 and DNS hostname support, custom port support, and build optimizations, while also delivering numerous fixes and improvements that enhanced the overall stability and usability of the application.

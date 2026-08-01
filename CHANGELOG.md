@@ -2,6 +2,50 @@
 
 All notable changes to this project will be documented in this file.
 
+## v1.14.0
+
+### Added
+- Added a new 'UI Settings' category for interface customization options
+- Introduced a new 'Language' setting to manually change the application language
+- Added support for automatic language detection based on the TV system language
+- Added translations for the application interface and backend-generated messages
+- Added the ability to change the application language without restarting the app
+- Added Portuguese Brazilian (pt-BR) language support to the language selector
+- Preserved English (en-US) as the base and fallback language for untranslated strings
+
+### Changed
+- Moved the 'Language' setting into the new 'UI Settings' category
+- Configured workflow for automated comments on issues and pull requests when opened or closed
+
+## v1.13.1
+
+### Fixed
+- Fixed an issue where hosts could fail to recover correctly after coming back online
+- Fixed an issue where offline hosts could incorrectly appear as online after becoming unreachable
+- Fixed an issue where cached app lists could remain accessible after the host was disconnected
+- Fixed an issue where streaming sessions could fail to reconnect after disconnecting in some cases
+- Fixed an issue where automatic host discovery could occasionally fail to find new hosts
+- Fixed an issue where gamepad shortcuts did not work when multiple gamepads were connected
+- Fixed an issue where certain gamepads could unexpectedly stop responding during streaming
+- Fixed an issue where gamepad action buttons would trigger rapidly when held down during UI navigation
+
+## v1.13.0
+
+### Added
+- Added automatic local network host discovery using a HTTP subnet scanner
+- Added support for IPv6 addresses and DNS hostname when connecting to hosts
+- Added Wake-on-LAN (WoL) support for hosts connected via IPv6 networks
+- Added centered status icons to indicate whether hosts are offline or unpaired
+
+### Changed
+- Optimized dependency downloads to significantly reduce Docker image build times
+
+### Fixed
+- Fixed an issue where automatic host discovery could occasionally restore outdated IP addresses
+- Fixed a race condition where the first app was selected before the app list had fully loaded
+- Fixed pairing deadlocks causing pairing requests to remain stuck after canceling
+- Fixed network hangs that could leave the app stuck on the 'Loading Apps' screen
+
 ## v1.12.1
 
 ### Changed
