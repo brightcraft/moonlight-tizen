@@ -1,4 +1,4 @@
-FROM ubuntu:22.04 AS base
+FROM ubuntu:22.04 AS sdk
 
 ARG DEBIAN_FRONTEND=noninteractive
 ENV TZ=Etc/UTC
@@ -28,6 +28,8 @@ RUN aria2c -x 5 -s 5 -o web-cli_Tizen_Studio_6.1_ubuntu-64.bin 'https://download
 RUN chmod a+x web-cli_Tizen_Studio_6.1_ubuntu-64.bin
 RUN ./web-cli_Tizen_Studio_6.1_ubuntu-64.bin --accept-license /home/moonlight/tizen-studio
 ENV PATH=/home/moonlight/tizen-studio/tools/ide/bin:/home/moonlight/tizen-studio/tools:${PATH}
+
+FROM sdk AS base
 
 # Prepare the Tizen certificate and security profiles for signing the application package
 RUN tizen certificate \
