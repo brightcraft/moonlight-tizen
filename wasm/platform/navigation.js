@@ -1024,7 +1024,8 @@ const Views = {
   },
   InterfaceSettings: {
     view: new ListView(() => [
-      'selectLanguage'
+      'selectLanguage',
+      'ipAddressFieldModeBtn'
     ]),
     up: function() {
       this.view.prevOption();
@@ -1094,7 +1095,6 @@ const Views = {
   },
   HostSettings: {
     view: new ListView(() => [
-      'ipAddressFieldModeBtn',
       'sortAppsListBtn',
       'optimizeGamesBtn',
       'removeAllHostsBtn'
