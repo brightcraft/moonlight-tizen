@@ -172,6 +172,7 @@
   "Unlock all frame rates": "Unlock all frame rates",
   "- Higher FPS can reduce latency on high-end devices, but may cause lag or instability on unsupported devices.": "- Higher FPS can reduce latency on high-end devices, but may cause lag or instability on unsupported devices.",
   "Unlock all possible frame rate options for this device": "Unlock all possible frame rate options for this device",
+  "Warning: Higher frame rates may not be fully supported by your TV and do not guarantee a smoother experience. Performance issues may occur due to platform limitations!": "Warning: Higher frame rates may not be fully supported by your TV and do not guarantee a smoother experience. Performance issues may occur due to platform limitations!",
   "Optimize bitrate presets": "Optimize bitrate presets",
   "- Calculates bitrate based on selected resolution, frame rate, codec, and HDR settings to determine the optimal value.": "- Calculates bitrate based on selected resolution, frame rate, codec, and HDR settings to determine the optimal value.",
   "Optimize bitrate to balance stream quality, performance, and bandwidth usage": "Optimize bitrate to balance stream quality, performance, and bandwidth usage",

@@ -3270,6 +3270,12 @@ function saveUnlockAllFps() {
     const chosenUnlockAllFps = $('#unlockAllFpsSwitch').parent().hasClass('is-checked');
     console.log('%c[index.js, saveUnlockAllFps]', 'color: green;', 'Saving unlock all FPS state: ' + chosenUnlockAllFps);
     storeData('unlockAllFps', chosenUnlockAllFps, null);
+
+    // Warning when enabling higher FPS options
+    if (chosenUnlockAllFps) {
+      // Show a warning message when enabling higher FPS options
+      snackbarLogLong(t('Warning: Higher frame rates may not be fully supported by your TV and do not guarantee a smoother experience. Performance issues may occur due to platform limitations!'));
+    }
   }, 100);
 }
 

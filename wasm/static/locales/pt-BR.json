@@ -172,6 +172,7 @@
   "Unlock all frame rates": "Desbloquear todas as taxas de quadros",
   "- Higher FPS can reduce latency on high-end devices, but may cause lag or instability on unsupported devices.": "- FPS mais alto pode reduzir a latência em dispositivos avançados, mas pode causar travamentos ou instabilidade em dispositivos não compatíveis.",
   "Unlock all possible frame rate options for this device": "Desbloquear todas as opções possíveis de taxa de quadros para este dispositivo",
+  "Warning: Higher frame rates may not be fully supported by your TV and do not guarantee a smoother experience. Performance issues may occur due to platform limitations!": "Aviso: Taxas de quadros mais altas podem não ser totalmente suportadas pela sua TV e não garantem uma experiência mais fluida. Problemas de desempenho podem ocorrer devido a limitações da plataforma!",
   "Optimize bitrate presets": "Otimizar predefinições de taxa de bits",
   "- Calculates bitrate based on selected resolution, frame rate, codec, and HDR settings to determine the optimal value.": "- Calcula a taxa de bits com base na resolução selecionada, taxa de quadros, codec e configurações de HDR para determinar o valor ideal.",
   "Optimize bitrate to balance stream quality, performance, and bandwidth usage": "Otimizar taxa de bits para equilibrar qualidade do stream, desempenho e uso de largura de banda",
