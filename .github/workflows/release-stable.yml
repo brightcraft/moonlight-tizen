@@ -40,7 +40,7 @@ jobs:
       # It uses the `build-args` parameter to define the build argument `FORCE_GAME_MODE` as false into the Docker build process, which builds the Standard variant without metadata injection at packaging time.
       # It uses the `tags` and `labels` parameters to tag and label the image with the output from the "meta" step.
       - name: Build and push Docker image (Standard variant)
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: true
@@ -52,7 +52,7 @@ jobs:
       # It uses the `build-args` parameter to define the build argument `FORCE_GAME_MODE` as true into the Docker build process, which builds the ForceGM variant in the same tree with one metadata line injected at packaging time.
       # It uses the `tags` parameter to tag the image with the output from the "REGISTRY" and "IMAGE_NAME" variables, and `labels` parameter to label the image with the output from the "meta" step.
       - name: Build and push Docker image (ForceGM variant)
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: true
