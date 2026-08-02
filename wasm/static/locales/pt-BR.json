@@ -136,7 +136,7 @@
   "Stereo": "Stereo",
   "5.1 Surround Sound": "Som Surround 5.1",
   "7.1 Surround Sound": "Som Surround 7.1",
-  "Warning: 5.1 or 7.1 Surround sound may not be supported by your host PC and may increase audio latency!": "Aviso: Som Surround 5.1 ou 7.1 pode não ser suportado pelo seu PC host e pode aumentar a latência de áudio!",
+  "Warning: Surround Sound (5.1/7.1) may not be supported by your TV and is not guaranteed to work due to platform limitations!": "Atenção: O som surround (5.1/7.1) pode não ser compatível com a sua TV e não há garantia de que funcionará devido a limitações da plataforma!",
   "Audio synchronization": "Sincronização de áudio",
   "- This can help reduce delays by keeping audio in sync for a consistent sound while streaming.": "- Isso pode ajudar a reduzir atrasos mantendo o áudio sincronizado para um som consistente durante a transmissão.",
   "Allow audio synchronization support for optimal sound output": "Permitir suporte à sincronização de áudio para saída de som ideal",
