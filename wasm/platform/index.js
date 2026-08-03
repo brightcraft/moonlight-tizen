@@ -1343,7 +1343,7 @@ function deleteAllHostsDialog() {
         }
       }
       // If all hosts removed, show snackbar message
-snackbarLog(t('All hosts have been deleted successfully.'));
+      snackbarLog(t('All hosts have been deleted successfully.'));
       // Clear the preview app cache and update Smart Hub Preview
       _previewApps = {};
       savePreviewApps();
@@ -2237,7 +2237,7 @@ function showApps(host) {
         // Show the game grid section
         $('#game-grid').show();
 
-if (appList.length == 0) {
+        if (appList.length == 0) {
           console.warn('%c[index.js, showApps]', 'Warning: Your app list is empty. Please add some apps to your list!');
           var emptyAppListImg = new Image();
           emptyAppListImg.src = 'static/res/applist_empty.svg';
@@ -2353,42 +2353,41 @@ if (appList.length == 0) {
               boxArtPlaceholderImg.src = resolvedPromise;
               // The resolvedPromise is now the absolute file URI (or data URL if it failed to save).
               if (_previewApps[host.serverUid] && appEntry) {
-                  // Resolve real TV IP because Smart Hub might block 127.0.0.1
-                  var tvIp = '127.0.0.1';
-                  try {
-                    if (typeof webapis !== 'undefined' && webapis.network) {
-                      tvIp = webapis.network.getIp();
-                    }
-                  } catch(e) {
-                    console.log("Failed to get TV IP", e);
+                // Resolve real TV IP because Smart Hub might block 127.0.0.1
+                var tvIp = '127.0.0.1';
+                try {
+                  if (typeof webapis !== 'undefined' && webapis.network) {
+                    tvIp = webapis.network.getIp();
                   }
+                } catch(e) {
+                  console.log("Failed to get TV IP", e);
+                }
 
-                  // Generate random secure UUID for the route to prevent unauthorized LAN access
-                  var filename = 'boxart_' + appEntry.secureToken + '.png';
-                  var cacheBuster = '?v=' + Date.now();
+                // Generate random secure UUID for the route to prevent unauthorized LAN access
+                var filename = 'boxart_' + appEntry.secureToken + '.png';
+                var cacheBuster = '?v=' + Date.now();
 
-                  // Determine local path from resolvedPromise if it's a file URI
-                  if (resolvedPromise.startsWith('file://')) {
-                    var localPngPath = resolvedPromise.replace('file://', '');
-                    appEntry.txtPath = localPngPath;
+                // Determine local path from resolvedPromise if it's a file URI
+                if (resolvedPromise.startsWith('file://')) {
+                  var localPngPath = resolvedPromise.replace('file://', '');
+                  appEntry.txtPath = localPngPath;
+                  appEntry.imageUri = 'http://' + tvIp + ':8888/' + filename + cacheBuster;
+                  resolveBoxArt();
+                } else {
+                  tizen.filesystem.resolve('documents', function(dir) {
+                    var documentsPath = dir.toURI().replace('file://', '');
+                    appEntry.txtPath = documentsPath + '/' + filename;
                     appEntry.imageUri = 'http://' + tvIp + ':8888/' + filename + cacheBuster;
                     resolveBoxArt();
-                  } else {
-                    tizen.filesystem.resolve('documents', function(dir) {
-                      var documentsPath = dir.toURI().replace('file://', '');
-                      appEntry.txtPath = documentsPath + '/' + filename;
-                      appEntry.imageUri = 'http://' + tvIp + ':8888/' + filename + cacheBuster;
-                      resolveBoxArt();
-                    }, function(err) {
-                      appEntry.txtPath = '/opt/usr/home/owner/content/Documents/' + filename;
-                      appEntry.imageUri = 'http://' + tvIp + ':8888/' + filename + cacheBuster;
-                      resolveBoxArt();
-                    }, 'r');
-                  }
-
-                  // Early return to prevent the fallback synchronous resolveBoxArt from firing
-                  return;
+                  }, function(err) {
+                    appEntry.txtPath = '/opt/usr/home/owner/content/Documents/' + filename;
+                    appEntry.imageUri = 'http://' + tvIp + ':8888/' + filename + cacheBuster;
+                    resolveBoxArt();
+                  }, 'r');
                 }
+
+                // Early return to prevent the fallback synchronous resolveBoxArt from firing
+                return;
               }
               resolveBoxArt();
             }, function(failedPromise) {
