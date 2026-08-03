@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## v1.14.1
+
+### Added
+- Added a warning message when unlocking higher frame rate options
+- Added the ForceGM variant release packaging for release workflows
+- Reintroduced translation synchronization tooling for maintaining locale files
+
+### Changed
+- Moved the 'Host address field mode' setting to the 'UI Settings' category
+- Improved the warning message when selecting 5.1 or 7.1 surround sound options
+- Optimized Docker build caching to reduce build times by reusing the Tizen SDK layer
+
 ## v1.14.0
 
 ### Added
