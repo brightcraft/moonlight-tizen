@@ -23,7 +23,7 @@ jobs:
     # This job checks out the code, logs into GitHub Container Registry, builds the Docker image with metadata, pushes it to the registry, and triggers the next workflow via repository dispatch.
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       # Uses the `docker/login-action` action to log in to the Container registry using the account and password that will publish the packages. Once published, the packages are scoped to the account defined here.
       - name: Log in to the Container registry
         uses: docker/login-action@v4
@@ -45,13 +45,27 @@ jobs:
           sed -i "s/__BUILD_COMMIT__/$SHORT_SHA/g" wasm/platform/index.js
       # This step uses the `docker/build-push-action` action to build the image, based on your repository's `Dockerfile`. If the build succeeds, it pushes the image to GitHub Packages.
       # It uses the `context` parameter to define the build's context as the set of files located in the specified path. For more information, see "[Usage](https://github.com/docker/build-push-action#usage)" in the README of the `docker/build-push-action` repository.
+      # It uses the `build-args` parameter to define the build argument `FORCE_GAME_MODE` as false into the Docker build process, which builds the Standard variant without metadata injection at packaging time.
       # It uses the `tags` and `labels` parameters to tag and label the image with the output from the "meta" step.
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v3
+      - name: Build and push Docker image (Standard variant)
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: true
+          build-args: FORCE_GAME_MODE=false
           tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+      # This step uses the `docker/build-push-action` action to build the image, based on your repository's `Dockerfile`. If the build succeeds, it pushes the image to GitHub Packages.
+      # It uses the `context` parameter to define the build's context as the set of files located in the specified path. For more information, see "[Usage](https://github.com/docker/build-push-action#usage)" in the README of the `docker/build-push-action` repository.
+      # It uses the `build-args` parameter to define the build argument `FORCE_GAME_MODE` as true into the Docker build process, which builds the ForceGM variant in the same tree with one metadata line injected at packaging time.
+      # It uses the `tags` parameter to tag the image with the output from the "REGISTRY" and "IMAGE_NAME" variables, and `labels` parameter to label the image with the output from the "meta" step.
+      - name: Build and push Docker image (ForceGM variant)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          build-args: FORCE_GAME_MODE=true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:forcegm
           labels: ${{ steps.meta.outputs.labels }}
   run-and-upload-release:
     runs-on: ubuntu-latest
@@ -65,7 +79,7 @@ jobs:
     # This job depends on the completion of the build-and-push-image job. It checks out the repository, generates a timestamp, deletes any existing GitHub pre-releases from the same branch to avoid duplicates, extracts build artifacts from the Docker image, and creates a new GitHub pre-release with the extracted files.
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       # Uses the `docker/login-action` action to log in to the Container registry using the account and password that will run the container.
       - name: Log in to the Container registry
         uses: docker/login-action@v4
@@ -83,9 +97,11 @@ jobs:
         run: |
           BRANCH=${GITHUB_REF_NAME//\//-}
           echo "BRANCH=$BRANCH" >> $GITHUB_ENV
-      # Sets the full Docker image tag using the output from the 'build-and-push-image' job.
-      - name: Set up image tag
-        run: echo "IMAGE_TAG=${{ needs.build-and-push-image.outputs.image_tag }}" >> $GITHUB_ENV
+      # Sets the full Docker image tags using the output from the 'build-and-push-image' job.
+      - name: Set up image tags
+        run: |
+          echo "IMAGE_TAG=${{ needs.build-and-push-image.outputs.image_tag }}" >> $GITHUB_ENV
+          echo "IMAGE_TAG_FORCEGM=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:forcegm" >> $GITHUB_ENV
       # Deletes any existing GitHub pre-releases from the same branch to avoid duplicates.
       - name: Check and delete any existing GitHub pre-releases from the same branch
         env:
@@ -119,18 +135,21 @@ jobs:
             done
             echo "Cleanup completed."
           fi
-      # Runs the Docker container in detached mode to extract the build artifact.
-      - name: Run Docker container
+      # Runs the Docker containers in detached mode to extract the build artifacts.
+      - name: Run Docker containers
         run: |
           docker run -d --name temp_container $IMAGE_TAG
-      # Copies the built Moonlight.wgt file from the Docker container.
-      - name: Copy artifacts from Docker container
+          docker run -d --name temp_container_forcegm $IMAGE_TAG_FORCEGM
+      # Copies the built widget files from the Docker containers.
+      - name: Copy artifacts from Docker containers
         run: |
           docker cp temp_container:/home/moonlight/Moonlight.wgt .
-      # Stops and removes the temporary Docker container to clean up resources.
-      - name: Stop and remove Docker container
+          docker cp temp_container_forcegm:/home/moonlight/Moonlight-ForceGM.wgt .
+      # Stops and removes the temporary Docker containers to clean up resources.
+      - name: Stop and remove Docker containers
         run: |
-          docker stop temp_container && docker rm temp_container
+          docker stop temp_container temp_container_forcegm
+          docker rm temp_container temp_container_forcegm
       # Creates a new GitHub pre-release using the extracted version and includes a detailed description.
       - name: Create GitHub pre-release
         id: create_prerelease
@@ -144,8 +163,7 @@ jobs:
             # Moonlight Tizen v${{ env.TIMESTAMP }}
 
             - Ensure your setup meets the necessary [requirements](https://github.com/brightcraft/moonlight-tizen#%EF%B8%8F-prerequisites) for the best possible streaming experience.
-            - Download `Moonlight.wgt` from the release assets.
-            - Follow the instructions from one of the recommended [installation methods](https://github.com/brightcraft/moonlight-tizen/wiki/Installation-Guide) to install the application on your TV.
+            - Choose one of the available [installation methods](https://github.com/brightcraft/moonlight-tizen/wiki/Installation-Guide) and follow the instructions to install the application on your TV.
 
             ## What's Changed:
 
@@ -160,7 +178,7 @@ jobs:
           draft: false
           prerelease: true
       # Uploads the Moonlight.wgt file as a release asset in the newly created GitHub pre-release.
-      - name: Upload the widget file to GitHub pre-release
+      - name: Upload the Standard widget file to GitHub pre-release
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -168,4 +186,14 @@ jobs:
           upload_url: ${{ steps.create_prerelease.outputs.upload_url }}
           asset_path: ./Moonlight.wgt
           asset_name: Moonlight.wgt
+          asset_content_type: application/octet-stream
+      # Uploads the Moonlight-ForceGM.wgt file as a release asset in the newly created GitHub pre-release.
+      - name: Upload the ForceGM widget file to GitHub pre-release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_prerelease.outputs.upload_url }}
+          asset_path: ./Moonlight-ForceGM.wgt
+          asset_name: Moonlight-ForceGM.wgt
           asset_content_type: application/octet-stream

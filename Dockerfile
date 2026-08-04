@@ -95,6 +95,16 @@ COPY --chown=moonlight wasm/static/ ./moonlight-tizen/wasm/static/
 RUN cmake --install build --prefix build
 RUN cp moonlight-tizen/res/icon.png build/widget/
 
+# Inject Game Mode metadata into the Tizen config.xml file, which is required for building the ForceGM variant later
+ARG FORCE_GAME_MODE=false
+RUN if [ "$FORCE_GAME_MODE" = "true" ]; then \
+		sed -i 's|<tizen:metadata key="http://samsung.com/tv/metadata/use.voiceguide"|<tizen:metadata key="http://samsung.com/tv/metadata/use.game.mode" value="true"/>\n    <tizen:metadata key="http://samsung.com/tv/metadata/use.voiceguide"|' build/widget/config.xml && \
+		grep -q 'use.game.mode' build/widget/config.xml && \
+		echo "Game Mode metadata injected into config.xml (ForceGM variant)"; \
+	else \
+		echo "No Game Mode metadata injected into config.xml (Standard variant)"; \
+	fi
+
 # Sign and package the application into a WGT file using Expect to automate the interactive password prompts
 RUN echo \
 	'set timeout -1\n' \
@@ -105,7 +115,10 @@ RUN echo \
 	'send -- "N\\r"\n' \
 	'expect eof\n' \
 | expect
-RUN mv build/widget/Moonlight.wgt .
+
+# Rename the output WGT file by appending a suffix for the ForceGM variant, or leave without a suffix for the Standard variant
+RUN if [ "$FORCE_GAME_MODE" = "true" ]; then SUFFIX="-ForceGM"; else SUFFIX=""; fi; \
+	mv build/widget/Moonlight.wgt "Moonlight${SUFFIX}.wgt" && ls -la *.wgt
 
 # Clean up unnecessary files to reduce image size
 RUN rm -rf \

@@ -21,7 +21,7 @@ jobs:
     # This job checks out the code, logs into GitHub Container Registry, builds the Docker image with metadata, pushes it to the registry, and triggers the next workflow via repository dispatch.
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       # Uses the `docker/login-action` action to log in to the Container registry using the account and password that will publish the packages. Once published, the packages are scoped to the account defined here.
       - name: Log in to the Container registry
         uses: docker/login-action@v4
@@ -37,13 +37,27 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
       # This step uses the `docker/build-push-action` action to build the image, based on your repository's `Dockerfile`. If the build succeeds, it pushes the image to GitHub Packages.
       # It uses the `context` parameter to define the build's context as the set of files located in the specified path. For more information, see "[Usage](https://github.com/docker/build-push-action#usage)" in the README of the `docker/build-push-action` repository.
+      # It uses the `build-args` parameter to define the build argument `FORCE_GAME_MODE` as false into the Docker build process, which builds the Standard variant without metadata injection at packaging time.
       # It uses the `tags` and `labels` parameters to tag and label the image with the output from the "meta" step.
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v3
+      - name: Build and push Docker image (Standard variant)
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: true
+          build-args: FORCE_GAME_MODE=false
           tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+      # This step uses the `docker/build-push-action` action to build the image, based on your repository's `Dockerfile`. If the build succeeds, it pushes the image to GitHub Packages.
+      # It uses the `context` parameter to define the build's context as the set of files located in the specified path. For more information, see "[Usage](https://github.com/docker/build-push-action#usage)" in the README of the `docker/build-push-action` repository.
+      # It uses the `build-args` parameter to define the build argument `FORCE_GAME_MODE` as true into the Docker build process, which builds the ForceGM variant in the same tree with one metadata line injected at packaging time.
+      # It uses the `tags` parameter to tag the image with the output from the "REGISTRY" and "IMAGE_NAME" variables, and `labels` parameter to label the image with the output from the "meta" step.
+      - name: Build and push Docker image (ForceGM variant)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          build-args: FORCE_GAME_MODE=true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:forcegm
           labels: ${{ steps.meta.outputs.labels }}
   run-and-upload-release:
     runs-on: ubuntu-latest
@@ -56,7 +70,7 @@ jobs:
     # This job depends on the completion of the build-and-push-image job. It checks out the repository, extracts version info, extracts build artifacts from the Docker image, and creates a new GitHub release with the extracted files.
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       # Uses the `docker/login-action` action to log in to the Container registry using the account and password that will run the container.
       - name: Log in to the Container registry
         uses: docker/login-action@v4
@@ -69,21 +83,26 @@ jobs:
         run: |
           VERSION=$(grep -oP 'version="\K[0-9]+\.[0-9]+\.[0-9]+' res/config.xml)
           echo "VERSION=$VERSION" >> $GITHUB_ENV
-      # Sets the full Docker image tag using the output from the 'build-and-push-image' job.
-      - name: Set up image tag
-        run: echo "IMAGE_TAG=${{ needs.build-and-push-image.outputs.image_tag }}" >> $GITHUB_ENV
-      # Runs the Docker container in detached mode to extract the build artifact.
-      - name: Run Docker container
+      # Sets the full Docker image tags using the output from the 'build-and-push-image' job.
+      - name: Set up image tags
+        run: |
+          echo "IMAGE_TAG=${{ needs.build-and-push-image.outputs.image_tag }}" >> $GITHUB_ENV
+          echo "IMAGE_TAG_FORCEGM=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:forcegm" >> $GITHUB_ENV
+      # Runs the Docker containers in detached mode to extract the build artifacts.
+      - name: Run Docker containers
         run: |
           docker run -d --name temp_container $IMAGE_TAG
-      # Copies the built Moonlight.wgt file from the Docker container.
-      - name: Copy artifacts from Docker container
+          docker run -d --name temp_container_forcegm $IMAGE_TAG_FORCEGM
+      # Copies the built widget files from the Docker containers.
+      - name: Copy artifacts from Docker containers
         run: |
           docker cp temp_container:/home/moonlight/Moonlight.wgt .
-      # Stops and removes the temporary Docker container to clean up resources.
-      - name: Stop and remove Docker container
+          docker cp temp_container_forcegm:/home/moonlight/Moonlight-ForceGM.wgt .
+      # Stops and removes the temporary Docker containers to clean up resources.
+      - name: Stop and remove Docker containers
         run: |
-          docker stop temp_container && docker rm temp_container
+          docker stop temp_container temp_container_forcegm
+          docker rm temp_container temp_container_forcegm
       # Creates a new GitHub release using the extracted version and includes a detailed description.
       - name: Create GitHub release
         id: create_release
@@ -97,10 +116,7 @@ jobs:
             # Moonlight Tizen v${{ env.VERSION }}
 
             - Ensure your setup meets the necessary [requirements](https://github.com/brightcraft/moonlight-tizen#%EF%B8%8F-prerequisites) for the best possible streaming experience.
-            - Choose the appropriate variant from the release assets:
-              - **Tizen 5.5 or higher:** Download `Moonlight.wgt` (recommended for most users).
-              - **Tizen 9.0 (experimental):** Download `Moonlight-ForceGM.wgt`, which includes the required Game Mode metadata to force Game Mode. See the [documentation](https://github.com/brightcraft/moonlight-tizen/wiki/Known-Issues-&-Limitations#streaming-issues-when-game-mode-is-enabled-tizen-90) for more details about using this variant and its limitations.
-            - Follow the instructions from one of the recommended [installation methods](https://github.com/brightcraft/moonlight-tizen/wiki/Installation-Guide) to install the application on your TV.
+            - Choose one of the available [installation methods](https://github.com/brightcraft/moonlight-tizen/wiki/Installation-Guide) and follow the instructions to install the application on your TV.
 
             ## What's Changed:
 
@@ -116,7 +132,7 @@ jobs:
           draft: false
           prerelease: false
       # Uploads the Moonlight.wgt file as a release asset in the newly created GitHub release.
-      - name: Upload the widget file to GitHub release
+      - name: Upload the Standard widget file to GitHub release
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -124,4 +140,14 @@ jobs:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./Moonlight.wgt
           asset_name: Moonlight.wgt
+          asset_content_type: application/octet-stream
+      # Uploads the Moonlight-ForceGM.wgt file as a release asset in the newly created GitHub release.
+      - name: Upload the ForceGM widget file to GitHub release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./Moonlight-ForceGM.wgt
+          asset_name: Moonlight-ForceGM.wgt
           asset_content_type: application/octet-stream

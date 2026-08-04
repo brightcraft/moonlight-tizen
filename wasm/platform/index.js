@@ -3226,7 +3226,7 @@ function warnAudioConfiguration() {
   // Audio configuration warning
   if (!audioWarning && (chosenAudioConfig === '71Surround' || chosenAudioConfig === '51Surround')) {
     // Warn only if audio configuration is selected to 5.1 or 7.1 Surround
-    snackbarLogLong(t('Warning: 5.1 or 7.1 Surround sound may not be supported by your host PC and may increase audio latency!'));
+    snackbarLogLong(t('Warning: Surround Sound (5.1/7.1) may not be supported by your TV and is not guaranteed to work due to platform limitations!'));
     // Set flag for audio configuration warning
     audioWarning = true;
   } else if (audioWarning && (chosenAudioConfig === 'Stereo')) {
@@ -3380,6 +3380,12 @@ function saveUnlockAllFps() {
     const chosenUnlockAllFps = $('#unlockAllFpsSwitch').parent().hasClass('is-checked');
     console.log('%c[index.js, saveUnlockAllFps]', 'color: green;', 'Saving unlock all FPS state: ' + chosenUnlockAllFps);
     storeData('unlockAllFps', chosenUnlockAllFps, null);
+
+    // Warning when enabling higher FPS options
+    if (chosenUnlockAllFps) {
+      // Show a warning message when enabling higher FPS options
+      snackbarLogLong(t('Warning: Higher frame rates may not be fully supported by your TV and do not guarantee a smoother experience. Performance issues may occur due to platform limitations!'));
+    }
   }, 100);
 }
 
