@@ -603,6 +603,8 @@ NvHTTP.prototype = {
             } catch (writeError) {
               console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Could not cache box art to disk: ', writeError.message);
             }
+            
+            resolve(dataUrl);
           };
           reader.readAsDataURL(blob);
         }, function(error) {
