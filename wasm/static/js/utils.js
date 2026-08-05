@@ -568,7 +568,7 @@ NvHTTP.prototype = {
         console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Returning storage-cached box art: ', appId);
         resolve('data:image/png;base64,' + base64Data);
       } catch (readError) {
-        console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Cannot find or read box art from internal storage: ', readError.message);
+        console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Cannot find or read box art from internal storage!', readError.message);
         // Fetch the new box art from the network
         sendMessage('openUrl', [
           self._baseUrlHttps + '/appasset?' + self._buildUidStr() + '&appid=' + appId + '&AssetType=2&AssetIdx=0', self.ppkstr, true
@@ -583,7 +583,11 @@ NvHTTP.prototype = {
 
             // Save to disk as true binary PNG for local HTTP server and future cache using modern Tizen API
             try {
-              try { tizen.filesystem.createDirectory('documents', true); } catch (mkdirErr) { }
+              try {
+                tizen.filesystem.createDirectory('documents', true);
+              } catch (mkdirErr) {
+                console.error('%c[utils.js, getBoxArt]', 'color: gray;', 'Error: Failed to create documents directory: ', mkdirErr.message);
+              }
               
               var fileHandleWrite = tizen.filesystem.openFile('documents/' + boxArtFileName, 'w');
               

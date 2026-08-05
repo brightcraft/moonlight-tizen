@@ -2360,7 +2360,7 @@ function showApps(host) {
                     tvIp = webapis.network.getIp();
                   }
                 } catch(e) {
-                  console.log("Failed to get TV IP", e);
+                  console.log('%c[index.js, showApps]', 'color: green;', 'Failed to get TV IP: ', e);
                 }
 
                 // Generate random secure UUID for the route to prevent unauthorized LAN access
@@ -2403,7 +2403,10 @@ function showApps(host) {
         });
 
         var settledPromises = boxArtPromises.map(function(p) {
-          return p.catch(function(e) { return e; });
+          return p.catch(function(e) {
+            console.error('%c[index.js, showApps]', 'color: green;', 'Error: Box art promise rejected with error: ', e);
+            return e;
+          });
         });
 
         Promise.all(settledPromises).then(function() {
@@ -2942,6 +2945,7 @@ function saveHosts() {
 }
 
 function savePreviewApps() {
+  console.log('%c[index.js, savePreviewApps]', 'color: green;', 'Saving preview apps data: ' + JSON.stringify(_previewApps));
   storeData('previewApps', _previewApps, null);
 }
 
@@ -4039,12 +4043,18 @@ function waitForHostAndNavigateToApp(serverUid, appId) {
           hostname: host.hostname,
           address: host.address,
           apps: sortedAppList.map(function(app) {
-            var oldApp = oldApps.find(function(a) { return a.id === app.id; });
+            var oldApp = oldApps.find(function(a) {
+              return a.id === app.id; 
+            });
             var secureToken = (oldApp && oldApp.secureToken) ? oldApp.secureToken : Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
             var newApp = {id: app.id, title: app.title, secureToken: secureToken};
             if (oldApp) {
-              if (oldApp.imageUri) newApp.imageUri = oldApp.imageUri;
-              if (oldApp.txtPath) newApp.txtPath = oldApp.txtPath;
+              if (oldApp.imageUri) {
+                newApp.imageUri = oldApp.imageUri;
+              }
+              if (oldApp.txtPath) {
+                newApp.txtPath = oldApp.txtPath;
+              }
             }
             return newApp;
           })
@@ -4052,7 +4062,9 @@ function waitForHostAndNavigateToApp(serverUid, appId) {
         savePreviewApps();
         updatePreviewData();
 
-        var appExists = appList.some(function(app) { return app.id === appId; });
+        var appExists = appList.some(function(app) {
+          return app.id === appId;
+        });
         if (appExists) {
           // App still exists: connect, show the app list, and auto-launch the app
           console.log('%c[index.js, waitForHostAndNavigateToApp]', 'color: green;', 'App ' + appId + ' found, launching app from deep link.');
@@ -4096,6 +4108,7 @@ function handleDeepLink() {
   try {
     var reqAppControl = tizen.application.getCurrentApplication().getRequestedAppControl();
     if (!reqAppControl) {
+      console.warn('%c[index.js, handleDeepLink]', 'color: green;', 'Warning: No requested app control found, skipping deep link handling!');
       return;
     }
 
@@ -4119,7 +4132,7 @@ function handleDeepLink() {
       }
     }
   } catch (e) {
-    console.log('%c[index.js, handleDeepLink]', 'color: green;', 'No deep link or error processing it: ' + e.message);
+    console.error('%c[index.js, handleDeepLink]', 'color: green;', 'Error: No deep link or error processing it: ' + e.message);
   }
 }
 
@@ -4148,11 +4161,11 @@ function updatePreviewData() {
     var packageId = tizen.application.getCurrentApplication().appInfo.packageId;
     var tizenVer = parseFloat(platformVer);
 
-    // Smart Hub Preview was available on Samsung Smart TVs from 2016 to 2021 (Tizen 3.0+).
+    // Smart Hub Preview was available on Samsung Smart TVs from 2016 to 2021 (Tizen 2.4+).
     // The feature has been discontinued but is still supported on those models.
     // The background service checks webapis.preview availability at runtime.
-    if (isNaN(tizenVer) || tizenVer < 3) {
-      console.log('%c[index.js, updatePreviewData]', 'color: green;', 'Tizen version ' + platformVer + ' does not support Smart Hub Preview. Skipping.');
+    if (isNaN(tizenVer) || tizenVer < 2.4) {
+      console.log('%c[index.js, updatePreviewData]', 'color: green;', 'Tizen version ' + platformVer + ' does not support Smart Hub Preview. Skipping!');
       return;
     }
 
@@ -4161,6 +4174,7 @@ function updatePreviewData() {
     Object.keys(_previewApps).forEach(function(serverUid) {
       var entry = _previewApps[serverUid];
       if (!entry || !entry.apps || entry.apps.length === 0) {
+        console.error('%c[index.js, updatePreviewData]', 'color: green;', 'Error: No apps found for host ' + serverUid);
         return;
       }
       var tiles = entry.apps.map(function(app, index) {
@@ -4197,6 +4211,7 @@ function updatePreviewData() {
         _smartHubLocalMessagePort.removeMessagePortListener(_smartHubMessagePortListener);
       } catch (e) {
         // Ignore listener removal errors
+        console.error('%c[index.js, updatePreviewData]', 'color: green;', 'Error removing previous Smart Hub message port listener: ' + e.message);
       }
     }
     _smartHubLocalMessagePort = tizen.messageport.requestLocalMessagePort(packageId);
@@ -4208,6 +4223,7 @@ function updatePreviewData() {
           _smartHubMessagePortListener = null;
         } catch (e) {
           // Ignore listener removal errors
+          console.error('%c[index.js, updatePreviewData]', 'color: green;', 'Error removing Smart Hub message port listener: ' + e.message);
         }
       }
     });
@@ -4215,17 +4231,12 @@ function updatePreviewData() {
     // Launch the background service with the preview data via AppControl
     tizen.application.launchAppControl(
       new tizen.ApplicationControl(
-        'http://tizen.org/appcontrol/operation/pick',
-        null,
-        'image/jpeg',
-        null,
+        'http://tizen.org/appcontrol/operation/pick', null, 'image/jpeg', null,
         [new tizen.ApplicationControlData('Preview', [JSON.stringify(previewData)])]
       ),
-      serviceId,
-      function() {
+      serviceId, function() {
         console.log('%c[index.js, updatePreviewData]', 'color: green;', 'Preview data sent to service: ' + serviceId);
-      },
-      function(err) {
+      }, function(err) {
         console.error('%c[index.js, updatePreviewData]', 'color: green;', 'Failed to launch Smart Hub service: ' + err.message);
       }
     );

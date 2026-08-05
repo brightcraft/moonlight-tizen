@@ -18,10 +18,18 @@ var applicationId = packageId + '.MoonlightWasm';
 var remoteMessagePort;
 
 var fs = null;
-try { fs = require('fs'); } catch (e) {}
+try {
+  fs = require('fs');
+} catch (e) {
+  console.error('%c[service.js]', 'color: gray;', '[SmartHub Service] fs module is not available: ' + e.message);
+}
 
 var http = null;
-try { http = require('http'); } catch (e) {}
+try {
+  http = require('http');
+} catch (e) {
+  console.error('%c[service.js]', 'color: gray;', '[SmartHub Service] http module is not available: ' + e.message);
+}
 
 var tvIp = '127.0.0.1';
 var localServer = null;
@@ -34,7 +42,7 @@ var routeMap = {};
  * @param {string} value - Message to send and log
  */
 function logAndSend(value) {
-  console.log('[SmartHub Service] ' + value);
+  console.log('%c[service.js, logAndSend]', 'color: gray;', '[SmartHub Service] ' + value);
   sendMessage(value);
 }
 
@@ -50,7 +58,7 @@ function sendMessage(value, key) {
     try {
       remoteMessagePort = tizen.messageport.requestRemoteMessagePort(applicationId, packageId);
     } catch (e) {
-      console.error('[SmartHub Service] Could not get remote message port: ' + e.message);
+      console.error('%c[service.js, sendMessage]', 'color: gray;', '[SmartHub Service] Could not get remote message port: ' + e.message);
       return;
     }
   }
@@ -58,7 +66,7 @@ function sendMessage(value, key) {
     try {
       remoteMessagePort.sendMessage([{key: key, value: value}]);
     } catch (e) {
-      console.error('[SmartHub Service] Error sending message: ' + e.message);
+      console.error('%c[service.js, sendMessage]', 'color: gray;', '[SmartHub Service] Error sending message: ' + e.message);
     }
   }
 }
@@ -119,6 +127,7 @@ function startLocalServer() {
             return; // Exit on success
           } catch (fallbackErr) {
             // Ignore error and try the next path
+            logAndSend('Fallback path not found or error reading: ' + fallbackErr.message);
           }
         }
       }
@@ -212,13 +221,10 @@ function handleDataInRequest() {
         }
 
         try {
-          webapis.preview.setPreviewData(
-            JSON.stringify(parsedPreviewData),
-            function() {
+          webapis.preview.setPreviewData(JSON.stringify(parsedPreviewData), function() {
               logAndSend('Preview set successfully. Service will remain alive to serve HTTP requests.');
               // tizen.application.getCurrentApplication().exit();
-            },
-            function(e) {
+            }, function(e) {
               logAndSend('Preview data setting failed: ' + e.message);
               tizen.application.getCurrentApplication().exit();
             }
