@@ -2409,14 +2409,14 @@ function showApps(host) {
           });
         });
 
+        // Navigate to the Apps view
+        showAppsMode();
         Promise.all(settledPromises).then(function() {
           // Wait 250ms to ensure tizen.filesystem.resolve callbacks have completed
           setTimeout(function() {
             savePreviewApps();
             updatePreviewData();
           }, 250);
-          // Navigate to the Apps view
-          showAppsMode();
           resolve();
         });
       }, function(failedAppList) {
