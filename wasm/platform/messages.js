@@ -170,15 +170,14 @@ function handleMessage(msg) {
         break;
     }
     // Return to the app list with new current game
-    showApps(api);
-    setTimeout(() => {
+    showApps(api).then(() => {
       // Scroll to the current game row
       Navigation.switch();
       // Switch to Apps view
       if (!window.isDialogOpen) {
         Navigation.change(Views.Apps);
       }
-    }, 1500);
+    });
   } else if (msg === 'Connection Established') {
     // Prepare the screen for video stream
     $('#loadingSpinner').css('display', 'none');
