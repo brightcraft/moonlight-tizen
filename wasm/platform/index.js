@@ -3525,13 +3525,12 @@ function loadUserDataCb() {
   console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored language preferences.');
   getData('languagePreference', function(previousValue) {
     const savedLanguagePreference = (previousValue && previousValue['languagePreference']) || 'auto';
-    const selectLanguageElement = document.getElementById('selectLanguage');
-    if (selectLanguageElement) {
-      selectLanguageElement.dataset.value = savedLanguagePreference;
-    }
+    // Update the language field based on the stored value
+    $('#selectLanguage').attr('data-value', savedLanguagePreference).data('value', savedLanguagePreference);
+    // Apply the stored language preference if the i18n object is available
     if (window.i18n && typeof window.i18n.applyLanguagePreference === 'function') {
       window.i18n.applyLanguagePreference(savedLanguagePreference).catch((error) => {
-        console.warn('%c[index.js, loadUserDataCb]', 'color: green;', 'Warning: failed to apply stored language: ' + error);
+        console.error('%c[index.js, loadUserDataCb]', 'color: green;', 'Error: Failed to apply stored language: ' + error);
       });
     }
     // Register loadSystemInfo to re-run every time the language changes
@@ -3551,7 +3550,7 @@ function loadUserDataCb() {
       $('.videoResolutionMenu li').each(function() {
         if ($(this).data('value') === previousValue.resolution) {
           // Update the video resolution field based on the given value
-          $('#selectResolution').text($(this).text()).data('value', previousValue.resolution);
+          $('#selectResolution').text($(this).text()).attr('data-value', previousValue.resolution).data('value', previousValue.resolution);
         }
       });
     }
@@ -3576,7 +3575,7 @@ function loadUserDataCb() {
       $('.videoFramerateMenu li').each(function() {
         if ($(this).data('value') === previousValue.frameRate) {
           // Update the video frame rate field based on the given value
-          $('#selectFramerate').text($(this).text()).data('value', previousValue.frameRate);
+          $('#selectFramerate').text($(this).text()).attr('data-value', previousValue.frameRate).data('value', previousValue.frameRate);
         }
       });
     }
@@ -3685,7 +3684,7 @@ function loadUserDataCb() {
       $('.audioConfigMenu li').each(function() {
         if ($(this).data('value') === previousValue.audioConfig) {
           // Update the audio configuration field based on the given value
-          $('#selectAudio').text($(this).text()).data('value', previousValue.audioConfig);
+          $('#selectAudio').text($(this).text()).attr('data-value', previousValue.audioConfig).data('value', previousValue.audioConfig);
         }
       });
     }
@@ -3719,7 +3718,7 @@ function loadUserDataCb() {
       $('.videoCodecMenu li').each(function() {
         if ($(this).data('value') === previousValue.videoCodec) {
           // Update the video codec field based on the given value
-          $('#selectCodec').text($(this).text()).data('value', previousValue.videoCodec);
+          $('#selectCodec').text($(this).text()).attr('data-value', previousValue.videoCodec).data('value', previousValue.videoCodec);
         }
       });
     }
