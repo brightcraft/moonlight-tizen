@@ -569,10 +569,6 @@ NvHTTP.prototype = {
         resolve('data:image/png;base64,' + base64Data);
       } catch (readError) {
         console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Cannot find or read box art from internal storage: ', readError.message);
-        fetchFromNetwork();
-      }
-
-      function fetchFromNetwork() {
         // Fetch the new box art from the network
         sendMessage('openUrl', [
           self._baseUrlHttps + '/appasset?' + self._buildUidStr() + '&appid=' + appId + '&AssetType=2&AssetIdx=0', self.ppkstr, true
