@@ -3664,10 +3664,6 @@ function loadUserDataCb() {
         console.error('%c[index.js, loadUserDataCb]', 'color: green;', 'Error: Failed to apply stored language: ' + error);
       });
     }
-    // Register loadSystemInfo to re-run every time the language changes
-    if (window.i18n && typeof window.i18n.onRefresh === 'function') {
-      window.i18n.onRefresh(loadSystemInfo);
-    }
   });
 
   console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored resolution preferences.');
@@ -3989,6 +3985,10 @@ function loadHTTPCertsCb() {
           addHostToGrid(revivedHost);
         }
         startPollingHosts();
+        // Register loadSystemInfo to re-run every time the language changes
+        if (window.i18n && typeof window.i18n.onRefresh === 'function') {
+          window.i18n.onRefresh(loadSystemInfo);
+        }
         // Load stored preview app lists and update Smart Hub Preview tiles.
         // Using the persisted list avoids requiring live host connections at startup.
         getData('previewApps', function(storedPreview) {
