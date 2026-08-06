@@ -2121,16 +2121,16 @@ function stylizeBoxArts(freshApi, appsList) {
     appsList.forEach(function(app) {
       var appBox = document.querySelector('#game-container-' + app.id);
       if (!appBox) {
-        console.warn('%c[index.js, stylizeBoxArt]', 'color: green;', 'Warning: No box art found for appId: ' + appIdToStylize);
+        console.warn('%c[index.js, stylizeBoxArt]', 'color: green;', 'Warning: No box art found for appId: ' + app.id);
         return;
       }
       // If the game is currently running, then apply CSS stylization
       if (freshApi.currentGame === app.id) {
         appBox.classList.add('current-game-active');
-        appBox.title += t(' (Running)');
+        appBox.title = app.title + t(' (Running)');
       } else {
         appBox.classList.remove('current-game-active');
-        appBox.title = appBox.title.replace(t(' (Running)'), ''); // TODO: Replace with localized string so make it e.title = game_title
+        appBox.title = app.title;
       }
     });
   }, function(failedRefreshInfo) {
