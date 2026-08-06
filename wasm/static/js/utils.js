@@ -554,8 +554,8 @@ NvHTTP.prototype = {
         boxArtFileName = secureFileName || 'boxart-' + appId + '.png'; // Use secure deterministic name
       } else {
         // Default mode: use original private storage
-        boxArtDir = 'wgt-private/' + this.hostname;
-        boxArtFileName = 'boxart-' + appId;
+        boxArtDir = 'wgt-private/' + this.hostname; // Legacy private storage directory for box art
+        boxArtFileName = 'boxart-' + appId; // Legacy filename for backward compatibility
       }
 
       var self = this;
@@ -625,15 +625,16 @@ NvHTTP.prototype = {
 
   clearBoxArt: function() {
     return new Promise(function(resolve, reject) {
-      var boxArtDir = 'wgt-private/' + this.hostname;
-      var smartHubBoxArtDir = 'documents';
+      var boxArtDir = 'wgt-private/' + this.hostname; // Legacy private storage directory for box art
+      var smartHubBoxArtDir = 'documents'; // Public storage directory so the background service can read it
 
-      // First try to clear box art directory
+      // Delete the legacy box art directory from the private storage
       try {
         tizen.filesystem.deleteDirectory(boxArtDir, true);
-        console.log('%c[utils.js, clearBoxArt]', 'color: gray;', 'Cleared legacy box art directory: ' + boxArtDir);
-      } catch (e) {
+        console.log('%c[utils.js, clearBoxArt]', 'color: gray;', 'Cleared legacy box art files from ' + boxArtDir);
+      } catch (error) {
         // Ignored, directory might not exist
+        console.error('%c[utils.js, clearBoxArt]', 'color: gray;', 'Error: Failed to clear legacy box art files: ', error.message);
       }
 
       // Delete the cached Smart Hub box art files from the public storage
@@ -659,7 +660,7 @@ NvHTTP.prototype = {
           resolve();
         });
       } catch (error) {
-        console.error('%c[utils.js, clearBoxArt]', 'color: gray;', 'Error: Failed to clear box art files: ', error);
+        console.error('%c[utils.js, clearBoxArt]', 'color: gray;', 'Error: Failed to clear box art files: ', error.message);
         reject(error);
       }
     }.bind(this));

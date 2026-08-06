@@ -153,7 +153,9 @@ function handleDataInRequest() {
     isSupported = typeof webapis !== 'undefined'
       && typeof webapis.preview !== 'undefined'
       && typeof webapis.preview.setPreviewData === 'function';
-  } catch (e) {}
+  } catch (e) {
+    logAndSend('Error checking webapis.preview support: ' + e.message);
+  }
 
   try {
     var reqAppControl = tizen.application.getCurrentApplication().getRequestedAppControl();
