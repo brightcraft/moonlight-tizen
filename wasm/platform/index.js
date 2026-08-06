@@ -3527,15 +3527,15 @@ function loadUserDataCb() {
     const savedLanguagePreference = (previousValue && previousValue['languagePreference']) || 'auto';
     // Update the language field based on the stored value
     $('#selectLanguage').attr('data-value', savedLanguagePreference).data('value', savedLanguagePreference);
+    // Register loadSystemInfo to re-run every time the language changes
+    if (window.i18n && typeof window.i18n.onRefresh === 'function') {
+      window.i18n.onRefresh(loadSystemInfo);
+    }
     // Apply the stored language preference if the i18n object is available
     if (window.i18n && typeof window.i18n.applyLanguagePreference === 'function') {
       window.i18n.applyLanguagePreference(savedLanguagePreference).catch((error) => {
         console.error('%c[index.js, loadUserDataCb]', 'color: green;', 'Error: Failed to apply stored language: ' + error);
       });
-    }
-    // Register loadSystemInfo to re-run every time the language changes
-    if (window.i18n && typeof window.i18n.onRefresh === 'function') {
-      window.i18n.onRefresh(loadSystemInfo);
     }
   });
 
@@ -3874,7 +3874,6 @@ function onWindowLoad() {
 
   initSamsungKeys();
   initSpecialKeys();
-  loadSystemInfo();
   loadUserData();
 }
 
