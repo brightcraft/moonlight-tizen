@@ -3533,10 +3533,6 @@ function loadUserDataCb() {
         console.error('%c[index.js, loadUserDataCb]', 'color: green;', 'Error: Failed to apply stored language: ' + error);
       });
     }
-    // Register loadSystemInfo to re-run every time the language changes
-    if (window.i18n && typeof window.i18n.onRefresh === 'function') {
-      window.i18n.onRefresh(loadSystemInfo);
-    }
   });
 
   console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored resolution preferences.');
@@ -3858,6 +3854,10 @@ function loadHTTPCertsCb() {
           addHostToGrid(revivedHost);
         }
         startPollingHosts();
+        // Register loadSystemInfo to re-run every time the language changes
+        if (window.i18n && typeof window.i18n.onRefresh === 'function') {
+          window.i18n.onRefresh(loadSystemInfo);
+        }
         console.log('%c[index.js, loadHTTPCertsCb]', 'color: green;', 'Loading previously connected hosts...');
         // Start subnet scanning silently in the background after hosts are fully loaded
         setTimeout(() => {
