@@ -640,10 +640,16 @@ NvHTTP.prototype = {
       try {
         tizen.filesystem.listDirectory(smartHubBoxArtDir, function(files) {
           var deleteCount = 0;
-          for (var i = 0; i < files.length; i++) {
-            if (files[i].name.startsWith('boxart-') && files[i].name.endsWith('.png')) {
-              tizen.filesystem.deleteFile(files[i].fullPath);
-              deleteCount++;
+          // Safely check if files is an array and has a length property
+          if (files && files.length > 0) {
+            for (var i = 0; i < files.length; i++) {
+              // Safely check if files[i] and files[i].name exist
+              if (files[i] && files[i].name && typeof files[i].name === 'string') {
+                if (files[i].name.startsWith('boxart-') && files[i].name.endsWith('.png')) {
+                  tizen.filesystem.deleteFile(files[i].fullPath);
+                  deleteCount++;
+                }
+              }
             }
           }
           console.log('%c[utils.js, clearBoxArt]', 'color: gray;', 'Cleared ' + deleteCount + ' Smart Hub box art files from ' + smartHubBoxArtDir);
