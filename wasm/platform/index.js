@@ -52,6 +52,7 @@ var _smartHubLocalMessagePort = null; // Local message port for receiving messag
 var _smartHubMessagePortListener = null; // Listener ID for the Smart Hub local message port
 var _previewApps = {}; // Per-host app cache for Smart Hub Preview: {serverUid: {hostname, address, apps: [{id, title, imageUri}]}}
 var _previewUpdateTimer = null; // Debounce timer for batching Smart Hub Preview updates triggered by box art loading
+var _isSmartHubSupported = false; // Flag indicating if Smart Hub Preview is supported on this device
 
 const REPEAT_DELAY = 350; // Repeat delay set to 350ms (milliseconds)
 const REPEAT_INTERVAL = 100; // Repeat interval set to 100ms (milliseconds)
@@ -2256,22 +2257,24 @@ function showApps(host) {
         // If game grid is populated, sort the app list
         const sortedAppList = sortTitles(appList, sortOrder);
 
-        var oldApps = (_previewApps[host.serverUid] && _previewApps[host.serverUid].apps) || [];
+        if (_isSmartHubSupported) {
+          var oldApps = (_previewApps[host.serverUid] && _previewApps[host.serverUid].apps) || [];
 
-        _previewApps[host.serverUid] = {
-          hostname: host.hostname,
-          address: host.address,
-          apps: sortedAppList.map(function(app) {
-            var oldApp = oldApps.find(function(a) { return a.id === app.id; });
-            var secureToken = (oldApp && oldApp.secureToken) ? oldApp.secureToken : Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-            var newApp = {id: app.id, title: app.title, secureToken: secureToken};
-            if (oldApp) {
-              if (oldApp.imageUri) newApp.imageUri = oldApp.imageUri;
-              if (oldApp.txtPath) newApp.txtPath = oldApp.txtPath;
-            }
-            return newApp;
-          })
-        };
+          _previewApps[host.serverUid] = {
+            hostname: host.hostname,
+            address: host.address,
+            apps: sortedAppList.map(function(app) {
+              var oldApp = oldApps.find(function(a) { return a.id === app.id; });
+              var secureToken = (oldApp && oldApp.secureToken) ? oldApp.secureToken : Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+              var newApp = {id: app.id, title: app.title, secureToken: secureToken};
+              if (oldApp) {
+                if (oldApp.imageUri) newApp.imageUri = oldApp.imageUri;
+                if (oldApp.txtPath) newApp.txtPath = oldApp.txtPath;
+              }
+              return newApp;
+            })
+          };
+        }
 
         var boxArtPromises = [];
 
@@ -2347,12 +2350,12 @@ function showApps(host) {
           }
           // Load box art
           var boxArtPlaceholderImg = new Image();
-          var appEntry = _previewApps[host.serverUid] ? _previewApps[host.serverUid].apps.find(function(a) { return a.id === app.id; }) : null;
+          var appEntry = (_isSmartHubSupported && _previewApps[host.serverUid]) ? _previewApps[host.serverUid].apps.find(function(a) { return a.id === app.id; }) : null;
           var boxArtPromise = new Promise(function(resolveBoxArt) {
-            host.getBoxArt(app.id, appEntry ? 'boxart_' + appEntry.secureToken + '.png' : undefined).then(function(resolvedPromise) {
+            host.getBoxArt(app.id, appEntry ? 'boxart-' + appEntry.secureToken + '.png' : undefined).then(function(resolvedPromise) {
               boxArtPlaceholderImg.src = resolvedPromise;
               // The resolvedPromise is now the absolute file URI (or data URL if it failed to save).
-              if (_previewApps[host.serverUid] && appEntry) {
+              if (_isSmartHubSupported && _previewApps[host.serverUid] && appEntry) {
                 // Resolve real TV IP because Smart Hub might block 127.0.0.1
                 var tvIp = '127.0.0.1';
                 try {
@@ -2364,7 +2367,7 @@ function showApps(host) {
                 }
 
                 // Generate random secure UUID for the route to prevent unauthorized LAN access
-                var filename = 'boxart_' + appEntry.secureToken + '.png';
+                var filename = 'boxart-' + appEntry.secureToken + '.png';
                 var cacheBuster = '?v=' + Date.now();
 
                 // Determine local path from resolvedPromise if it's a file URI
@@ -2945,6 +2948,7 @@ function saveHosts() {
 }
 
 function savePreviewApps() {
+  if (!_isSmartHubSupported) return;
   console.log('%c[index.js, savePreviewApps]', 'color: green;', 'Saving preview apps data: ' + JSON.stringify(_previewApps));
   storeData('previewApps', _previewApps, null);
 }
@@ -4035,32 +4039,34 @@ function waitForHostAndNavigateToApp(serverUid, appId) {
         // If game grid is populated, sort the app list
         const sortedAppList = sortTitles(appList, sortOrder);
 
-        // Preserve existing image paths from the previous preview cache
-        var oldApps = (_previewApps[serverUid] && _previewApps[serverUid].apps) || [];
+        if (_isSmartHubSupported) {
+          // Preserve existing image paths from the previous preview cache
+          var oldApps = (_previewApps[serverUid] && _previewApps[serverUid].apps) || [];
 
-        // Update the preview with the latest app list from this successful connection
-        _previewApps[serverUid] = {
-          hostname: host.hostname,
-          address: host.address,
-          apps: sortedAppList.map(function(app) {
-            var oldApp = oldApps.find(function(a) {
-              return a.id === app.id; 
-            });
-            var secureToken = (oldApp && oldApp.secureToken) ? oldApp.secureToken : Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-            var newApp = {id: app.id, title: app.title, secureToken: secureToken};
-            if (oldApp) {
-              if (oldApp.imageUri) {
-                newApp.imageUri = oldApp.imageUri;
+          // Update the preview with the latest app list from this successful connection
+          _previewApps[serverUid] = {
+            hostname: host.hostname,
+            address: host.address,
+            apps: sortedAppList.map(function(app) {
+              var oldApp = oldApps.find(function(a) {
+                return a.id === app.id; 
+              });
+              var secureToken = (oldApp && oldApp.secureToken) ? oldApp.secureToken : Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+              var newApp = {id: app.id, title: app.title, secureToken: secureToken};
+              if (oldApp) {
+                if (oldApp.imageUri) {
+                  newApp.imageUri = oldApp.imageUri;
+                }
+                if (oldApp.txtPath) {
+                  newApp.txtPath = oldApp.txtPath;
+                }
               }
-              if (oldApp.txtPath) {
-                newApp.txtPath = oldApp.txtPath;
-              }
-            }
-            return newApp;
-          })
-        };
-        savePreviewApps();
-        updatePreviewData();
+              return newApp;
+            })
+          };
+          savePreviewApps();
+          updatePreviewData();
+        }
 
         var appExists = appList.some(function(app) {
           return app.id === appId;
@@ -4105,6 +4111,7 @@ function waitForHostAndNavigateToApp(serverUid, appId) {
 // Handles deep link navigation when the app is launched from a Smart Hub Preview tile.
 // Reads the PAYLOAD from AppControl data and navigates to the appropriate host and app.
 function handleDeepLink() {
+  if (!_isSmartHubSupported) return;
   try {
     var reqAppControl = tizen.application.getCurrentApplication().getRequestedAppControl();
     if (!reqAppControl) {
@@ -4159,13 +4166,8 @@ function _setPreviewImageUri(serverUid, appId, uri) {
 function updatePreviewData() {
   try {
     var packageId = tizen.application.getCurrentApplication().appInfo.packageId;
-    var tizenVer = parseFloat(platformVer);
-
-    // Smart Hub Preview was available on Samsung Smart TVs from 2016 to 2021 (Tizen 2.4+).
-    // The feature has been discontinued but is still supported on those models.
-    // The background service checks webapis.preview availability at runtime.
-    if (isNaN(tizenVer) || tizenVer < 2.4) {
-      console.log('%c[index.js, updatePreviewData]', 'color: green;', 'Tizen version ' + platformVer + ' does not support Smart Hub Preview. Skipping!');
+    if (!_isSmartHubSupported) {
+      console.log('%c[index.js, updatePreviewData]', 'color: green;', 'Smart Hub Preview is not supported on this device. Skipping!');
       return;
     }
 
@@ -4178,6 +4180,7 @@ function updatePreviewData() {
         return;
       }
       var tiles = entry.apps.map(function(app, index) {
+        // Each tile object accepts a `position` attribute. By explicitly setting `position: index`, we override the native behavior and enforce our custom sorting (A-Z or Z-A).
         var tile = {
           title: app.title,
           subtitle: entry.hostname,
@@ -4245,6 +4248,60 @@ function updatePreviewData() {
   }
 }
 
+function probeSmartHubSupport() {
+  return new Promise(function(resolve) {
+    // Check localStorage cache first
+    var cached = localStorage.getItem('smartHubSupported');
+    if (cached !== null) {
+      _isSmartHubSupported = cached === 'true';
+      console.log('%c[index.js, probeSmartHubSupport]', 'color: green;', 'Smart Hub support (cached): ' + _isSmartHubSupported);
+      resolve();
+      return;
+    }
+
+    // First launch: probe the service
+    var packageId = tizen.application.getCurrentApplication().appInfo.packageId;
+    var serviceId = packageId + '.service';
+    
+    try {
+      var probePort = tizen.messageport.requestLocalMessagePort(packageId);
+      var probeListener = probePort.addMessagePortListener(function(data) {
+        var key = data[0].key;
+        if (key !== 'PROBE') return;
+        
+        var value = data[0].value;
+        _isSmartHubSupported = (value === 'SMART_HUB_SUPPORTED');
+        localStorage.setItem('smartHubSupported', String(_isSmartHubSupported));
+        console.log('%c[index.js, probeSmartHubSupport]', 'color: green;', 'Smart Hub support (probed): ' + _isSmartHubSupported);
+        try { probePort.removeMessagePortListener(probeListener); } catch(e) {}
+        resolve();
+      });
+
+      // Launch service with Probe request
+      tizen.application.launchAppControl(
+        new tizen.ApplicationControl(
+          'http://tizen.org/appcontrol/operation/pick', null, null, null,
+          [new tizen.ApplicationControlData('Probe', ['check'])]
+        ),
+        serviceId,
+        function() { console.log('%c[index.js, probeSmartHubSupport]', 'color: green;', 'Probe sent to service.'); },
+        function(err) {
+          // Service launch failed — assume not supported
+          console.warn('%c[index.js, probeSmartHubSupport]', 'color: green;', 'Probe failed: ' + err.message);
+          _isSmartHubSupported = false;
+          localStorage.setItem('smartHubSupported', 'false');
+          resolve();
+        }
+      );
+    } catch (e) {
+      console.warn('%c[index.js, probeSmartHubSupport]', 'color: green;', 'Error probing Smart Hub support: ' + e.message);
+      _isSmartHubSupported = false;
+      localStorage.setItem('smartHubSupported', 'false');
+      resolve();
+    }
+  });
+}
+
 function onWindowLoad() {
   console.log('%c[index.js, onWindowLoad]', 'color: green;', 'Moonlight\'s main window loaded.');
 
@@ -4253,10 +4310,12 @@ function onWindowLoad() {
   loadSystemInfo();
   loadUserData();
 
-  // Handle deep links from Smart Hub Preview tile clicks (initial launch)
-  handleDeepLink();
-  // Also handle deep links when the app is brought to the foreground via Smart Hub
-  window.addEventListener('appcontrol', handleDeepLink);
+  probeSmartHubSupport().then(function() {
+    // Handle deep links from Smart Hub Preview tile clicks (initial launch)
+    handleDeepLink();
+    // Also handle deep links when the app is brought to the foreground via Smart Hub
+    window.addEventListener('appcontrol', handleDeepLink);
+  });
 }
 
 window.onload = onWindowLoad;

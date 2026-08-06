@@ -547,8 +547,16 @@ NvHTTP.prototype = {
   // service process can access it directly without any cross-process copying.
   getBoxArt: function(appId, secureFileName) {
     return new Promise(function(resolve, reject) {
-      var boxArtFileName = secureFileName || 'boxart_' + appId + '.png'; // Use secure deterministic name
-      var boxArtDir = 'documents'; // Public storage directory so the background service can read it
+      var boxArtFileName, boxArtDir;
+      if (secureFileName) {
+        // Smart Hub mode: use secure filename in public documents folder
+        boxArtDir = 'documents'; // Public storage directory so the background service can read it
+        boxArtFileName = secureFileName || 'boxart-' + appId + '.png'; // Use secure deterministic name
+      } else {
+        // Default mode: use original private storage
+        boxArtDir = 'wgt-private/' + this.hostname;
+        boxArtFileName = 'boxart-' + appId;
+      }
 
       var self = this;
       
@@ -584,12 +592,12 @@ NvHTTP.prototype = {
             // Save to disk as true binary PNG for local HTTP server and future cache using modern Tizen API
             try {
               try {
-                tizen.filesystem.createDirectory('documents', true);
+                tizen.filesystem.createDirectory(boxArtDir, true);
               } catch (mkdirErr) {
-                console.error('%c[utils.js, getBoxArt]', 'color: gray;', 'Error: Failed to create documents directory: ', mkdirErr.message);
+                console.error('%c[utils.js, getBoxArt]', 'color: gray;', 'Error: Failed to create ' + boxArtDir + ' directory: ', mkdirErr.message);
               }
               
-              var fileHandleWrite = tizen.filesystem.openFile('documents/' + boxArtFileName, 'w');
+              var fileHandleWrite = tizen.filesystem.openFile(boxArtDir + '/' + boxArtFileName, 'w');
               
               var base64Payload = dataUrl.split(',')[1];
               var binaryStr = atob(base64Payload);
@@ -617,19 +625,28 @@ NvHTTP.prototype = {
 
   clearBoxArt: function() {
     return new Promise(function(resolve, reject) {
-      var boxArtDir = 'documents'; // Public storage directory so the background service can read it
+      var boxArtDir = 'wgt-private/' + this.hostname;
+      var smartHubBoxArtDir = 'documents';
 
-      // Delete the cached box art files from the storage using modern API
+      // First try to clear box art directory
       try {
-        tizen.filesystem.listDirectory(boxArtDir, function(files) {
+        tizen.filesystem.deleteDirectory(boxArtDir, true);
+        console.log('%c[utils.js, clearBoxArt]', 'color: gray;', 'Cleared legacy box art directory: ' + boxArtDir);
+      } catch (e) {
+        // Ignored, directory might not exist
+      }
+
+      // Delete the cached Smart Hub box art files from the public storage
+      try {
+        tizen.filesystem.listDirectory(smartHubBoxArtDir, function(files) {
           var deleteCount = 0;
           for (var i = 0; i < files.length; i++) {
-            if (files[i].name.startsWith('boxart_') && files[i].name.endsWith('.png')) {
+            if (files[i].name.startsWith('boxart-') && files[i].name.endsWith('.png')) {
               tizen.filesystem.deleteFile(files[i].fullPath);
               deleteCount++;
             }
           }
-          console.log('%c[utils.js, clearBoxArt]', 'color: gray;', 'Cleared ' + deleteCount + ' box art files from ' + boxArtDir);
+          console.log('%c[utils.js, clearBoxArt]', 'color: gray;', 'Cleared ' + deleteCount + ' Smart Hub box art files from ' + smartHubBoxArtDir);
           resolve();
         }.bind(this), function(err) {
           console.warn('%c[utils.js, clearBoxArt]', 'color: gray;', 'Warning: Could not list documents directory to clear box art: ', err.message);

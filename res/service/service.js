@@ -108,7 +108,7 @@ function startLocalServer() {
       }
     } else {
       // Fallback for TV reboots when memory routeMap is empty
-      if (route && route.startsWith('/boxart_') && route.endsWith('.png')) {
+      if (route && route.startsWith('/boxart-') && route.endsWith('.png')) {
         logAndSend('Attempting fallback disk resolution for: ' + route);
         var fallbackPaths = [
           '/opt/usr/home/owner/content/Documents' + route,
@@ -148,23 +148,30 @@ function startLocalServer() {
 }
 
 function handleDataInRequest() {
+  var isSupported = false;
   try {
-    startLocalServer();
-  } catch (serverErr) {
-    logAndSend('Failed to start local HTTP server: ' + serverErr.message);
-  }
+    isSupported = typeof webapis !== 'undefined'
+      && typeof webapis.preview !== 'undefined'
+      && typeof webapis.preview.setPreviewData === 'function';
+  } catch (e) {}
 
   try {
     var reqAppControl = tizen.application.getCurrentApplication().getRequestedAppControl();
 
     if (!reqAppControl) {
       logAndSend('No requested AppControl found.');
+      if (isSupported) {
+        startLocalServer();
+      }
       return;
     }
 
     var appControlData = reqAppControl.appControl.data;
     if (!appControlData || appControlData.length === 0) {
       logAndSend('AppControl data is empty.');
+      if (isSupported) {
+        startLocalServer();
+      }
       return;
     }
     
@@ -174,17 +181,32 @@ function handleDataInRequest() {
       var key = appControlData[i].key;
       var value = appControlData[i].value;
 
+      if (key === 'Probe') {
+        var probeResult = isSupported ? 'SMART_HUB_SUPPORTED' : 'SMART_HUB_NOT_SUPPORTED';
+        sendMessage(probeResult, 'PROBE');
+        logAndSend('Probe result: ' + probeResult);
+        tizen.application.getCurrentApplication().exit();
+        return;
+      }
+
       if (key === 'Preview') {
         foundPreview = true;
-        var previewData = value[0];
-        var parsedPreviewData = JSON.parse(previewData);
-        logAndSend('Preview data received. Size: ' + previewData.length + ' bytes');
-
-        if (typeof webapis === 'undefined' || typeof webapis.preview === 'undefined' || typeof webapis.preview.setPreviewData !== 'function') {
+        
+        if (!isSupported) {
           logAndSend('webapis.preview API is not available on this device. Smart Hub Preview is not supported.');
           tizen.application.getCurrentApplication().exit();
           return;
         }
+
+        try {
+          startLocalServer();
+        } catch (serverErr) {
+          logAndSend('Failed to start local HTTP server: ' + serverErr.message);
+        }
+
+        var previewData = value[0];
+        var parsedPreviewData = JSON.parse(previewData);
+        logAndSend('Preview data received. Size: ' + previewData.length + ' bytes');
 
         if (parsedPreviewData.sections) {
           parsedPreviewData.sections.forEach(function(section) {
