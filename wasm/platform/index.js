@@ -4203,15 +4203,31 @@ function updatePreviewData() {
     }
 
     // Build one section per host that has a cached app list
+    // Smart Hub supports a maximum of 40 tiles across all sections
     var sections = [];
+    var totalTiles = 0;
+    var SMART_HUB_MAX_TILES = 40;
     Object.keys(_previewApps).forEach(function(serverUid) {
       var entry = _previewApps[serverUid];
       if (!entry || !entry.apps || entry.apps.length === 0) {
         console.error('%c[index.js, updatePreviewData]', 'color: green;', 'Error: No apps found for host ' + serverUid);
         return;
       }
-      var tiles = entry.apps.map(function(app, index) {
-        // Each tile object accepts a `position` attribute. By explicitly setting `position: index`, we override the native behavior and enforce our custom sorting (A-Z or Z-A).
+
+      // Stop adding sections once the Smart Hub tile limit is reached
+      if (totalTiles >= SMART_HUB_MAX_TILES) {
+        return;
+      }
+
+      // Only include as many apps as can fit within the remaining tile limit
+      var remainingTiles = SMART_HUB_MAX_TILES - totalTiles;
+      var apps = entry.apps.slice(0, remainingTiles);
+
+      // Create a tile for each app in the host's app list, including the title, subtitle, and action data
+      var tiles = apps.map(function(app, index) {
+        // Each tile object accepts a `position` attribute. By explicitly setting
+        // the global position, we override the native behavior and enforce our
+        // custom sorting (A-Z or Z-A).
         var tile = {
           title: app.title,
           subtitle: entry.hostname,
@@ -4219,7 +4235,7 @@ function updatePreviewData() {
             serverUid: serverUid, address: entry.address, appId: app.id
           }),
           is_playable: true,
-          position: index
+          position: totalTiles + index
         };
         if (app.imageUri) {
           tile.image_url = app.imageUri;
@@ -4229,9 +4245,16 @@ function updatePreviewData() {
         }
         return tile;
       });
-      sections.push({
-        title: entry.hostname, tiles: tiles
-      });
+
+      // Update the total tile count after adding this host's tiles
+      totalTiles += tiles.length;
+
+      // Only add the section if it contains tiles
+      if (tiles.length > 0) {
+        sections.push({
+          title: entry.hostname, tiles: tiles
+        });
+      }
     });
 
     if (sections.length === 0) {
