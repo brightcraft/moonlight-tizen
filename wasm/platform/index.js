@@ -2269,10 +2269,8 @@ function showApps(host) {
               var oldApp = oldApps.find(function(a) {
                 return a.id === app.id;
               });
-              var secureToken = (oldApp && oldApp.secureToken) ? oldApp.secureToken : 
-                Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
               var newApp = {
-                id: app.id, title: app.title, secureToken: secureToken
+                id: app.id, title: app.title
               };
               if (oldApp) {
                 if (oldApp.imageUri) {
@@ -2285,6 +2283,15 @@ function showApps(host) {
               return newApp;
             })
           };
+        }
+
+        // Pause background polling during box art downloads to prevent
+        // the polling /serverinfo request from being queued behind 40+
+        // concurrent image downloads, which would cause a 5-second timeout
+        // and trigger cancelRequest, killing all in-flight downloads.
+        if (activePolls[host.serverUid]) {
+          window.clearInterval(activePolls[host.serverUid]);
+          delete activePolls[host.serverUid];
         }
 
         var boxArtPromises = [];
@@ -2362,7 +2369,7 @@ function showApps(host) {
             return a.id === app.id; 
           }) : null;
           var boxArtPromise = new Promise(function(resolveBoxArt) {
-            host.getBoxArt(app.id, appEntry ? 'boxart-' + appEntry.secureToken + '.png' : undefined).then(function(resolvedPromise) {
+            host.getBoxArt(app.id, _isSmartHubSupported).then(function(resolvedPromise) {
               boxArtPlaceholderImg.src = resolvedPromise;
               // The resolvedPromise is now the absolute file URI (or data URL if it failed to save).
               if (_isSmartHubSupported && _previewApps[host.serverUid] && appEntry) {
@@ -2376,8 +2383,8 @@ function showApps(host) {
                   console.log('%c[index.js, showApps]', 'color: green;', 'Failed to get TV IP: ', e);
                 }
 
-                // Generate random secure UUID for the route to prevent unauthorized LAN access
-                var filename = 'boxart-' + appEntry.secureToken + '.png';
+                // Use deterministic filename so the local HTTP server route stays stable
+                var filename = 'boxart-' + app.id + '.png';
                 var cacheBuster = '?v=' + Date.now();
 
                 // Determine local path from resolvedPromise if it's a file URI
@@ -2427,6 +2434,9 @@ function showApps(host) {
         // Navigate to the Apps view
         showAppsMode();
         Promise.all(settledPromises).then(function() {
+          // Resume background polling now that all box art downloads are complete
+          beginBackgroundPollingOfHost(host);
+
           // Wait 250ms to ensure tizen.filesystem.resolve callbacks have completed
           setTimeout(function() {
             savePreviewApps();
@@ -4065,10 +4075,8 @@ function waitForHostAndNavigateToApp(serverUid, appId) {
               var oldApp = oldApps.find(function(a) {
                 return a.id === app.id; 
               });
-              var secureToken = (oldApp && oldApp.secureToken) ? oldApp.secureToken : 
-                Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
               var newApp = {
-                id: app.id, title: app.title, secureToken: secureToken
+                id: app.id, title: app.title
               };
               if (oldApp) {
                 if (oldApp.imageUri) {
