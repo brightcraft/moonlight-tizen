@@ -56,6 +56,10 @@ function findNvService(ipString) {
           // Update the stored address to the newly discovered IPv4 address
           console.log('%c[main.js, findNvService]', 'color: gray;', 'Updating address for server UID:', returnedDiscoveredHost.serverUid, 'from', existingAddress, 'to', returnedDiscoveredHost.address);
           hosts[returnedDiscoveredHost.serverUid].address = returnedDiscoveredHost.address;
+          hosts[returnedDiscoveredHost.serverUid].localAddress = returnedDiscoveredHost.localAddress;
+          hosts[returnedDiscoveredHost.serverUid]._baseUrlHttp = returnedDiscoveredHost._baseUrlHttp;
+          hosts[returnedDiscoveredHost.serverUid]._baseUrlHttps = returnedDiscoveredHost._baseUrlHttps;
+          hosts[returnedDiscoveredHost.serverUid].macAddress = returnedDiscoveredHost.macAddress;
           if (typeof hosts[returnedDiscoveredHost.serverUid].updateExternalAddressIP4 === 'function') {
             hosts[returnedDiscoveredHost.serverUid].updateExternalAddressIP4();
           }
