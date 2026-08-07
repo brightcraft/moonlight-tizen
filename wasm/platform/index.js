@@ -2387,16 +2387,15 @@ function showApps(host) {
                   appEntry.imageUri = 'http://' + tvIp + ':8888/' + filename + cacheBuster;
                   resolveBoxArt();
                 } else {
-                  tizen.filesystem.resolve('documents', function(dir) {
-                    var documentsPath = dir.toURI().replace('file://', '');
+                  try {
+                    var documentsPath = tizen.filesystem.toURI('documents').replace('file://', '');
                     appEntry.txtPath = documentsPath + '/' + filename;
                     appEntry.imageUri = 'http://' + tvIp + ':8888/' + filename + cacheBuster;
-                    resolveBoxArt();
-                  }, function(err) {
+                  } catch(err) {
                     appEntry.txtPath = '/opt/usr/home/owner/content/Documents/' + filename;
                     appEntry.imageUri = 'http://' + tvIp + ':8888/' + filename + cacheBuster;
-                    resolveBoxArt();
-                  }, 'r');
+                  }
+                  resolveBoxArt();
                 }
 
                 // Early return to prevent the fallback synchronous resolveBoxArt from firing
