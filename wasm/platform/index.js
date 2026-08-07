@@ -2141,30 +2141,17 @@ function stylizeBoxArts(freshApi, appsList) {
 // Sort the app titles
 function sortTitles(list, sortOrder) {
   return list.sort((a, b) => {
-    const titleA = a.title.toLowerCase();
-    const titleB = b.title.toLowerCase();
-
     // Ascending order (A - Z)
     if (sortOrder === 'ASC') {
-      if (titleA < titleB) {
-        return -1;
-      }
-      if (titleA > titleB) {
-        return 1;
-      }
-      return 0;
+      return a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: 'base' });
     }
 
     // Descending order (Z - A)
     if (sortOrder === 'DESC') {
-      if (titleA < titleB) {
-        return 1;
-      }
-      if (titleA > titleB) {
-        return -1;
-      }
-      return 0;
+      return b.title.localeCompare(a.title, undefined, { numeric: true, sensitivity: 'base' });
     }
+
+    return 0;
   });
 }
 
