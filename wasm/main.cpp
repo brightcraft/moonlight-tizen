@@ -83,6 +83,9 @@ void MoonlightInstance::OnConnectionStopped(uint32_t error) {
   // Unlock the mouse
   UnlockMouse();
 
+  // Spawn teardown thread to cleanup EMSS pipeline
+  pthread_create(&m_StopThread, NULL, MoonlightInstance::StopThreadFunc, NULL);
+
   // Notify the JS code that the stream has ended
   PostToJs(std::string(MSG_STREAM_TERMINATED + std::to_string((int)error)));
 }
@@ -92,11 +95,6 @@ void MoonlightInstance::StopConnection() {
   g_Instance->m_EmssStateChanged.notify_all();
   g_Instance->m_EmssAudioStateChanged.notify_all();
   g_Instance->m_EmssVideoStateChanged.notify_all();
-
-  // Stopping needs to happen in a separate thread to avoid a potential deadlock
-  // caused by us getting a callback to the main thread while inside
-  // LiStopConnection.
-  pthread_create(&m_StopThread, NULL, MoonlightInstance::StopThreadFunc, NULL);
 
   // We'll need to call the listener ourselves since our connection terminated
   // callback won't be invoked for a manually requested termination.
