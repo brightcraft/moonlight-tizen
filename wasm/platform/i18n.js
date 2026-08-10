@@ -169,6 +169,14 @@
       }
     }
 
+    const selectAudioBackend = document.getElementById('selectAudioBackend');
+    if (selectAudioBackend) {
+      const selectedItem = document.querySelector(`.audioBackendMenu li[data-value="${selectAudioBackend.dataset.value}"]`);
+      if (selectedItem) {
+        selectAudioBackend.textContent = t(selectedItem.getAttribute('data-i18n') || selectedItem.textContent.trim());
+      }
+    }
+
     const selectCodec = document.getElementById('selectCodec');
     if (selectCodec) {
       const selectedItem = document.querySelector(`.videoCodecMenu li[data-value="${selectCodec.dataset.value}"]`);

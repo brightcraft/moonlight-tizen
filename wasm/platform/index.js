@@ -92,7 +92,9 @@ function attachListeners() {
   $('#flipABfaceButtonsSwitch').on('click', saveFlipABfaceButtons);
   $('#flipXYfaceButtonsSwitch').on('click', saveFlipXYfaceButtons);
   $('.audioConfigMenu li').on('click', saveAudioConfiguration);
+  $('.audioBackendMenu li').on('click', saveAudioBackend);
   $('#audioSyncSwitch').on('click', saveAudioSync);
+  $('#jitterSlider').on('input', saveAudioJitter);
   $('#playHostAudioSwitch').on('click', savePlayHostAudio);
   $('.videoCodecMenu li').on('click', saveVideoCodec);
   $('#hdrModeSwitch').on('click', saveHdrMode);
@@ -121,6 +123,8 @@ function attachListeners() {
   registerMenu('selectBitrate', Views.SelectBitrateMenu);
   registerMenu('selectLanguage', Views.SelectLanguageMenu);
   registerMenu('selectAudio', Views.SelectAudioMenu);
+  registerMenu('selectAudioBackend', Views.SelectAudioBackendMenu);
+  registerMenu('selectAudioJitter', Views.SelectAudioJitterMenu);
   registerMenu('selectCodec', Views.SelectCodecMenu);
 
   $(window).resize(fullscreenWasmModule);
@@ -2435,6 +2439,13 @@ function startGame(host, appID) {
     return;
   }
 
+  // Start the audio scheduler of the Web Audio backend while we are still running inside the
+  // handler of the key press that started the stream, because the audio context of a device
+  // with an autoplay policy can only be created from a user gesture
+  if (isWebAudioBackendSelected()) {
+    startAudioScheduler();
+  }
+
   // Refresh the server info, because the user might have quit the game
   host.refreshServerInfo().then(function(ret) {
     host.getAppById(appID).then(function(appToStart) {
@@ -2506,7 +2517,9 @@ function startGame(host, appID) {
       const flipABfaceButtons = $('#flipABfaceButtonsSwitch').parent().hasClass('is-checked') ? 1 : 0;
       const flipXYfaceButtons = $('#flipXYfaceButtonsSwitch').parent().hasClass('is-checked') ? 1 : 0;
       var audioConfig = $('#selectAudio').data('value').toString();
+      var audioBackend = $('#selectAudioBackend').data('value').toString();
       const audioSync = $('#audioSyncSwitch').parent().hasClass('is-checked') ? 1 : 0;
+      const audioJitter = parseInt($('#jitterSlider').val());
       const playHostAudio = $('#playHostAudioSwitch').parent().hasClass('is-checked') ? 1 : 0;
       var videoCodec = $('#selectCodec').data('value').toString();
       const hdrMode = $('#hdrModeSwitch').parent().hasClass('is-checked') ? 1 : 0;
@@ -2527,7 +2540,9 @@ function startGame(host, appID) {
       '\n Flip A/B face buttons: ' + flipABfaceButtons + 
       '\n Flip X/Y face buttons: ' + flipXYfaceButtons + 
       '\n Audio configuration: ' + audioConfig + 
+      '\n Audio backend: ' + audioBackend +
       '\n Audio synchronization: ' + audioSync + 
+      '\n Audio jitter buffer: ' + audioJitter + ' ms' +
       '\n Play host audio: ' + playHostAudio + 
       '\n Video codec: ' + videoCodec + 
       '\n Video HDR mode: ' + hdrMode + 
@@ -2575,8 +2590,8 @@ function startGame(host, appID) {
             host.address, host.httpPort, streamWidth, streamHeight, frameRate, bitrate.toString(), rikey, rikeyid.toString(),
             host.appVersion, host.gfeVersion, $root.find('sessionUrl0').text().trim(), host.serverCodecModeSupport,
             framePacing, optimizeGames, rumbleFeedback, mouseEmulation, flipABfaceButtons, flipXYfaceButtons,
-            audioConfig, audioSync, playHostAudio, videoCodec, hdrMode, fullRange, gameMode, disableWarnings,
-            performanceStats
+            audioConfig, audioBackend, audioSync, audioJitter, playHostAudio, videoCodec, hdrMode, fullRange, gameMode,
+            disableWarnings, performanceStats
           ]);
         }, function(failedResumeApp) {
           console.error('%c[index.js, startGame]', 'color: green;', 'Error: Failed to resume app with id: ' + appID + '\n Returned error was: ' + failedResumeApp + '!');
@@ -2627,8 +2642,8 @@ function startGame(host, appID) {
           host.address, host.httpPort, streamWidth, streamHeight, frameRate, bitrate.toString(), rikey, rikeyid.toString(),
           host.appVersion, host.gfeVersion, $root.find('sessionUrl0').text().trim(), host.serverCodecModeSupport,
           framePacing, optimizeGames, rumbleFeedback, mouseEmulation, flipABfaceButtons, flipXYfaceButtons,
-          audioConfig, audioSync, playHostAudio, videoCodec, hdrMode, fullRange, gameMode, disableWarnings,
-          performanceStats
+          audioConfig, audioBackend, audioSync, audioJitter, playHostAudio, videoCodec, hdrMode, fullRange, gameMode,
+          disableWarnings, performanceStats
         ]);
       }, function(failedLaunchApp) {
         console.error('%c[index.js, startGame]', 'color: green;', 'Error: Failed to launch app with id: ' + appID + '\n Returned error was: ' + failedLaunchApp + '!');
@@ -3112,12 +3127,48 @@ function warnAudioConfiguration() {
   }
 }
 
+function saveAudioBackend() {
+  var chosenAudioBackend = $(this).data('value');
+  $('#selectAudioBackend').text($(this).text()).attr('data-value', chosenAudioBackend).data('value', chosenAudioBackend);
+  console.log('%c[index.js, saveAudioBackend]', 'color: green;', 'Saving audioBackend value: ' + chosenAudioBackend);
+  storeData('audioBackend', chosenAudioBackend, null);
+
+  // Show only the settings that apply to the selected audio backend
+  updateAudioBackendSettings();
+}
+
+// The audio backends do not share their tuning settings, so only show the settings that the
+// selected backend actually uses while streaming
+function updateAudioBackendSettings() {
+  if (isWebAudioBackendSelected()) {
+    // The Web Audio backend schedules the audio itself using the jitter buffer
+    $('#audioSyncOption').hide();
+    $('#audioJitterOption').show();
+  } else {
+    // The EMSS backend drops audio packets to stay in sync instead of buffering them
+    $('#audioJitterOption').hide();
+    $('#audioSyncOption').show();
+  }
+}
+
+// Check whether the Web Audio backend is the currently selected audio backend
+function isWebAudioBackendSelected() {
+  return $('#selectAudioBackend').data('value') === 'WebAudio';
+}
+
 function saveAudioSync() {
   setTimeout(() => {
     const chosenAudioSync = $('#audioSyncSwitch').parent().hasClass('is-checked');
     console.log('%c[index.js, saveAudioSync]', 'color: green;', 'Saving audio sync state: ' + chosenAudioSync);
     storeData('audioSync', chosenAudioSync, null);
   }, 100);
+}
+
+function saveAudioJitter() {
+  var chosenAudioJitter = $('#jitterSlider').val();
+  $('#selectAudioJitter').html(chosenAudioJitter + ' ms');
+  console.log('%c[index.js, saveAudioJitter]', 'color: green;', 'Saving audio jitter buffer: ' + chosenAudioJitter);
+  storeData('audioJitter', chosenAudioJitter, null);
 }
 
 function savePlayHostAudio() {
@@ -3377,9 +3428,20 @@ function restoreDefaultsSettingsValues() {
   $('#selectAudio').text('Stereo').data('value', defaultAudioConfig);
   storeData('audioConfig', defaultAudioConfig, null);
 
+  const defaultAudioBackend = 'EMSS';
+  $('#selectAudioBackend').text('EMSS').attr('data-value', defaultAudioBackend).data('value', defaultAudioBackend);
+  storeData('audioBackend', defaultAudioBackend, null);
+  // Show the settings of the restored audio backend
+  updateAudioBackendSettings();
+
   const defaultAudioSync = false;
   document.querySelector('#audioSyncBtn').MaterialSwitch.off();
   storeData('audioSync', defaultAudioSync, null);
+
+  const defaultAudioJitter = '100';
+  $('#selectAudioJitter').html(defaultAudioJitter + ' ms');
+  $('#jitterSlider')[0].MaterialSlider.change(defaultAudioJitter);
+  storeData('audioJitter', defaultAudioJitter, null);
 
   const defaultPlayHostAudio = false;
   document.querySelector('#playHostAudioBtn').MaterialSwitch.off();
@@ -3673,6 +3735,20 @@ function loadUserDataCb() {
     }
   });
 
+  console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored audioBackend preferences.');
+  getData('audioBackend', function(previousValue) {
+    if (previousValue.audioBackend != null) {
+      $('.audioBackendMenu li').each(function() {
+        if ($(this).data('value') === previousValue.audioBackend) {
+          // Update the audio backend field based on the given value
+          $('#selectAudioBackend').text($(this).text()).attr('data-value', previousValue.audioBackend).data('value', previousValue.audioBackend);
+        }
+      });
+    }
+    // Show the settings of the stored audio backend
+    updateAudioBackendSettings();
+  });
+
   console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored audioSync preferences.');
   getData('audioSync', function(previousValue) {
     if (previousValue.audioSync == null) {
@@ -3682,6 +3758,13 @@ function loadUserDataCb() {
     } else {
       document.querySelector('#audioSyncBtn').MaterialSwitch.on();
     }
+  });
+
+  console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored audioJitter preferences.');
+  getData('audioJitter', function(previousValue) {
+    $('#jitterSlider')[0].MaterialSlider.change(previousValue.audioJitter != null ? previousValue.audioJitter : '100');
+    // Update the audio jitter buffer field based on the given value
+    $('#selectAudioJitter').html($('#jitterSlider').val() + ' ms');
   });
 
   console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored playHostAudio preferences.');
