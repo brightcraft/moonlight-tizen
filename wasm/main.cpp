@@ -35,7 +35,9 @@ using EmssRenderingMode = samsung::wasm::ElementaryMediaStreamSource::RenderingM
 MoonlightInstance* g_Instance;
 
 MoonlightInstance::MoonlightInstance()
-  : m_OpusDecoder(NULL),
+  : m_AudioBackend(AudioBackend::Emss),
+    m_AudioJitterMs(0),
+    m_OpusDecoder(NULL),
     m_MouseLocked(false),
     m_MouseLastPosX(-1),
     m_MouseLastPosY(-1),
@@ -217,6 +219,19 @@ void* MoonlightInstance::ConnectionThreadFunc(void* context) {
     // Fallback to H.264 if no server codec was selected
     serverInfo.serverCodecModeSupport = SCM_H264;
     PostToJs("Selecting the fallback server code mode to: SCM_H264");
+  }
+
+  // Initialize the audio renderer capabilities with the value shared by both audio backends
+  MoonlightInstance::s_ArCallbacks.capabilities = CAPABILITY_DIRECT_SUBMIT;
+  // Handle setting of the audio renderer capabilities based on the selected audio backend
+  if (me->m_AudioBackend == AudioBackend::WebAudio) { // Web Audio
+    // The Web Audio backend reads the samples per frame from the Opus configuration, so it can
+    // render the longer frames that the RTSP negotiation may choose on low bitrate streams
+    MoonlightInstance::s_ArCallbacks.capabilities |= CAPABILITY_SUPPORTS_ARBITRARY_AUDIO_DURATION;
+    PostToJs("Selecting the audio renderer capabilities to: CAPABILITY_DIRECT_SUBMIT | CAPABILITY_SUPPORTS_ARBITRARY_AUDIO_DURATION");
+  } else { // EMSS
+    // The EMSS backend expects the fixed 5 ms frames that are negotiated without that capability
+    PostToJs("Selecting the audio renderer capabilities to: CAPABILITY_DIRECT_SUBMIT");
   }
 
   err = LiStartConnection(&serverInfo, &me->m_StreamConfig, &MoonlightInstance::s_ClCallbacks,

@@ -82,6 +82,12 @@ enum class LoadResult {
   Success, CertErr, PrivateKeyErr
 };
 
+// Audio backend used to render the decoded Opus stream
+enum class AudioBackend {
+  Emss, // Elementary Media Stream Source: the original Samsung implementation
+  WebAudio // Web Audio: the scheduler implemented in platform/audio.js
+};
+
 constexpr const char* kCanvasName = "#wasm_module";
 
 class MoonlightInstance {
@@ -230,7 +236,9 @@ class MoonlightInstance {
   bool m_FlipABfaceButtonsEnabled;
   bool m_FlipXYfaceButtonsEnabled;
   int m_AudioConfig;
+  AudioBackend m_AudioBackend;
   bool m_AudioSyncEnabled;
+  int m_AudioJitterMs;
   bool m_PlayHostAudioEnabled;
   bool m_HdrModeEnabled;
   bool m_FullRangeEnabled;
