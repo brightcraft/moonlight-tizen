@@ -51,7 +51,6 @@ const BUILD_COMMIT = '__BUILD_COMMIT__'; // Placeholder for build commit, which 
 var _smartHubLocalMessagePort = null; // Local message port for receiving messages from the Smart Hub service
 var _smartHubMessagePortListener = null; // Listener ID for the Smart Hub local message port
 var _previewApps = {}; // Per-host app cache for Smart Hub Preview: {serverUid: {hostname, address, apps: [{id, title, imageUri}]}}
-var _previewUpdateTimer = null; // Debounce timer for batching Smart Hub Preview updates triggered by box art loading
 var _isSmartHubSupported = false; // Flag indicating if Smart Hub Preview is supported on this device
 
 const REPEAT_DELAY = 350; // Repeat delay set to 350ms (milliseconds)
@@ -4154,26 +4153,6 @@ function handleDeepLink() {
     }
   } catch (e) {
     console.error('%c[index.js, handleDeepLink]', 'color: green;', 'Error: No deep link or error processing it: ' + e.message);
-  }
-}
-
-// Sets the image URI on a cached preview app entry and schedules a debounced Smart Hub update.
-function _setPreviewImageUri(serverUid, appId, uri) {
-  if (_previewApps[serverUid]) {
-    var appEntry = _previewApps[serverUid].apps.find(function(a) {
-      return a.id === appId;
-    });
-    if (appEntry && !appEntry.imageUri) {
-      appEntry.imageUri = uri;
-      if (_previewUpdateTimer) {
-        clearTimeout(_previewUpdateTimer);
-      }
-      _previewUpdateTimer = setTimeout(function() {
-        _previewUpdateTimer = null;
-        savePreviewApps();
-        updatePreviewData();
-      }, 500);
-    }
   }
 }
 
