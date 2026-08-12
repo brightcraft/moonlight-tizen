@@ -583,9 +583,10 @@ NvHTTP.prototype = {
         ]).then(function(boxArtBuffer) {
           // boxArtBuffer is a Uint8Array from the WASM binary response
           var blob = new Blob([boxArtBuffer], { type: 'image/png' });
-          var reader = new FileReader();
-          reader.onloadend = function() {
-            var dataUrl = reader.result;
+          var blobUrl = URL.createObjectURL(blob);
+          var img = new Image();
+
+          function saveAndResolveDataUrl(dataUrl) {
             // Always resolve for UI display regardless of caching outcome.
             console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Returning network-fetched box art: ', appId);
 
@@ -613,8 +614,44 @@ NvHTTP.prototype = {
             }
             
             resolve(dataUrl);
+          }
+
+          img.onload = function() {
+            URL.revokeObjectURL(blobUrl);
+            var targetHeight = 360; // Max optimal height for Smart Hub Preview
+
+            if (img.height > targetHeight) {
+              // Resize image via HTML5 Canvas if it exceeds target height
+              var canvas = document.createElement('canvas');
+              canvas.height = targetHeight;
+              canvas.width = Math.floor(img.width * (targetHeight / img.height));
+              var ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              
+              var resizedDataUrl = canvas.toDataURL('image/png');
+              console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Resized box art for ' + appId + ' from ' + img.height + 'px to ' + targetHeight + 'px');
+              saveAndResolveDataUrl(resizedDataUrl);
+            } else {
+              // Image is small enough, read original blob to preserve exact bytes and compression
+              var reader = new FileReader();
+              reader.onloadend = function() {
+                saveAndResolveDataUrl(reader.result);
+              };
+              reader.readAsDataURL(blob);
+            }
           };
-          reader.readAsDataURL(blob);
+
+          img.onerror = function() {
+            URL.revokeObjectURL(blobUrl);
+            console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Failed to decode image for resizing, falling back to original blob.');
+            var reader = new FileReader();
+            reader.onloadend = function() {
+              saveAndResolveDataUrl(reader.result);
+            };
+            reader.readAsDataURL(blob);
+          };
+
+          img.src = blobUrl;
         }, function(error) {
           console.error('%c[utils.js, getBoxArt]', 'color: gray;', 'Error: Failed to retrieve box art from network: ', error);
           reject(error);
