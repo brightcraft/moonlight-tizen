@@ -382,9 +382,9 @@ function stopPollingHosts() {
   }
 }
 
-function snackbarLog(givenMessage) {
-  const translatedMessage = t(givenMessage);
-  console.log('%c[index.js, snackbarLog]', 'color: green;', givenMessage);
+function snackbarLog(...args) {
+  const translatedMessage = t(...args);
+  console.log('%c[index.js, snackbarLog]', 'color: green;', ...args);
   var data = {
     message: translatedMessage,
     timeout: 2500
@@ -392,9 +392,9 @@ function snackbarLog(givenMessage) {
   document.querySelector('#snackbar').MaterialSnackbar.showSnackbar(data);
 }
 
-function snackbarLogLong(givenMessage) {
-  const translatedMessage = t(givenMessage);
-  console.log('%c[index.js, snackbarLogLong]', 'color: green;', givenMessage);
+function snackbarLogLong(...args) {
+  const translatedMessage = t(...args);
+  console.log('%c[index.js, snackbarLogLong]', 'color: green;', ...args);
   var data = {
     message: translatedMessage,
     timeout: 5000
@@ -515,7 +515,7 @@ function restoreUiAfterWasmLoad() {
 
 function hostChosen(host) {
   if (isPairingInProgress) {
-    snackbarLogLong(t('A pairing request is currently in progress. Please wait for it to timeout or finish before trying again.'));
+    snackbarLogLong('A pairing request is currently in progress. Please wait for it to timeout or finish before trying again.');
     return;
   }
 
@@ -523,7 +523,7 @@ function hostChosen(host) {
   if (!host.online) {
     // Let the user know what to do to bring the host back online and until then, we'll be back to the previous view.
     console.error('%c[index.js, hostChosen]', 'color: green;', 'Error: Connection to host failed or host is offline!');
-    snackbarLogLong(t('Failed to connect to %1$s. Ensure Sunshine is running on your host PC or GameStream is enabled in GeForce Experience SHIELD settings.', 'the host'));
+    snackbarLogLong('Failed to connect to %1$s. Ensure Sunshine is running on your host PC or GameStream is enabled in GeForce Experience SHIELD settings.', 'the host');
     return;
   }
 
@@ -827,7 +827,7 @@ function addHostDialog() {
     _nvhttpHost.httpPort = parsedHostInput.port;
     console.log('%c[index.js, addHostDialog]', 'color: green;', 'Sending connection request to host address ' + _nvhttpHost.hostname);
     _nvhttpHost.refreshServerInfoAtAddress(parsedHostInput.addr).then(function(success) {
-      snackbarLog(t('Connecting to %1$s...', _nvhttpHost.hostname));
+      snackbarLog('Connecting to %1$s...', _nvhttpHost.hostname);
       // Close the dialog if the user has provided the IP address
       console.log('%c[index.js, addHostDialog]', 'color: green;', 'Closing app dialog and returning.');
       addHostOverlay.style.display = 'none';
@@ -861,7 +861,7 @@ function addHostDialog() {
       initIpAddressFields();
     }.bind(this), function(failure) {
       console.error('%c[index.js, addHostDialog]', 'color: green;', 'Error: Failed API object:\n', _nvhttpHost, '\n' + _nvhttpHost.toString()); // Logging both object (for console) and toString-ed object (for text logs)
-      snackbarLogLong(t('Failed to connect to %1$s. Ensure Sunshine is running on your host PC or GameStream is enabled in GeForce Experience SHIELD settings.', _nvhttpHost.hostname || t('the host')));
+      snackbarLogLong('Failed to connect to %1$s. Ensure Sunshine is running on your host PC or GameStream is enabled in GeForce Experience SHIELD settings.', _nvhttpHost.hostname || t('the host'));
       // Re-enable the Continue button after failure processing
       $('#continueAddHost').removeClass('mdl-button--disabled').prop('disabled', false);
       // Clear the input field after failure processing
@@ -880,7 +880,7 @@ function pairingDialog(nvhttpHost, onSuccess, onFailure) {
 
   if (!pairingCert) {
     console.warn('%c[index.js, pairingDialog]', 'color: green;', 'Warning: Pairing certificate is not generated yet. Please ensure Wasm is initialized properly!');
-    snackbarLogLong(t('Something went wrong with the pairing certificate. Please try pairing with the host PC again.'));
+    snackbarLogLong('Something went wrong with the pairing certificate. Please try pairing with the host PC again.');
     onFailure();
     return;
   }
@@ -888,7 +888,7 @@ function pairingDialog(nvhttpHost, onSuccess, onFailure) {
   nvhttpHost.pollServer(function(returnedNvHTTPHost) {
     if (!returnedNvHTTPHost.online) {
       console.error('%c[index.js, pairingDialog]', 'color: green;', 'Error: Failed to connect to ' + nvhttpHost.hostname + '. Ensure your host PC is online!', nvhttpHost, '\n' + nvhttpHost.toString()); // Logging both object (for console) and toString-ed object (for text logs)
-      snackbarLogLong(t('Failed to connect to %1$s. Ensure Sunshine is running on your host PC or GameStream is enabled in GeForce Experience SHIELD settings.', nvhttpHost.hostname || t('the host')));
+      snackbarLogLong('Failed to connect to %1$s. Ensure Sunshine is running on your host PC or GameStream is enabled in GeForce Experience SHIELD settings.', nvhttpHost.hostname || t('the host'));
       onFailure();
       return;
     }
@@ -899,7 +899,7 @@ function pairingDialog(nvhttpHost, onSuccess, onFailure) {
     }
 
     if (nvhttpHost.currentGame != 0) {
-      snackbarLogLong(t('%1$s is currently in a game session. Please quit the running app or restart the computer, then try again.', nvhttpHost.hostname));
+      snackbarLogLong('%1$s is currently in a game session. Please quit the running app or restart the computer, then try again.', nvhttpHost.hostname);
       onFailure();
       return;
     }
@@ -944,7 +944,7 @@ function pairingDialog(nvhttpHost, onSuccess, onFailure) {
     console.log('%c[index.js, pairingDialog]', 'color: green;', 'Sending pairing request to ' + nvhttpHost.hostname + ' with PIN ' + randomNumber);
     nvhttpHost.pair(randomNumber).then(function() {
       isPairingInProgress = false;
-      snackbarLog(t('Successfully paired with %1$s', nvhttpHost.hostname));
+      snackbarLog('Successfully paired with %1$s', nvhttpHost.hostname);
       // Close the dialog if the pairing was successful
       console.log('%c[index.js, pairingDialog]', 'color: green;', 'Closing app dialog and returning.');
       pairingOverlay.style.display = 'none';
@@ -959,7 +959,7 @@ function pairingDialog(nvhttpHost, onSuccess, onFailure) {
         return;
       }
       console.error('%c[index.js, pairingDialog]', 'color: green;', 'Error: Failed API object:\n', nvhttpHost, '\n' + nvhttpHost.toString()); // Logging both object (for console) and toString-ed object (for text logs)
-      snackbarLog(t('Failed to pair with %1$s', nvhttpHost.hostname));
+      snackbarLog('Failed to pair with %1$s', nvhttpHost.hostname);
       // Keep the modal opened, but change the button for "Close"
       $('#cancelPairing').text('Close');
 
@@ -1132,7 +1132,7 @@ function hostMenuDialog(host) {
       text: t('Refresh apps'),
       action: function() {
         // Refresh the list of apps for the target host
-        snackbarLogLong(t('Refreshing the list of %1$s applications...', host.hostname));
+        snackbarLogLong('Refreshing the list of %1$s applications...', host.hostname);
         host.clearBoxArt();
         host.getAppListWithCacheFlush();
       }
@@ -1144,7 +1144,7 @@ function hostMenuDialog(host) {
       text: t('Wake PC'),
       action: function() {
         // Send a Wake-on-LAN request to the target host
-        snackbarLogLong(t('Sending a Wake On LAN request to %1$s...', host.hostname));
+        snackbarLogLong('Sending a Wake On LAN request to %1$s...', host.hostname);
         host.sendWOL();
       }
     },
@@ -1272,7 +1272,7 @@ function deleteHostDialog(host) {
     // Save the updated hosts
     saveHosts();
     // If host removed, show snackbar message
-    snackbarLog(t('%1$s has been deleted successfully.', host.hostname));
+    snackbarLog('%1$s has been deleted successfully.', host.hostname);
     deleteHostOverlay.style.display = 'none';
     deleteHostDialog.close();
     isDialogOpen = false;
@@ -1287,7 +1287,7 @@ function deleteHostDialog(host) {
 function deleteAllHostsDialog() {
   if (Object.keys(hosts).length === 0) {
     // If there are no hosts, show snackbar message
-    snackbarLog(t('No host exists.'));
+    snackbarLog('No host exists.');
     return;
   } else {
     // Find the existing overlay and dialog elements
@@ -1334,7 +1334,7 @@ function deleteAllHostsDialog() {
         }
       }
       // If all hosts removed, show snackbar message
-      snackbarLog(t('All hosts have been deleted successfully.'));
+      snackbarLog('All hosts have been deleted successfully.');
       deleteHostOverlay.style.display = 'none';
       deleteHostDialog.close();
       isDialogOpen = false;
@@ -1757,7 +1757,7 @@ function updateAppButton(latestVersion) {
       }, 500);
     }).catch(error => {
       console.error('%c[index.js, updateAppButton]', 'color: green;', 'Error: Failed to fetch the release data!', error);
-      snackbarLogLong(t('Unable to check update release notes at this time. Please try again later!'));
+      snackbarLogLong('Unable to check update release notes at this time. Please try again later!');
     });
   });
 }
@@ -1839,7 +1839,7 @@ function updateAppDialog(latestVersion, releaseNotes) {
 // Check for updates when the Check for Updates button is pressed
 function checkForAppUpdates() {
   console.log('%c[index.js, checkForAppUpdates]', 'color: green;', 'Checking for new application updates...');
-  snackbarLog(t('Checking for available Moonlight updates...'));
+  snackbarLog('Checking for available Moonlight updates...');
   // Fetch the latest release data from the GitHub API
   fetchLatestRelease().then(({ latestVersion, releaseNotes }) => {
     setTimeout(() => {
@@ -1849,12 +1849,12 @@ function checkForAppUpdates() {
         updateAppDialog(latestVersion, releaseNotes);
       } else {
         // Otherwise, show a snackbar message to inform the user that the app is already up to date
-        snackbarLogLong(t('Your app is already up to date! You\'re on the latest version.'));
+        snackbarLogLong('Your app is already up to date! You\'re on the latest version.');
       }
     }, 1500);
   }).catch(error => {
     console.error('%c[index.js, checkForAppUpdates]', 'color: green;', 'Error: Failed to fetch the release data!', error);
-    snackbarLogLong(t('Unable to check for updates right now. Please try again later!'));
+    snackbarLogLong('Unable to check for updates right now. Please try again later!');
   });
 }
 
@@ -1878,14 +1878,14 @@ function checkForAppUpdatesAtStartup() {
           // Check if a new version update is available
           if (checkVersionUpdate(appInfo.version, latestVersion)) {
             // Show snackbar message with new version to inform user to update the app
-            snackbarLogLong(t('Version %1$s is now available! Check out the latest features & improvements.', latestVersion));
+            snackbarLogLong('Version %1$s is now available! Check out the latest features & improvements.', latestVersion);
             // Create and display the Update App button with tooltip and additional layout spacer
             updateAppButton(latestVersion);
           }
         }, 100);
       }).catch(error => {
         console.error('%c[index.js, checkForAppUpdatesAtStartup]', 'color: green;', 'Error: Failed to fetch the release data!', error);
-        snackbarLogLong(t('Cannot automatically check for updates at this time!'));
+        snackbarLogLong('Cannot automatically check for updates at this time!');
       });
 
       // Save the current time
@@ -1934,7 +1934,7 @@ function restoreDefaultsDialog() {
     // Reset any settings to their default state and save the updated values
     restoreDefaultsSettingsValues();
     // If the settings have been reset to default, show snackbar message
-    snackbarLog(t('Settings have been restored to their default values.'));
+    snackbarLog('Settings have been restored to their default values.');
     restoreDefaultsDialogOverlay.style.display = 'none';
     restoreDefaultsDialog.close();
     isDialogOpen = false;
@@ -2216,7 +2216,7 @@ function showApps(host) {
           var emptyAppListImg = new Image();
           emptyAppListImg.src = 'static/res/applist_empty.svg';
           $('#game-grid').html(emptyAppListImg);
-          snackbarLogLong(t('Your list is currently empty. Please add your favorite apps to the list.'));
+          snackbarLogLong('Your list is currently empty. Please add your favorite apps to the list.');
           return;
         }
 
@@ -2323,7 +2323,7 @@ function showApps(host) {
         var errorAppListImg = new Image();
         errorAppListImg.src = 'static/res/applist_error.svg';
         $('#game-grid').html(errorAppListImg);
-        snackbarLogLong(t('Unable to retrieve your list of apps at this time. Please refresh the list of apps or try again later!'));
+        snackbarLogLong('Unable to retrieve your list of apps at this time. Please refresh the list of apps or try again later!');
 
         // Navigate to the Apps view
         showAppsMode();
@@ -2561,7 +2561,7 @@ function startGame(host, appID) {
           var status_message = $root.attr('status_message');
           if (status_code != 200) {
             $('#loadingSpinnerMessage').text('');
-            snackbarLogLong(t('Error %1$s: %2$s', status_code, status_message));
+            snackbarLogLong('Error %1$s: %2$s', status_code, status_message);
             showApps(host).then(() => {
               // Scroll to the current game row
               Navigation.switch();
@@ -2580,7 +2580,7 @@ function startGame(host, appID) {
           ]);
         }, function(failedResumeApp) {
           console.error('%c[index.js, startGame]', 'color: green;', 'Error: Failed to resume app with id: ' + appID + '\n Returned error was: ' + failedResumeApp + '!');
-          snackbarLog(t('Failed to resume %1$s', appToStart.title));
+          snackbarLog('Failed to resume %1$s', appToStart.title);
           showApps(host).then(() => {
             // Scroll to the current game row
             Navigation.switch();
@@ -2613,7 +2613,7 @@ function startGame(host, appID) {
             status_message = t('Audio capture device is missing. Please reinstall the audio drivers.');
           }
           $('#loadingSpinnerMessage').text('');
-          snackbarLogLong(t('Error %1$s: %2$s', status_code, status_message));
+          snackbarLogLong('Error %1$s: %2$s', status_code, status_message);
           showApps(host).then(() => {
             // Scroll to the current game row
             Navigation.switch();
@@ -2632,7 +2632,7 @@ function startGame(host, appID) {
         ]);
       }, function(failedLaunchApp) {
         console.error('%c[index.js, startGame]', 'color: green;', 'Error: Failed to launch app with id: ' + appID + '\n Returned error was: ' + failedLaunchApp + '!');
-        snackbarLog(t('Failed to launch %1$s', appToStart.title));
+        snackbarLog('Failed to launch %1$s', appToStart.title);
         showApps(host).then(() => {
           // Scroll to the current game row
           Navigation.switch();
@@ -2658,13 +2658,13 @@ function stopGame(host, callbackFunction) {
   host.refreshServerInfo().then(function(ret) {
     host.getAppById(host.currentGame).then(function(runningApp) {
       if (!runningApp) {
-        snackbarLog(t('No app is currently running.'));
+        snackbarLog('No app is currently running.');
         return;
       }
       var appTitle = runningApp.title;
-      snackbarLog(t('Quitting %1$s...', appTitle));
+      snackbarLog('Quitting %1$s...', appTitle);
       host.quitApp().then(function(ret2) {
-        snackbarLog(t('Successfully quit %1$s', appTitle));
+        snackbarLog('Successfully quit %1$s', appTitle);
         host.refreshServerInfo().then(function(ret3) {
           // Refresh to show no app is currently running
           showApps(host).finally(() => {
@@ -2868,7 +2868,7 @@ function warnResolutionFramerate() {
   // Video resolution and frame rate warning
   if (!resFpsWarning && chosenResolutionWidth > '1920' && chosenResolutionHeight > '1080' && chosenFramerate > '60') {
     // Warn only if video resolution is greater than 1080p and frame rate is greater than 60 FPS
-    snackbarLogLong(t('Warning: This resolution and frame rate may not perform well on lower-end devices or slower connections!'));
+    snackbarLogLong('Warning: This resolution and frame rate may not perform well on lower-end devices or slower connections!');
     // Set flag for video resolution and frame rate warning
     resFpsWarning = true;
   } else if (resFpsWarning && (chosenResolutionWidth <= '1920' || chosenResolutionHeight <= '1080' || chosenFramerate <= '60')) {
@@ -2893,7 +2893,7 @@ function warnBitrate() {
   // Video bitrate warning
   if (!bitrateWarning && chosenBitrate > 100) {
     // Warn only if video bitrate is greater than 100 Mbps
-    snackbarLogLong(t('Warning: Higher bitrate may cause playback interruptions and performance issues, please try with caution!'));
+    snackbarLogLong('Warning: Higher bitrate may cause playback interruptions and performance issues, please try with caution!');
     // Set flag for video bitrate warning
     bitrateWarning = true;
   } else if (bitrateWarning && chosenBitrate <= 100) {
@@ -3103,7 +3103,7 @@ function warnAudioConfiguration() {
   // Audio configuration warning
   if (!audioWarning && (chosenAudioConfig === '71Surround' || chosenAudioConfig === '51Surround')) {
     // Warn only if audio configuration is selected to 5.1 or 7.1 Surround
-    snackbarLogLong(t('Warning: Surround Sound (5.1/7.1) may not be supported by your TV and is not guaranteed to work due to platform limitations!'));
+    snackbarLogLong('Warning: Surround Sound (5.1/7.1) may not be supported by your TV and is not guaranteed to work due to platform limitations!');
     // Set flag for audio configuration warning
     audioWarning = true;
   } else if (audioWarning && (chosenAudioConfig === 'Stereo')) {
@@ -3137,7 +3137,7 @@ function saveVideoCodec() {
   if (enabledHdrMode && chosenVideoCodec === selectedH264Codec) { // Selecting H.264 while HDR mode is enabled
     // H.264 does not support HDR profile, so stay on H.264 codec
     updateVideoCodec('#h264', selectedH264Codec);
-    snackbarLog(t('HDR has been disabled due to unsupported H.264 codec.'));
+    snackbarLog('HDR has been disabled due to unsupported H.264 codec.');
     // Turn off the HDR mode switch and save the state
     $('#hdrModeSwitch').parent().removeClass('is-checked');
     updateHdrMode();
@@ -3166,7 +3166,7 @@ function warnVideoCodec() {
   // Video codec warning
   if (!codecWarning && (chosenVideoCodec === 'AV1')) {
     // Warn only if video codec is selected to AV1
-    snackbarLogLong(t('Warning: Selected codec may not be supported by your host PC and may significantly slow down performance!'));
+    snackbarLogLong('Warning: Selected codec may not be supported by your host PC and may significantly slow down performance!');
     // Set flag for video codec warning
     codecWarning = true;
   } else if (codecWarning && (chosenVideoCodec === 'HEVC' || chosenVideoCodec === 'H264')) {
@@ -3185,7 +3185,7 @@ function saveHdrMode() {
     // Handle HDR mode switch based on the selected codec
     if (selectedVideoCodec === chosenH264Codec) { // H.264
       // H.264 does not support HDR profile, so stay on H.264 codec
-      snackbarLog(t('H.264 codec does not support the HDR profile.'));
+      snackbarLog('H.264 codec does not support the HDR profile.');
       // Turn off the HDR mode switch and save the state
       $('#hdrModeSwitch').parent().removeClass('is-checked');
       updateHdrMode();
@@ -3199,7 +3199,7 @@ function saveHdrMode() {
       updateHdrMode();
     } else { // Undefined
       // Unknown codec format does not support HDR profile
-      snackbarLog(t('Selected codec does not support the HDR profile.'));
+      snackbarLog('Selected codec does not support the HDR profile.');
       // Turn off the HDR mode switch and save the state
       $('#hdrModeSwitch').parent().removeClass('is-checked');
       updateHdrMode();
@@ -3247,7 +3247,7 @@ function saveGameMode() {
       }, 250);
     } else if (parseFloat(platformVer) < 9.0 && !chosenGameMode) { // Warning other Tizen versions when disabling game mode
       // Show a warning message when disabling game mode
-      snackbarLogLong(t('Warning: Disabling game mode may increase latency and affect your game streaming performance!'));
+      snackbarLogLong('Warning: Disabling game mode may increase latency and affect your game streaming performance!');
     }
   }, 100);
 }
@@ -3261,7 +3261,7 @@ function saveUnlockAllFps() {
     // Warning when enabling higher FPS options
     if (chosenUnlockAllFps) {
       // Show a warning message when enabling higher FPS options
-      snackbarLogLong(t('Warning: Higher frame rates may not be fully supported by your TV and do not guarantee a smoother experience. Performance issues may occur due to platform limitations!'));
+      snackbarLogLong('Warning: Higher frame rates may not be fully supported by your TV and do not guarantee a smoother experience. Performance issues may occur due to platform limitations!');
     }
   }, 100);
 }
@@ -3849,7 +3849,7 @@ function loadHTTPCertsCb() {
         console.log('%c[index.js, loadHTTPCertsCb]', 'color: green;', 'Loading previously connected hosts...');
         // Start subnet scanning silently in the background after hosts are fully loaded
         setTimeout(() => {
-          snackbarLog(t('Scanning the local network to discover new hosts...'));
+          snackbarLog('Scanning the local network to discover new hosts...');
           startSubnetScanner();
         }, 1000);
       });
@@ -3874,7 +3874,7 @@ window.addEventListener('gamepadconnected', function(e) {
   const gamepadIndex = connectedGamepad.index;
   const rumbleFeedbackSwitch = document.getElementById('rumbleFeedbackSwitch');
   console.log('%c[index.js, gamepadconnected]', 'color: green;', 'Gamepad connected:\n' + JSON.stringify(connectedGamepad), connectedGamepad);
-  snackbarLog(t('Gamepad %1$s has been connected.', gamepadIndex));
+  snackbarLog('Gamepad %1$s has been connected.', gamepadIndex);
   // Check if the rumble feedback switch is checked
   if (rumbleFeedbackSwitch.checked) {
     // Check if the connected gamepad has a vibrationActuator associated with it
@@ -3897,6 +3897,6 @@ window.addEventListener('gamepaddisconnected', function(e) {
   const disconnectedGamepad = e.gamepad;
   const gamepadIndex = disconnectedGamepad.index;
   console.log('%c[index.js, gamepaddisconnected]', 'color: green;', 'Gamepad disconnected:\n' + JSON.stringify(disconnectedGamepad), disconnectedGamepad);
-  snackbarLog(t('Gamepad %1$s has been disconnected.', gamepadIndex));
+  snackbarLog('Gamepad %1$s has been disconnected.', gamepadIndex);
   console.warn('%c[index.js, gamepaddisconnected]', 'color: green;', 'Warning: Lost connection to gamepad ' + gamepadIndex + '. Please reconnect your gamepad!');
 });
