@@ -2370,7 +2370,7 @@ function showApps(host) {
                 }
 
                 // Use deterministic filename so the local HTTP server route stays stable
-                var filename = 'boxart-' + app.id + '.png';
+                var filename = 'preview-' + app.id + '.jpg';
                 var cacheBuster = '?v=' + Date.now();
 
                 // Determine local path from resolvedPromise if it's a file URI

@@ -92,11 +92,14 @@ function startLocalServer() {
     var route = require('url').parse(req.url).pathname; // Strip query string for cache-busting
     logAndSend('Local HTTP server received request for: ' + route);
     if (routeMap[route]) {
-      var pngPath = routeMap[route];
+      var imagePath = routeMap[route];
       try {
-        var binaryData = fs.readFileSync(pngPath);
+        var binaryData = fs.readFileSync(imagePath);
+        var contentType = route.toLowerCase().endsWith('.jpg')
+          ? 'image/jpeg'
+          : 'image/png';
         res.writeHead(200, {
-          'Content-Type': 'image/png',
+          'Content-Type': contentType,
           'Content-Length': binaryData.length
         });
         res.end(binaryData);
@@ -108,7 +111,7 @@ function startLocalServer() {
       }
     } else {
       // Fallback for TV reboots when memory routeMap is empty
-      if (route && route.startsWith('/boxart-') && route.endsWith('.png')) {
+      if (route && ((route.startsWith('/boxart-') && route.endsWith('.png')) || (route.startsWith('/preview-') && route.endsWith('.jpg')))) {
         logAndSend('Attempting fallback disk resolution for: ' + route);
         var fallbackPaths = [
           '/opt/usr/home/owner/content/Documents' + route,
@@ -118,8 +121,11 @@ function startLocalServer() {
         for (var i = 0; i < fallbackPaths.length; i++) {
           try {
             var fallbackData = fs.readFileSync(fallbackPaths[i]);
+            var fallbackContentType = route.toLowerCase().endsWith('.jpg')
+              ? 'image/jpeg'
+              : 'image/png';
             res.writeHead(200, {
-              'Content-Type': 'image/png',
+              'Content-Type': fallbackContentType,
               'Content-Length': fallbackData.length
             });
             res.end(fallbackData);

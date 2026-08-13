@@ -543,11 +543,12 @@ NvHTTP.prototype = {
   // Returns the box art based on the the given appId
   // Three layers of response time are possible: memory-cached (in JavaScript), storage-cached (in tizen.filesystem), and network-fetched (host sends binary over the network)
   // For explanations on the file system, see: https://developer.samsung.com/smarttv/develop/api-references/tizen-web-device-api-references/filesystem-api.html
-  // Box art is stored in the public documents virtual root so that the Smart Hub Preview background
-  // service process can access it directly without any cross-process copying.
+  // Box art is stored in the public documents virtual root so that the Smart Hub Preview background service process can access it directly without any cross-process copying
   getBoxArt: function(appId, isSmartHubSupported) {
     return new Promise(function(resolve, reject) {
-      var boxArtFileName, boxArtDir;
+      var boxArtDir;
+      var boxArtFileName;
+
       if (isSmartHubSupported) {
         // Smart Hub mode: use public documents folder so the background service can read it
         boxArtDir = 'documents';
@@ -568,13 +569,61 @@ NvHTTP.prototype = {
 
         // Convert Uint8Array to base64
         var binary = '';
+
         for (var i = 0; i < fileData.length; i++) {
           binary += String.fromCharCode(fileData[i]);
         }
+
         var base64Data = btoa(binary);
+        var dataUrl = 'data:image/png;base64,' + base64Data;
 
         console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Returning storage-cached box art: ', appId);
-        resolve('data:image/png;base64,' + base64Data);
+        // NOTE: Verify that the storage-cached/network-fetched flow is working correctly.
+        // On the first app list load after installation or clearing the cache, this should
+        // fall through to the network fetch when the original box art does not exist.
+
+        // Normal Apps mode only needs the original PNG
+        if (!isSmartHubSupported) {
+          resolve(dataUrl);
+          return;
+        }
+
+        // Check whether the optimized Smart Hub Preview already exists
+        var documentsPath = tizen.filesystem.toURI('documents').replace('file://', '');
+
+        var previewFileName = 'preview-' + appId + '.jpg';
+        var previewFilePath = documentsPath + '/' + previewFileName;
+
+        try {
+          var previewFileHandle = tizen.filesystem.openFile(previewFilePath, 'r');
+          previewFileHandle.close();
+          console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Smart Hub Preview already cached: ' + previewFileName);
+          // Original PNG and optimized preview both exist
+          resolve(dataUrl);
+          return;
+        } catch (previewReadError) {
+          console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Smart Hub Preview not found, creating: ' + previewFileName);
+        }
+
+        // Original PNG exists, but Smart Hub Preview does not
+        // NOTE: Verify that the optimized Smart Hub Preview is saved correctly and
+        // that its existence is checked consistently on subsequent app list loads.
+        self.createSmartHubPreview(dataUrl, appId).then(function(previewDataUrl) {
+          if (!previewDataUrl) {
+            resolve(dataUrl);
+            return;
+          }
+          self.saveSmartHubPreview(appId, previewDataUrl).then(function() {
+            resolve(dataUrl);
+          }, function(error) {
+            console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Could not save Smart Hub Preview: ', error);
+            // Saving the preview should not prevent the Apps UI from displaying the box art
+            resolve(dataUrl);
+          });
+        }, function(error) {
+          console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Failed to create Smart Hub Preview: ', error);
+          resolve(dataUrl);
+        });
       } catch (readError) {
         console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Cannot find or read box art from internal storage!', readError.message);
         // Fetch the new box art from the network
@@ -582,46 +631,68 @@ NvHTTP.prototype = {
           self._baseUrlHttps + '/appasset?' + self._buildUidStr() + '&appid=' + appId + '&AssetType=2&AssetIdx=0', self.ppkstr, true
         ]).then(function(boxArtBuffer) {
           // boxArtBuffer is a Uint8Array from the WASM binary response
-          var blob = new Blob([boxArtBuffer], { type: 'image/png' });
-          function saveAndResolveDataUrl(dataUrl) {
-            // Always resolve for UI display regardless of caching outcome.
+          var blob = new Blob([boxArtBuffer], {
+            type: 'image/png'
+          });
+          var reader = new FileReader();
+
+          reader.onloadend = function() {
+            var dataUrl = reader.result;
+            // Always resolve for UI display regardless of caching outcome
             console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Returning network-fetched box art: ', appId);
+            // NOTE: Verify that the network-fetched box art is saved correctly so that
+            // subsequent app list loads return the storage-cached version instead of
+            // unnecessarily fetching the same box art from the network again.
 
             // Save to disk as true binary PNG for local HTTP server and future cache using modern Tizen API
             try {
-              try {
-                tizen.filesystem.createDirectory(boxArtDir, true);
-              } catch (mkdirErr) {
-                console.error('%c[utils.js, getBoxArt]', 'color: gray;', 'Error: Failed to create ' + boxArtDir + ' directory: ', mkdirErr.message);
-              }
-              
+              tizen.filesystem.createDirectory(boxArtDir, true);
+
               var fileHandleWrite = tizen.filesystem.openFile(boxArtDir + '/' + boxArtFileName, 'w');
-              
+
               var base64Payload = dataUrl.split(',')[1];
               var binaryStr = atob(base64Payload);
               var bytes = new Uint8Array(binaryStr.length);
+
               for (var i = 0; i < binaryStr.length; i++) {
                 bytes[i] = binaryStr.charCodeAt(i);
               }
               
               fileHandleWrite.writeData(bytes);
               fileHandleWrite.close();
-            } catch (writeError) {
-              console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Could not cache box art to disk: ', writeError.message);
+              console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Saved original PNG box art: ' + boxArtFileName);
+            } catch (mkdirErr) {
+              console.error('%c[utils.js, getBoxArt]', 'color: gray;', 'Error: Failed to create ' + boxArtDir + ' directory: ', mkdirErr.message);
             }
-            
-            resolve(dataUrl);
-          }
+    
+            // Normal Apps mode does not need a Smart Hub Preview
+            if (!isSmartHubSupported) {
+              resolve(dataUrl);
+              return;
+            }
 
-          if (isSmartHubSupported) {
-            self._resizeBoxArt(blob, appId, saveAndResolveDataUrl);
-          } else {
-            var reader = new FileReader();
-            reader.onloadend = function() {
-              saveAndResolveDataUrl(reader.result);
-            };
-            reader.readAsDataURL(blob);
-          }
+            // Create the optimized Smart Hub Preview
+            self.createSmartHubPreview(dataUrl, appId).then(function(previewDataUrl) {
+              if (!previewDataUrl) {
+                resolve(dataUrl);
+                return;
+              }
+
+              self.saveSmartHubPreview(appId, previewDataUrl).then(function() {
+                // The Apps UI always receives the original PNG
+                resolve(dataUrl);
+              }, function(error) {
+                console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Could not save Smart Hub Preview: ', error);
+                // Saving the preview should not prevent the Apps UI from displaying the box art
+                resolve(dataUrl);
+              });
+            }, function(error) {
+              console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Failed to create Smart Hub Preview: ', error);
+              resolve(dataUrl);
+            });
+          };
+
+          reader.readAsDataURL(blob);
         }, function(error) {
           console.error('%c[utils.js, getBoxArt]', 'color: gray;', 'Error: Failed to retrieve box art from network: ', error);
           reject(error);
@@ -646,6 +717,7 @@ NvHTTP.prototype = {
 
       // Delete the cached Smart Hub box art files from the public storage
       try {
+        // FIXME: Files remain in the documents directory instead of removing!
         tizen.filesystem.listDirectory(smartHubBoxArtDir, function(files) {
           var deleteCount = 0;
           // Safely check if files is an array and has a length property
@@ -653,7 +725,9 @@ NvHTTP.prototype = {
             for (var i = 0; i < files.length; i++) {
               // Safely check if files[i] and files[i].name exist
               if (files[i] && files[i].name && typeof files[i].name === 'string') {
-                if (files[i].name.startsWith('boxart-') && files[i].name.endsWith('.png')) {
+                var filename = files[i].name;
+                // Check if the filename matches the patterns for box art or preview images
+                if ((filename.startsWith('boxart-') && filename.endsWith('.png')) || (filename.startsWith('preview-') && filename.endsWith('.jpg'))) {
                   tizen.filesystem.deleteFile(files[i].fullPath);
                   deleteCount++;
                 }
@@ -671,6 +745,121 @@ NvHTTP.prototype = {
         reject(error);
       }
     }.bind(this));
+  },
+
+  // Creates a JPEG optimized for Smart Hub Preview.
+  // The resulting image file is kept below Samsung's 360 KB limit.
+  createSmartHubPreview: function(dataUrl, appId) {
+    return new Promise(function(resolve) {
+      var MAX_FILE_SIZE = 350 * 1024;
+      var MIN_QUALITY = 0.25;
+      var QUALITY_STEP = 0.05;
+      var SCALE_STEP = 0.9;
+      var MIN_WIDTH = 160;
+      var MIN_HEIGHT = 160;
+
+      var image = new Image();
+
+      image.onload = function() {
+        try {
+          var width = image.naturalWidth || image.width;
+          var height = image.naturalHeight || image.height;
+
+          if (!width || !height) {
+            console.error('%c[utils.js, createSmartHubPreview]', 'color: gray;', 'Invalid image dimensions for app ' + appId);
+            resolve(null);
+            return;
+          }
+
+          var canvas = document.createElement('canvas');
+          var context = canvas.getContext('2d');
+
+          if (!context) {
+            console.error('%c[utils.js, createSmartHubPreview]', 'color: gray;', 'Unable to create canvas context for app ' + appId);
+            resolve(null);
+            return;
+          }
+
+          while (width >= MIN_WIDTH && height >= MIN_HEIGHT) {
+            canvas.width = width;
+            canvas.height = height;
+
+            context = canvas.getContext('2d');
+
+            if (!context) {
+              resolve(null);
+              return;
+            }
+
+            context.drawImage(image, 0, 0, width, height);
+
+            var quality = 0.85;
+
+            while (quality >= MIN_QUALITY) {
+              var jpegDataUrl = canvas.toDataURL('image/jpeg', quality);
+              var base64Data = jpegDataUrl.split(',')[1];
+              var fileSize = Math.floor(base64Data.length * 3 / 4); // Base64 represents 3 bytes per 4 characters
+
+              if (fileSize <= MAX_FILE_SIZE) {
+                console.log('%c[index.js, createSmartHubPreviewImage]', 'color: green;', 'Created Smart Hub preview for app ID ' + 
+                appId + ': ' + Math.round(fileSize / 1024) + ' KB (' + width + 'x' + height + ', quality ' + quality.toFixed(2) + ')');
+                resolve(jpegDataUrl);
+                return;
+              }
+
+              quality -= QUALITY_STEP;
+            }
+
+            // Quality alone wasn't enough, so reduce dimensions
+            width = Math.round(width * SCALE_STEP);
+            height = Math.round(height * SCALE_STEP);
+          }
+
+          console.error('%c[index.js, createSmartHubPreviewImage]', 'color: green;', 'Unable to create Smart Hub preview below 350 KB for app ' + appId);
+          resolve(null);
+        } catch (error) {
+          console.error('%c[index.js, createSmartHubPreviewImage]', 'color: green;', 'Error creating Smart Hub preview for app ' + appId + ': ' + error.message);
+          resolve(null);
+        }
+      };
+
+      image.onerror = function() {
+        console.error('%c[index.js, createSmartHubPreviewImage]', 'color: green;', 'Failed to decode box art for app ' + appId);
+        resolve(null);
+      };
+
+      image.src = dataUrl;
+    });
+  },
+
+  // Saves an optimized Smart Hub Preview JPEG to public documents storage
+  saveSmartHubPreview: function(appId, previewDataUrl) {
+    try {
+      var filename = 'preview-' + appId + '.jpg';
+      var filePath = 'documents/' + filename;
+
+      var base64Payload = previewDataUrl.split(',')[1];
+      var binaryStr = atob(base64Payload);
+      var bytes = new Uint8Array(binaryStr.length);
+
+      for (var i = 0; i < binaryStr.length; i++) {
+        bytes[i] = binaryStr.charCodeAt(i);
+      }
+
+      var fileHandle = tizen.filesystem.openFile(filePath, 'w');
+
+      try {
+        fileHandle.writeData(bytes);
+      } finally {
+        fileHandle.close();
+      }
+
+      console.log('%c[utils.js, saveSmartHubPreview]', 'color: gray;', 'Saved Smart Hub Preview: ' + filePath + ' (' + Math.round(bytes.length / 1024) + ' KB)');
+      return true;
+    } catch (error) {
+      console.warn('%c[utils.js, saveSmartHubPreview]', 'color: gray;', 'Warning: Could not save Smart Hub Preview: ', error.message);
+      return false;
+    }
   },
 
   launchApp: function(appId, mode, sops, rikey, rikeyid, enableHdr, localAudio, surroundAudioInfo, gamepadMask) {
@@ -751,46 +940,4 @@ NvHTTP.prototype = {
   _parseXML: function(xmlData) {
     return $($.parseXML(xmlData.toString()));
   },
-
-  _resizeBoxArt: function(blob, appId, callback) {
-    var blobUrl = URL.createObjectURL(blob);
-    var img = new Image();
-
-    img.onload = function() {
-      URL.revokeObjectURL(blobUrl);
-      var targetHeight = 360; // Max optimal height for Smart Hub Preview
-
-      if (img.height > targetHeight) {
-        // Resize image via HTML5 Canvas if it exceeds target height
-        var canvas = document.createElement('canvas');
-        canvas.height = targetHeight;
-        canvas.width = Math.floor(img.width * (targetHeight / img.height));
-        var ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        
-        var resizedDataUrl = canvas.toDataURL('image/png');
-        console.log('%c[utils.js, _resizeBoxArt]', 'color: gray;', 'Resized box art for ' + appId + ' from ' + img.height + 'px to ' + targetHeight + 'px');
-        callback(resizedDataUrl);
-      } else {
-        // Image is small enough, read original blob to preserve exact bytes and compression
-        var reader = new FileReader();
-        reader.onloadend = function() {
-          callback(reader.result);
-        };
-        reader.readAsDataURL(blob);
-      }
-    };
-
-    img.onerror = function() {
-      URL.revokeObjectURL(blobUrl);
-      console.warn('%c[utils.js, _resizeBoxArt]', 'color: gray;', 'Warning: Failed to decode image for resizing, falling back to original blob.');
-      var reader = new FileReader();
-      reader.onloadend = function() {
-        callback(reader.result);
-      };
-      reader.readAsDataURL(blob);
-    };
-
-    img.src = blobUrl;
-  }
 };
