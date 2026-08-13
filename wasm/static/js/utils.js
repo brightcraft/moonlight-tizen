@@ -578,9 +578,6 @@ NvHTTP.prototype = {
         var dataUrl = 'data:image/png;base64,' + base64Data;
 
         console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Returning storage-cached box art: ', appId);
-        // NOTE: Verify that the storage-cached/network-fetched flow is working correctly.
-        // On the first app list load after installation or clearing the cache, this should
-        // fall through to the network fetch when the original box art does not exist.
 
         // Normal Apps mode only needs the original PNG
         if (!isSmartHubSupported) {
@@ -589,10 +586,8 @@ NvHTTP.prototype = {
         }
 
         // Check whether the optimized Smart Hub Preview already exists
-        var documentsPath = tizen.filesystem.toURI('documents').replace('file://', '');
-
         var previewFileName = 'preview-' + appId + '.jpg';
-        var previewFilePath = documentsPath + '/' + previewFileName;
+        var previewFilePath = 'documents/' + previewFileName;
 
         try {
           var previewFileHandle = tizen.filesystem.openFile(previewFilePath, 'r');
@@ -606,20 +601,11 @@ NvHTTP.prototype = {
         }
 
         // Original PNG exists, but Smart Hub Preview does not
-        // NOTE: Verify that the optimized Smart Hub Preview is saved correctly and
-        // that its existence is checked consistently on subsequent app list loads.
         self.createSmartHubPreview(dataUrl, appId).then(function(previewDataUrl) {
-          if (!previewDataUrl) {
-            resolve(dataUrl);
-            return;
+          if (previewDataUrl) {
+            self.saveSmartHubPreview(appId, previewDataUrl);
           }
-          self.saveSmartHubPreview(appId, previewDataUrl).then(function() {
-            resolve(dataUrl);
-          }, function(error) {
-            console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Could not save Smart Hub Preview: ', error);
-            // Saving the preview should not prevent the Apps UI from displaying the box art
-            resolve(dataUrl);
-          });
+          resolve(dataUrl);
         }, function(error) {
           console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Failed to create Smart Hub Preview: ', error);
           resolve(dataUrl);
@@ -640,9 +626,6 @@ NvHTTP.prototype = {
             var dataUrl = reader.result;
             // Always resolve for UI display regardless of caching outcome
             console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Returning network-fetched box art: ', appId);
-            // NOTE: Verify that the network-fetched box art is saved correctly so that
-            // subsequent app list loads return the storage-cached version instead of
-            // unnecessarily fetching the same box art from the network again.
 
             // Save to disk as true binary PNG for local HTTP server and future cache using modern Tizen API
             try {
@@ -673,19 +656,11 @@ NvHTTP.prototype = {
 
             // Create the optimized Smart Hub Preview
             self.createSmartHubPreview(dataUrl, appId).then(function(previewDataUrl) {
-              if (!previewDataUrl) {
-                resolve(dataUrl);
-                return;
+              if (previewDataUrl) {
+                self.saveSmartHubPreview(appId, previewDataUrl);
               }
-
-              self.saveSmartHubPreview(appId, previewDataUrl).then(function() {
-                // The Apps UI always receives the original PNG
-                resolve(dataUrl);
-              }, function(error) {
-                console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Could not save Smart Hub Preview: ', error);
-                // Saving the preview should not prevent the Apps UI from displaying the box art
-                resolve(dataUrl);
-              });
+              // The Apps UI always receives the original PNG
+              resolve(dataUrl);
             }, function(error) {
               console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Failed to create Smart Hub Preview: ', error);
               resolve(dataUrl);
@@ -717,7 +692,6 @@ NvHTTP.prototype = {
 
       // Delete the cached Smart Hub box art files from the public storage
       try {
-        // FIXME: Files remain in the documents directory instead of removing!
         tizen.filesystem.listDirectory(smartHubBoxArtDir, function(files) {
           var deleteCount = 0;
           // Safely check if files is an array and has a length property
@@ -728,7 +702,7 @@ NvHTTP.prototype = {
                 var filename = files[i].name;
                 // Check if the filename matches the patterns for box art or preview images
                 if ((filename.startsWith('boxart-') && filename.endsWith('.png')) || (filename.startsWith('preview-') && filename.endsWith('.jpg'))) {
-                  tizen.filesystem.deleteFile(files[i].fullPath);
+                  tizen.filesystem.deleteFile(smartHubBoxArtDir + '/' + filename);
                   deleteCount++;
                 }
               }

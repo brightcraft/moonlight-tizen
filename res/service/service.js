@@ -103,7 +103,7 @@ function startLocalServer() {
           'Content-Length': binaryData.length
         });
         res.end(binaryData);
-        logAndSend('Successfully served binary image for ' + route + ' | Size: ' + binaryData.length + ' bytes');
+        logAndSend('Successfully served binary image for ' + route + ' | Size: ' + Math.round(binaryData.length / 1024) + ' KB');
       } catch (err) {
         logAndSend('Error reading binary image file for ' + route + ': ' + err.message);
         res.writeHead(404);
