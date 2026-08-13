@@ -697,13 +697,17 @@ NvHTTP.prototype = {
           // Safely check if files is an array and has a length property
           if (files && files.length > 0) {
             for (var i = 0; i < files.length; i++) {
-              // Safely check if files[i] and files[i].name exist
-              if (files[i] && files[i].name && typeof files[i].name === 'string') {
-                var filename = files[i].name;
+              // Safely check if files[i] is a valid string (Tizen 5.0+ API listDirectory returns an array of DOMString)
+              if (files[i] && typeof files[i] === 'string') {
+                var filename = files[i];
                 // Check if the filename matches the patterns for box art or preview images
                 if ((filename.startsWith('boxart-') && filename.endsWith('.png')) || (filename.startsWith('preview-') && filename.endsWith('.jpg'))) {
-                  tizen.filesystem.deleteFile(smartHubBoxArtDir + '/' + filename);
-                  deleteCount++;
+                  try {
+                    tizen.filesystem.deleteFile(smartHubBoxArtDir + '/' + filename);
+                    deleteCount++;
+                  } catch(e) {
+                    console.warn('%c[utils.js, clearBoxArt]', 'color: gray;', 'Warning: Failed to delete ' + filename + ': ', e.message);
+                  }
                 }
               }
             }
