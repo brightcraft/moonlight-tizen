@@ -543,21 +543,12 @@ NvHTTP.prototype = {
   // Returns the box art based on the the given appId
   // Three layers of response time are possible: memory-cached (in JavaScript), storage-cached (in tizen.filesystem), and network-fetched (host sends binary over the network)
   // For explanations on the file system, see: https://developer.samsung.com/smarttv/develop/api-references/tizen-web-device-api-references/filesystem-api.html
-  // Box art is stored in the public documents virtual root so that the Smart Hub Preview background service process can access it directly without any cross-process copying
+  // The original PNG is stored in the private wgt-private directory, while the optimized JPEG preview is stored in the public documents virtual root so that the Smart Hub background service process can access it directly.
   getBoxArt: function(appId, isSmartHubSupported) {
     return new Promise(function(resolve, reject) {
-      var boxArtDir;
-      var boxArtFileName;
-
-      if (isSmartHubSupported) {
-        // Smart Hub mode: use public documents folder so the background service can read it
-        boxArtDir = 'documents';
-        boxArtFileName = 'boxart-' + appId + '.png';
-      } else {
-        // Default mode: use original private storage
-        boxArtDir = 'wgt-private/' + this.hostname;
-        boxArtFileName = 'boxart-' + appId;
-      }
+      // Original PNG box art is always kept in the private storage
+      var boxArtDir = 'wgt-private/' + this.hostname;
+      var boxArtFileName = 'boxart-' + appId + '.png';
 
       var self = this;
       
