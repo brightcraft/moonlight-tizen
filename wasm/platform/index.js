@@ -3971,6 +3971,7 @@ function loadHTTPCertsCb() {
         for (var hostUID in hosts) { // Programmatically add each new host
           var revivedHost = new NvHTTP(hosts[hostUID].address, myUniqueid, hosts[hostUID].userEnteredAddress, hosts[hostUID].macAddress);
           Object.assign(revivedHost, hosts[hostUID]);
+          revivedHost._memCachedApplist = null; // Prevent using the app list cache from a previous session
           revivedHost.httpPort = hosts[hostUID].httpPort || ((hosts[hostUID].httpsPort || 47984) + 5);
           revivedHost.httpsPort = hosts[hostUID].httpsPort || (revivedHost.httpPort - 5);
           revivedHost.externalPort = hosts[hostUID].externalPort || revivedHost.httpPort;
