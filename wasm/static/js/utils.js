@@ -540,74 +540,337 @@ NvHTTP.prototype = {
     return this.getAppListWithCacheFlush();
   },
 
-  // Returns the box art based on the the given appId
-  // Three layers of response time are possible: memory-cached (in JavaScript), storage-cached (in tizen.filesystem), and network-fetched (host sends binary over the network)
-  // For explanations on the file system, see: https://developer.samsung.com/smarttv/develop/api-references/tizen-web-device-api-references/filesystem-api.html
-  getBoxArt: function(appId) {
+  // Returns the original PNG box art based on the the given app Id and generates an optimized JPEG preview when Smart Hub Preview is supported.
+  // The original PNG box art is stored in private storage, while the optimized JPEG preview is generated and stored asynchronously,
+  // in the public documents directory so that the Smart Hub Preview background service process can access it directly.
+  getBoxArt: function(appId, isSmartHubSupported) {
     return new Promise(function(resolve, reject) {
-      var boxArtFileName = 'boxart-' + appId;
-      var boxArtDir = 'wgt-private/' + this.hostname; // Widget private storage directory is r/w (read/write)
+      // Store the original PNG box art in the private directory
+      var boxArtDir = 'wgt-private/' + this.hostname;
+      var boxArtFileName = 'boxart-' + appId + '.png';
 
-      // Read the cached box art from the storage
+      var self = this;
+      
+      // Try to load the cached original box art from private storage
       try {
+        // Open the cached original PNG box art for reading
         var fileHandleRead = tizen.filesystem.openFile(boxArtDir + '/' + boxArtFileName, 'r');
-        var fileContentInBlob = fileHandleRead.readBlob();
+        // Read the binary PNG data from the file (returns Uint8Array)
+        var fileData = fileHandleRead.readData();
+        // Close the file after the binary data has been read
         fileHandleRead.close();
+
+        // Convert the Uint8Array binary box art data to a base64 data URL for display
+        var binary = '';
+
+        // Convert each byte from the Uint8Array into a binary string
+        for (var i = 0; i < fileData.length; i++) {
+          binary += String.fromCharCode(fileData[i]);
+        }
+
+        // Encode the binary string as base64 and create a PNG data URL
+        var base64Data = btoa(binary);
+        var dataUrl = 'data:image/png;base64,' + base64Data;
+
         console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Returning storage-cached box art: ', appId);
 
-        var reader = new FileReader();
-        reader.onloadend = function() {
-          var dataUrl = reader.result;
+        // Return the cached original box art directly when Smart Hub Preview is not supported
+        if (!isSmartHubSupported) {
           resolve(dataUrl);
-        };
-        reader.readAsDataURL(fileContentInBlob);
+          return;
+        }
+
+        // Check whether an optimized Smart Hub Preview has already been cached
+        var previewFileName = 'preview-' + appId + '.jpg';
+        var previewFilePath = 'documents/' + previewFileName;
+
+        // Try to open the cached preview box art to determine whether it already exists
+        try {
+          // Open the cached preview file to check whether it already exists
+          var previewFileHandle = tizen.filesystem.openFile(previewFilePath, 'r');
+          previewFileHandle.close();
+
+          console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Smart Hub Preview box art file already cached: ' + previewFileName);
+          // The preview already exists, so no additional processing is required
+          resolve(dataUrl);
+          return;
+        } catch (previewReadError) {
+          // The preview box art file does not exist, so generate it from the original box art
+          console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Smart Hub Preview box art file not found, generating: ' + previewFileName);
+        }
+
+        // Generate and save the optimized JPEG preview box art asynchronously from storage.
+        // The original PNG box art can be returned immediately without waiting for preview generation.
+        self.generatePreviewImage(dataUrl, appId).then(function(previewDataUrl) {
+          if (previewDataUrl) {
+            self.savePreviewImage(appId, previewDataUrl);
+          }
+        }, function(error) {
+          console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Failed to generate Smart Hub Preview box art from storage for app ID ' + appId + ': ' + error);
+        });
+        resolve(dataUrl);
       } catch (readError) {
-        console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Cannot find or read box art from internal storage: ', readError);
+        // The original PNG box art is not available locally, so fetch it from the host
+        console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Could not read cached box art from internal storage!', readError.message);
+
         // Fetch the new box art from the network
-        return sendMessage('openUrl', [
-          this._baseUrlHttps + '/appasset?' + this._buildUidStr() + '&appid=' + appId + '&AssetType=2&AssetIdx=0', this.ppkstr, true
+        sendMessage('openUrl', [
+          self._baseUrlHttps + '/appasset?' + self._buildUidStr() + '&appid=' + appId + '&AssetType=2&AssetIdx=0', self.ppkstr, true
         ]).then(function(boxArtBuffer) {
+          // Convert the binary response into a Blob so it can be converted to a data URL
+          var blob = new Blob([boxArtBuffer], { type: 'image/png' });
           var reader = new FileReader();
+
+          // Convert the fetched PNG into a data URL for display and caching
           reader.onloadend = function() {
             var dataUrl = reader.result;
+            // Always resolve for UI display regardless of caching outcome
+            console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Returning network-fetched box art: ', appId);
+
+            // Save the original PNG to private storage as true binary PNG for local HTTP server and future cache using modern Tizen API
             try {
-              // Save the new box art file to the storage
+              // Create the private directory if it does not already exist
+              tizen.filesystem.createDirectory(boxArtDir, true);
+              // Open the destination file for writing the original PNG data
               var fileHandleWrite = tizen.filesystem.openFile(boxArtDir + '/' + boxArtFileName, 'w');
-              fileHandleWrite.writeData(boxArtBuffer);
+
+              // Extract the base64 payload from the PNG data URL and decode it into binary data
+              var base64Payload = dataUrl.split(',')[1];
+              var binaryStr = atob(base64Payload);
+              var bytes = new Uint8Array(binaryStr.length);
+
+              // Convert the decoded binary string into a Uint8Array for Tizen filesystem storage
+              for (var i = 0; i < binaryStr.length; i++) {
+                bytes[i] = binaryStr.charCodeAt(i);
+              }
+              
+              // Write the original PNG bytes to private storage and close the file
+              fileHandleWrite.writeData(bytes);
               fileHandleWrite.close();
-              console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Returning network-fetched box art: ', appId);
-              resolve(dataUrl);
-            } catch (writeError) {
-              console.error('%c[utils.js, getBoxArt]', 'color: gray;', 'Error: Unable to save or write box art to internal storage: ', writeError);
-              reject(writeError);
+              console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Saved original PNG box art: ' + boxArtFileName);
+            } catch (error) {
+              // Failure to cache the original PNG box art does not prevent the fetched box art from being returned
+              console.error('%c[utils.js, getBoxArt]', 'color: gray;', 'Error: Failed to cache original box art in ' + boxArtDir + ' for app ID ' + appId + ': ' + error.message);
             }
+
+            // Return the fetched box art directly when Smart Hub Preview is not supported
+            if (!isSmartHubSupported) {
+              resolve(dataUrl);
+              return;
+            }
+
+            // Generate and save the optimized JPEG preview box art asynchronously from network.
+            // The original PNG box art can be returned immediately without waiting for preview generation.
+            self.generatePreviewImage(dataUrl, appId).then(function(previewDataUrl) {
+              if (previewDataUrl) {
+                self.savePreviewImage(appId, previewDataUrl);
+              }
+            }, function(error) {
+              console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Failed to generate Smart Hub Preview box art from network for app ID ' + appId + ': ' + error);
+            });
+            resolve(dataUrl);
           };
-          var blob = new Blob([boxArtBuffer], {
-            type: 'image/png'
-          });
+
           reader.readAsDataURL(blob);
-        }.bind(this), function(error) {
-          console.error('%c[utils.js, getBoxArt]', 'color: gray;', 'Error: Failed to retrieve box art from network: ', error);
+        }, function(error) {
+          console.error('%c[utils.js, getBoxArt]', 'color: gray;', 'Error: Failed to retrieve original box art from network: ', error);
           reject(error);
-        }.bind(this));
+        });
       }
     }.bind(this));
   },
 
+  // Clears cached box art and preview images from local storage.
+  // Removes the private box art directory and preview files from the public documents directory.
   clearBoxArt: function() {
     return new Promise(function(resolve, reject) {
-      var boxArtDir = 'wgt-private/' + this.hostname; // Widget private storage directory is r/w (read/write)
+      var boxArtDir = 'wgt-private/' + this.hostname; // Private storage directory for original box art
+      var previewBoxArtDir = 'documents'; // Public storage directory so the background service can read it
 
-      // Delete the cached box art directory from the storage
+      // Delete the original box art directory from private storage
       try {
-        tizen.filesystem.deleteDirectory(boxArtDir);
-        console.log('%c[utils.js, clearBoxArt]', 'color: gray;', 'Clearing the box art files from ' + boxArtDir);
-        resolve();
+        tizen.filesystem.deleteDirectory(boxArtDir, true);
+        console.log('%c[utils.js, clearBoxArt]', 'color: gray;', 'Cleared original box art files from ' + boxArtDir);
       } catch (error) {
-        console.error('%c[utils.js, clearBoxArt]', 'color: gray;', 'Error: Failed to clear box art files: ', error);
+        // The directory may not exist if no original box art has been cached
+        console.error('%c[utils.js, clearBoxArt]', 'color: gray;', 'Error: Failed to clear original box art files from ' + boxArtDir + ': ' + error.message);
+      }
+
+      // Delete the preview box art images from public storage
+      try {
+        // List the contents of the public documents directory before removing cached preview files.
+        // Tizen 5.0+ listDirectory() returns an array of DOMString filenames.
+        tizen.filesystem.listDirectory(previewBoxArtDir, function(files) {
+          var deleteCount = 0;
+
+          // Check each entry for a cached preview box art image
+          if (files && files.length > 0) {
+            // Iterate through all files in the public documents directory
+            for (var i = 0; i < files.length; i++) {
+              // Safely check if the directory entry is a valid string
+              if (files[i] && typeof files[i] === 'string') {
+                var filename = files[i];
+                // Check if the filename matches the patterns for cached preview box art images
+                if ((filename.startsWith('boxart-') && filename.endsWith('.png')) || (filename.startsWith('preview-') && filename.endsWith('.jpg'))) {
+                  try {
+                    // Delete the matching cached preview box art files from public storage
+                    tizen.filesystem.deleteFile(previewBoxArtDir + '/' + filename);
+                    deleteCount++;
+                  } catch(error) {
+                    console.warn('%c[utils.js, clearBoxArt]', 'color: gray;', 'Warning: Failed to delete cached preview box art file ' + filename + ': ' + error.message);
+                  }
+                }
+              }
+            }
+          }
+          console.log('%c[utils.js, clearBoxArt]', 'color: gray;', 'Cleared ' + deleteCount + ' cached preview box art files from ' + previewBoxArtDir);
+          resolve();
+        }.bind(this), function(error) {
+          console.warn('%c[utils.js, clearBoxArt]', 'color: gray;', 'Warning: Could not list documents directory to clear cached preview box art files: ' + error.message);
+          resolve();
+        });
+      } catch (error) {
+        console.error('%c[utils.js, clearBoxArt]', 'color: gray;', 'Error: Failed to clear cached preview box art files: ' + error.message);
         reject(error);
       }
     }.bind(this));
+  },
+
+  // Generates a JPEG preview image from the original box art.
+  // The image is progressively compressed and resized until it fits within the
+  // maximum file size allowed for Smart Hub Preview, while preserving a minimum
+  // image size for small source images.
+  generatePreviewImage: function(dataUrl, appId) {
+    return new Promise(function(resolve) {
+      var MAX_FILE_SIZE = 350 * 1024;
+      var MIN_QUALITY = 0.25;
+      var QUALITY_STEP = 0.05;
+      var SCALE_STEP = 0.9;
+      var MIN_SCALE_WIDTH = 100;
+      var MIN_SCALE_HEIGHT = 100;
+
+      // Create an image element to decode the original box art
+      var image = new Image();
+
+      // Process the decoded image once it has finished loading
+      image.onload = function() {
+        try {
+          // Get the source image dimensions
+          var width = image.naturalWidth || image.width;
+          var height = image.naturalHeight || image.height;
+
+          // Ensure the image has valid dimensions before processing
+          if (!width || !height) {
+            console.error('%c[utils.js, generatePreviewImage]', 'color: gray;', 'Invalid image dimensions for app ID ' + appId);
+            resolve(null);
+            return;
+          }
+
+          // Create a canvas used to resize and convert the box art to JPEG
+          var canvas = document.createElement('canvas');
+          var context = canvas.getContext('2d');
+
+          if (!context) {
+            console.error('%c[utils.js, generatePreviewImage]', 'color: gray;', 'Unable to create canvas context for app ID ' + appId);
+            resolve(null);
+            return;
+          }
+
+          // Try progressively smaller images until the file size limit is met
+          while (true) {
+            canvas.width = width;
+            canvas.height = height;
+
+            // Draw the source box art at the current dimensions
+            context.drawImage(image, 0, 0, width, height);
+
+            // Try reducing JPEG quality before reducing the image dimensions
+            var quality = 0.85;
+
+            // Try progressively lower quality levels until the file size limit is met
+            while (quality >= MIN_QUALITY) {
+              var jpegDataUrl = canvas.toDataURL('image/jpeg', quality);
+              var base64Data = jpegDataUrl.split(',')[1];
+              var fileSize = Math.floor(base64Data.length * 3 / 4); // Base64 represents 3 bytes per 4 characters
+
+              // Return the first image that meets the file size limit
+              if (fileSize <= MAX_FILE_SIZE) {
+                console.log('%c[utils.js, generatePreviewImage]', 'color: gray;', 'Created preview image for app ID ' + 
+                appId + ': ' + Math.round(fileSize / 1024) + ' KB (' + width + 'x' + height + ', quality ' + quality.toFixed(2) + ')');
+                resolve(jpegDataUrl);
+                return;
+              }
+
+              // Lower the JPEG quality before attempting to reduce the image dimensions
+              quality -= QUALITY_STEP;
+            }
+
+            // Stop shrinking once the minimum scaling dimensions have been reached.
+            // The current dimensions have already been tested at all supported
+            // quality levels before exiting.
+            if (width <= MIN_SCALE_WIDTH || height <= MIN_SCALE_HEIGHT) {
+              break;
+            }
+
+            // Quality reduction was not enough, so reduce the dimensions and try again
+            width = Math.round(width * SCALE_STEP);
+            height = Math.round(height * SCALE_STEP);
+          }
+
+          console.error('%c[utils.js, generatePreviewImage]', 'color: gray;', 'Error: Unable to create preview image within the size limit for app ID ' + appId);
+          resolve(null);
+        } catch (error) {
+          console.error('%c[utils.js, generatePreviewImage]', 'color: gray;', 'Error: Failed to generate preview image for app ID ' + appId + ': ' + error.message);
+          resolve(null);
+        }
+      };
+
+      // Handle failures when the original box art cannot be decoded
+      image.onerror = function() {
+        console.error('%c[utils.js, generatePreviewImage]', 'color: gray;', 'Error: Failed to decode box art for app ID ' + appId);
+        resolve(null);
+      };
+
+      // Start loading the original box art from the provided data URL
+      image.src = dataUrl;
+    });
+  },
+
+  // Saves the generated JPEG preview image to the public documents directory.
+  // The data URL is converted to binary data before being written to local storage.
+  savePreviewImage: function(appId, previewDataUrl) {
+    try {
+      // Build the filename and path used by the local HTTP server
+      var filename = 'preview-' + appId + '.jpg';
+      var filePath = 'documents/' + filename;
+
+      // Extract the Base64 payload from the data URL and convert it to binary data
+      var base64Payload = previewDataUrl.split(',')[1];
+      var binaryStr = atob(base64Payload);
+      var bytes = new Uint8Array(binaryStr.length);
+
+      // Convert the binary string into a byte array for the Tizen file API
+      for (var i = 0; i < binaryStr.length; i++) {
+        bytes[i] = binaryStr.charCodeAt(i);
+      }
+
+      // Open the preview file for writing
+      var fileHandle = tizen.filesystem.openFile(filePath, 'w');
+
+      try {
+        // Write the JPEG data to local storage
+        fileHandle.writeData(bytes);
+      } finally {
+        // Always close the file handle, even if writing fails
+        fileHandle.close();
+      }
+
+      console.log('%c[utils.js, savePreviewImage]', 'color: gray;', 'Saved preview image: ' + filePath + ' (' + Math.round(bytes.length / 1024) + ' KB)');
+      return true;
+    } catch (error) {
+      console.warn('%c[utils.js, savePreviewImage]', 'color: gray;', 'Warning: Failed to save preview image: ' + error.message);
+      return false;
+    }
   },
 
   launchApp: function(appId, mode, sops, rikey, rikeyid, enableHdr, localAudio, surroundAudioInfo, gamepadMask) {
