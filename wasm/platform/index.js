@@ -2415,6 +2415,8 @@ function showApps(host) {
 
         // Navigate to the Apps view
         showAppsMode();
+        resolve();
+
         Promise.all(settledPromises).then(function() {
           // Resume background polling now that all box art downloads are complete
           beginBackgroundPollingOfHost(host);
@@ -2424,7 +2426,6 @@ function showApps(host) {
             savePreviewApps();
             updatePreviewData();
           }, 250);
-          resolve();
         });
       }, function(failedAppList) {
         // Hide the spinner if the host has failed to retrieve the app list
