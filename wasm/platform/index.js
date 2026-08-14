@@ -2115,25 +2115,21 @@ function exitAppDialog() {
 // the function was made like this so that we can remove duplicated code, but
 // not do N*N stylization of the box art, or make the code not flow very well
 function stylizeBoxArts(freshApi, appsList) {
-  // Refresh server info and apply the CSS style to the current running game
-  freshApi.refreshServerInfo().then(function(ret) {
-    appsList.forEach(function(app) {
-      var appBox = document.querySelector('#game-container-' + app.id);
-      if (!appBox) {
-        console.warn('%c[index.js, stylizeBoxArt]', 'color: green;', 'Warning: No box art found for appId: ' + app.id);
-        return;
-      }
-      // If the game is currently running, then apply CSS stylization
-      if (freshApi.currentGame === app.id) {
-        appBox.classList.add('current-game-active');
-        appBox.title = app.title + t(' (Running)');
-      } else {
-        appBox.classList.remove('current-game-active');
-        appBox.title = app.title;
-      }
-    });
-  }, function(failedRefreshInfo) {
-    console.error('%c[index.js, stylizeBoxArts]', 'color: green;', 'Error: Failed to refresh server info! Returned error was: ' + failedRefreshInfo + '!');
+  // Check each app in the list and apply CSS styling based on whether it's currently running or not
+  appsList.forEach(function(app) {
+    var appBox = document.querySelector('#game-container-' + app.id);
+    if (!appBox) {
+      console.warn('%c[index.js, stylizeBoxArts]', 'color: green;', 'Warning: No box art found for appId: ' + app.id);
+      return;
+    }
+    // If the game is currently running, then apply CSS stylization
+    if (freshApi.currentGame === app.id) {
+      appBox.classList.add('current-game-active');
+      appBox.title = app.title + t(' (Running)');
+    } else {
+      appBox.classList.remove('current-game-active');
+      appBox.title = app.title;
+    }
   });
 }
 
@@ -2407,8 +2403,8 @@ function showApps(host) {
           boxArtPromises.push(boxArtPromise);
         });
 
-        // Apply style to all game containers to indicate whether the game is active or not
-        setTimeout(() => stylizeBoxArts(host, sortedAppList), 100);
+        // Check all game containers for the current running app and apply CSS styling accordingly
+        stylizeBoxArts(host, sortedAppList);
 
         var settledPromises = boxArtPromises.map(function(p) {
           return p.catch(function(e) {

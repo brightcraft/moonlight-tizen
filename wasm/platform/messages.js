@@ -169,14 +169,28 @@ function handleMessage(msg) {
         snackbarLogLong(t('Connection terminated'));
         break;
     }
-    // Return to the app list with new current game
-    showApps(api).then(() => {
-      // Scroll to the current game row
-      Navigation.switch();
-      // Switch to Apps view
-      if (!window.isDialogOpen) {
-        Navigation.change(Views.Apps);
-      }
+    // Refresh the server info to update the current game and app list
+    api.refreshServerInfo().then(function(ret) {
+      // Return to the app list with new current game
+      showApps(api).then(() => {
+        // Scroll to the current game row
+        Navigation.switch();
+        // Switch to Apps view
+        if (!window.isDialogOpen) {
+          Navigation.change(Views.Apps);
+        }
+      });
+    }, function(failedRefreshInfo) {
+      console.error('%c[messages.js, handleMessage]', 'color: gray;', 'Error: Failed to refresh server info! Returned error was: ' + failedRefreshInfo + '!');
+      // Return to the app list anyway
+      showApps(api).then(() => {
+        // Scroll to the current game row
+        Navigation.switch();
+        // Switch to Apps view
+        if (!window.isDialogOpen) {
+          Navigation.change(Views.Apps);
+        }
+      });
     });
   } else if (msg === 'Connection Established') {
     // Prepare the screen for video stream
