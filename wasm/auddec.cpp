@@ -17,11 +17,17 @@ static constexpr TimeStamp kAudioBufferMargin = 100ms;
 
 // Number of decoded frames kept in the Web Audio slot pool. Frames are handed to the main
 // thread by pointer, so a slot must stay untouched long enough for the scheduler to read it.
-static constexpr int kAudioSlotCount = 32;
+// The pool covers well over a second of audio, because a slot that is overwritten before the
+// main thread got to it is played as the audio of a later frame rather than being skipped.
+static constexpr int kAudioSlotCount = 128;
 
-// Largest decoded frame the Web Audio slot pool can hold. The RTSP negotiation never asks for
-// more than 10 ms of audio per packet, which is 480 samples for each of the 8 possible channels.
-static constexpr size_t kAudioSlotElements = 480 * MAX_CHANNEL_COUNT;
+// Largest number of samples per channel the Web Audio slot pool can hold. The RTSP negotiation
+// never asks for more than 10 ms of audio per packet, which is 480 samples at 48 kHz. This is
+// also the distance between the channels of a frame, as the samples are stored per channel.
+static constexpr size_t kAudioSlotStride = 480;
+
+// Largest decoded frame the Web Audio slot pool can hold, over all of the possible channels
+static constexpr size_t kAudioSlotElements = kAudioSlotStride * MAX_CHANNEL_COUNT;
 
 // Jitter buffer target used by the Web Audio backend when the user has not selected one
 static constexpr int kDefaultAudioJitterMs = 100;
@@ -48,8 +54,23 @@ static AudioBackend s_AudioBackend = AudioBackend::Emss;
 // Rotating pool of decoded frames for the Web Audio backend. This is statically allocated
 // because the scheduler on the main thread reads a slot asynchronously, so the memory must
 // stay valid for the lifetime of the application rather than that of a streaming session.
-static opus_int16 s_AudioSlots[kAudioSlotCount][kAudioSlotElements];
+//
+// The samples are stored per channel and already scaled to the -1.0 to 1.0 range that the Web
+// Audio API expects, so the main thread only has to copy them into an audio buffer. Converting
+// them here keeps that work on the audio thread, which is the one thread that Game Mode does
+// not load with the video packets that are submitted to the elementary media pipeline.
+static float s_AudioSlots[kAudioSlotCount][kAudioSlotElements];
 static int s_AudioSlotIndex = 0;
+
+// Interleaved samples of the frame that is being decoded, before it is split per channel
+static opus_int16 s_AudioPcm[kAudioSlotElements];
+
+// Index of the next frame handed to the scheduler, which reports the frames that never made
+// it to the main thread as gaps in its statistics
+static int s_AudioSequence = 0;
+
+// Frames the Opus decoder rejected since the last time it was reported
+static int s_AudioDecodeErrors = 0;
 
 static inline TimeStamp FrameDuration(double samplesPerFrame, double sampleRate) {
   // Calculate the duration of a frame based on the number of samples per frame and the sample rate
@@ -108,31 +129,52 @@ static void DecodeAndScheduleFrame(OpusMSDecoder* decoder, const unsigned char* 
     return;
   }
 
-  // Take the next slot of the pool so the scheduler still has time to read the previous ones
-  opus_int16* slot = s_AudioSlots[s_AudioSlotIndex];
-
-  // Decode the incoming audio packet using Opus decoder
+  // Decode the incoming audio packet using Opus decoder. The whole slot is offered to the
+  // decoder rather than the negotiated frame size, so a packet that carries more audio than
+  // the RTSP negotiation announced is still decoded instead of being rejected.
   int decodeLen = opus_multistream_decode(
     decoder, sampleData, sampleLength,
-    slot, s_samplesPerFrame, 0
+    s_AudioPcm, kAudioSlotStride, 0
   );
 
   // Check if audio decoding failed
   if (decodeLen <= 0) {
+    // Report the rejected packets in batches, as logging every one of them from the audio
+    // thread would cost more time than decoding them
+    if (++s_AudioDecodeErrors % 100 == 1) {
+      MoonlightInstance::ClLogMessage("The Opus decoder rejected %d audio packets, last with error %d\n",
+        s_AudioDecodeErrors, decodeLen);
+    }
     return;
+  }
+
+  // Take the next slot of the pool so the scheduler still has time to read the previous ones
+  float* slot = s_AudioSlots[s_AudioSlotIndex];
+
+  // Split the interleaved samples per channel and scale them to the -1.0 to 1.0 range that
+  // the Web Audio API expects, so the main thread only has to copy them out of the heap
+  for (size_t channel = 0; channel < s_channelCount; channel++) {
+    float* output = slot + channel * kAudioSlotStride;
+    for (int sample = 0; sample < decodeLen; sample++) {
+      output[sample] = s_AudioPcm[sample * s_channelCount + channel] / 32768.0f;
+    }
   }
 
   // Advance to the next slot only once a frame was written, so a failed decode does not
   // consume the protection window that the already scheduled frames rely on
   s_AudioSlotIndex = (s_AudioSlotIndex + 1) % kAudioSlotCount;
 
+  // Number this frame so the scheduler can report the ones that never reached the main thread
+  int sequence = s_AudioSequence++;
+
   // Hand the decoded samples to the audio scheduler running on the main thread. This is
   // asynchronous, so the audio thread is never blocked waiting on the browser event loop.
   MAIN_THREAD_ASYNC_EM_ASM({
     if (typeof _audReceiveFrame === 'function') {
-      _audReceiveFrame($0, $1, $2, $3);
+      _audReceiveFrame($0, $1, $2, $3, $4, $5);
     }
-  }, (int)(size_t)slot, decodeLen, (int)s_channelCount, s_sampleRate);
+  }, (int)(size_t)slot, decodeLen, (int)s_channelCount, s_sampleRate,
+     (int)kAudioSlotStride, sequence);
 }
 
 int MoonlightInstance::AudDecInit(int audioConfiguration, POPUS_MULTISTREAM_CONFIGURATION opusConfig, void* context, int arFlags) {
@@ -180,14 +222,21 @@ int MoonlightInstance::AudDecInit(int audioConfiguration, POPUS_MULTISTREAM_CONF
   if (s_AudioBackend == AudioBackend::WebAudio) {
     // Refuse to stream audio that cannot fit in a slot of the pool, as writing a larger
     // frame would corrupt the neighboring slots that are waiting to be scheduled
-    if (s_samplesPerFrame * s_channelCount > kAudioSlotElements) {
-      ClLogMessage("Decoded audio frame of %d samples is too large for the Web Audio backend!\n",
-        (int)(s_samplesPerFrame * s_channelCount));
+    if (s_samplesPerFrame > kAudioSlotStride || s_channelCount > MAX_CHANNEL_COUNT) {
+      ClLogMessage("Decoded audio frames of %d samples over %d channels are too large for the Web Audio backend!\n",
+        (int)s_samplesPerFrame, (int)s_channelCount);
       return -1;
     }
 
+    // Report the audio format the RTSP negotiation settled on, so that a packet duration other
+    // than the expected one can be told apart from the scheduler falling behind
+    ClLogMessage("Negotiated %d samples per frame over %d channels at %d Hz, which is %.1f ms of audio per packet\n",
+      (int)s_samplesPerFrame, (int)s_channelCount, s_sampleRate, s_frameDuration.count() * 1000.0);
+
     // Start writing decoded frames at the beginning of the slot pool
     s_AudioSlotIndex = 0;
+    s_AudioSequence = 0;
+    s_AudioDecodeErrors = 0;
 
     // Select the jitter buffer target requested by the user, or the default one when unset
     int audioJitterMs = g_Instance->m_AudioJitterMs > 0 ? g_Instance->m_AudioJitterMs : kDefaultAudioJitterMs;
