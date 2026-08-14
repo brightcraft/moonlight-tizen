@@ -596,11 +596,10 @@ NvHTTP.prototype = {
           if (previewDataUrl) {
             self.saveSmartHubPreview(appId, previewDataUrl);
           }
-          resolve(dataUrl);
         }, function(error) {
           console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Failed to create Smart Hub Preview: ', error);
-          resolve(dataUrl);
         });
+        resolve(dataUrl);
       } catch (readError) {
         console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Cannot find or read box art from internal storage!', readError.message);
         // Fetch the new box art from the network
@@ -650,12 +649,10 @@ NvHTTP.prototype = {
               if (previewDataUrl) {
                 self.saveSmartHubPreview(appId, previewDataUrl);
               }
-              // The Apps UI always receives the original PNG
-              resolve(dataUrl);
             }, function(error) {
               console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Failed to create Smart Hub Preview: ', error);
-              resolve(dataUrl);
             });
+            resolve(dataUrl);
           };
 
           reader.readAsDataURL(blob);
