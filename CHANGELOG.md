@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## v1.15.0
+
+### Added
+- Added Smart Hub Preview support with app tiles, box art, and native tile ordering (Tizen 5.5–6.0)
+- Added Deep Link support for launching apps directly from the Smart Hub Preview home screen
+- Added offline persistence to preserve Smart Hub Preview apps when hosts are unavailable
+- Handled unsupported Tizen versions to prevent Smart Hub Preview background service processes
+
+### Changed
+- Improved sorting of the app list for titles containing numbers for a more natural ordering
+
+### Fixed
+- Fixed selection menu settings not being preserved after application restart
+- Fixed an issue causing the memory-cached app list to persist across application restarts
+- Fixed an issue causing system info to be loaded multiple times during application startup
+- Fixed a race condition causing some box arts to fail when retrieving multiple apps at once
+- Fixed polling failures after the subnet scanner detects a known host with a changed IP address
+
 ## v1.14.1
 
 ### Added
