@@ -724,8 +724,8 @@ NvHTTP.prototype = {
       var MIN_QUALITY = 0.25;
       var QUALITY_STEP = 0.05;
       var SCALE_STEP = 0.9;
-      var MIN_WIDTH = 160;
-      var MIN_HEIGHT = 160;
+      var MIN_SCALE_WIDTH = 100;
+      var MIN_SCALE_HEIGHT = 100;
 
       var image = new Image();
 
@@ -749,7 +749,7 @@ NvHTTP.prototype = {
             return;
           }
 
-          while (width >= MIN_WIDTH && height >= MIN_HEIGHT) {
+          while (true) {
             canvas.width = width;
             canvas.height = height;
 
@@ -777,6 +777,11 @@ NvHTTP.prototype = {
               }
 
               quality -= QUALITY_STEP;
+            }
+
+            // Only stop shrinking after we've tried the current dimensions
+            if (width <= MIN_SCALE_WIDTH || height <= MIN_SCALE_HEIGHT) {
+              break;
             }
 
             // Quality alone wasn't enough, so reduce dimensions
