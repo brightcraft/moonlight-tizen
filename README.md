@@ -30,7 +30,6 @@ Before proceeding with the installation, please take a moment to ensure that you
 ## 📦 Installation
 
 Preparing Moonlight for installation is a straightforward process, although the exact steps depend on the Tizen version your TV uses and the installation method you choose. To get started, follow the steps below:
-- Go to releases and download the widget file from the release assets.
 - Choose your preferred [installation method](https://github.com/brightcraft/moonlight-tizen/wiki/Installation-Guide) from the provided guide.
 - Follow the step-by-step instructions to successfully install the application.
 - Once complete, you can launch **Moonlight** and start streaming your games.
@@ -109,4 +108,4 @@ This project is made possible thanks to the people who dedicate their time, know
 - [KyroFrCode](https://github.com/KyroFrCode/moonlight-chrome-tizen) — for further developing the Tizen implementation by introducing improvements such as a dedicated application build method, 1440p resolution support, a shortcut combo to stop the streaming session, and audio volume control using the remote. This project was later continued from this codebase before becoming a standalone repository.
 - [OneLiberty](https://github.com/OneLiberty/moonlight-chrome-tizen) — for expanding the Tizen implementation in their fork with features such as video codec selection, mouse emulation using the gamepad, Wake-on-LAN (WoL), a new IP address input mode, and other improvements. These changes provided useful references and inspiration for additional adaptations in this project.
 - [ToyPoodleGaming](https://github.com/toypoodlegaming/moonlight-chrome-tizen) — for further expanding the functionality in their fork with features such as 5.1 and 7.1 surround sound configuration, performance statistics, and enhanced bitrate calculation. These changes provided useful references and inspiration for additional adaptations in this project.
-- [EduardoMozart](https://github.com/eduardomozart) — for contributing directly to this repository by adding localization support with Tizen-first locale detection, HTTP subnet scanning, IPv6 and DNS hostname support, custom port support, and build optimizations, while also delivering numerous fixes and improvements that enhanced the overall stability and usability of the application.
+- [EduardoMozart](https://github.com/eduardomozart) — for contributing directly to this repository with localization support featuring Tizen-first locale detection, HTTP subnet scanning, IPv6 and DNS hostname support, custom port support, Smart Hub Preview support, and build optimizations, along with numerous fixes and improvements that were further refined and integrated into the application.
