@@ -3428,7 +3428,7 @@ function handleUnlockAllFps() {
     $('.videoFramerateMenu li[data-value="90"], li[data-value="120"], li[data-value="144"]').remove();
     // After removal, if a higher FPS option remains selected, then reset it to the default option
     if (['90', '120', '144'].includes(String(currentFps))) {
-      $('#selectFramerate').text('60 FPS').data('value', '60');
+      $('#selectFramerate').text('60 FPS').attr('data-value', '60').data('value', '60');
       console.log('%c[index.js, handleUnlockAllFps]', 'color: green;', 'Resetting framerate value to 60 FPS');
       storeData('frameRate', '60', null);
       // Update the bitrate value based on the selected frame rate
@@ -3467,11 +3467,11 @@ function savePerformanceStats() {
 // Reset all settings to their default state and save the value data
 function restoreDefaultsSettingsValues() {
   const defaultResolution = '1280:720';
-  $('#selectResolution').text('1280 x 720 (720p)').data('value', defaultResolution);
+  $('#selectResolution').text('1280 x 720 (720p)').attr('data-value', defaultResolution).data('value', defaultResolution);
   storeData('resolution', defaultResolution, null);
 
   const defaultFramerate = '60';
-  $('#selectFramerate').text('60 FPS').data('value', defaultFramerate);
+  $('#selectFramerate').text('60 FPS').attr('data-value', defaultFramerate).data('value', defaultFramerate);
   storeData('frameRate', defaultFramerate, null);
 
   const defaultBitrate = '10';
@@ -3512,7 +3512,7 @@ function restoreDefaultsSettingsValues() {
   storeData('flipXYfaceButtons', defaultFlipXYfaceButtons, null);
 
   const defaultAudioConfig = 'Stereo';
-  $('#selectAudio').text('Stereo').data('value', defaultAudioConfig);
+  $('#selectAudio').text('Stereo').attr('data-value', defaultAudioConfig).data('value', defaultAudioConfig);
   storeData('audioConfig', defaultAudioConfig, null);
 
   const defaultAudioSync = false;
@@ -3524,7 +3524,7 @@ function restoreDefaultsSettingsValues() {
   storeData('playHostAudio', defaultPlayHostAudio, null);
 
   const defaultVideoCodec = 'H264';
-  $('#selectCodec').text('H.264').data('value', defaultVideoCodec);
+  $('#selectCodec').text('H.264').attr('data-value', defaultVideoCodec).data('value', defaultVideoCodec);
   storeData('videoCodec', defaultVideoCodec, null);
 
   const defaultHdrMode = false;
