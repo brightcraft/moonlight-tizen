@@ -18,7 +18,7 @@ const SyncFunctions = {
 };
 
 const AsyncFunctions = {
-  // url, ppk, binaryResponse, timeout_ms (default 0)
+  // url, ppk, binaryResponse, timeoutMs (default 0)
   'openUrl': (id, url, ppk, binary, timeout_ms = 0) => Module.openUrl(id, url, ppk, binary, timeout_ms),
   // no parameters
   'STUN': (...args) => Module.stun(...args),
@@ -111,7 +111,7 @@ var sendMessage = function(method, params) {
       }
     });
   } else {
-    return new Promise(function(resolve, reject) {
+    var asyncPromise = new Promise(function(resolve, reject) {
       const id = callbacks_ids++;
       callbacks[id] = {
         'resolve': resolve,
@@ -120,6 +120,20 @@ var sendMessage = function(method, params) {
 
       AsyncFunctions[method](id, ...params);
     });
+
+    // We MUST enforce the timeout in JavaScript because Emscripten's libcurl wrapper
+    // completely ignores native timeouts (e.g., CURLOPT_CONNECTTIMEOUT) and relies on
+    // the browser's native XHR timeout, which can take up to 1 minute.
+    var timeout_ms = (method === 'openUrl') ? params[3] : 0;
+
+    if (timeout_ms && timeout_ms > 0) {
+      return Promise.race([
+        asyncPromise,
+        new Promise((_, reject) => setTimeout(() => reject('28'), timeout_ms))
+      ]);
+    } else {
+      return asyncPromise;
+    }
   }
 }
 
