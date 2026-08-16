@@ -87,7 +87,7 @@ MessageResult MoonlightInstance::HttpInit(std::string cert, std::string privateK
   return MessageResult::Resolve();
 }
 
-void MoonlightInstance::OpenUrl_private(int callbackId, std::string url, std::string ppk, bool binaryResponse) {
+void MoonlightInstance::OpenUrl_private(int callbackId, std::string url, std::string ppk, bool binaryResponse, std::shared_ptr<volatile int> cancel_flag) {
   // For launch/resume requests, append the additional query parameters
   if (url.find("/launch?") != std::string::npos || url.find("/resume?") != std::string::npos) {
     url += LiGetLaunchUrlQueryParameters();
@@ -97,11 +97,30 @@ void MoonlightInstance::OpenUrl_private(int callbackId, std::string url, std::st
   int err;
 
   if (data == NULL) {
+    {
+      std::lock_guard<std::mutex> lock(m_ActiveRequestsMutex);
+      m_ActiveRequests.erase(callbackId);
+    }
     PostPromiseMessage(callbackId, "reject", "Error when creating data buffer.");
     return;
   }
 
-  err = http_request(url.c_str(), ppk.empty() ? NULL : ppk.c_str(), data);
+  if (*cancel_flag) {
+    http_free_data(data);
+    {
+      std::lock_guard<std::mutex> lock(m_ActiveRequestsMutex);
+      m_ActiveRequests.erase(callbackId);
+    }
+    PostPromiseMessage(callbackId, "reject", "Cancelled");
+    return;
+  }
+
+  err = http_request(url.c_str(), ppk.empty() ? NULL : ppk.c_str(), data, cancel_flag.get());
+
+  {
+    std::lock_guard<std::mutex> lock(m_ActiveRequestsMutex);
+    m_ActiveRequests.erase(callbackId);
+  }
   if (err) {
     http_free_data(data);
     PostPromiseMessage(callbackId, "reject", std::to_string(err));
@@ -122,7 +141,12 @@ void MoonlightInstance::OpenUrl_private(int callbackId, std::string url, std::st
 }
 
 void MoonlightInstance::OpenUrl(int callbackId, std::string url, std::string ppk, bool binaryResponse) {
-  m_Dispatcher.post_job(std::bind(&MoonlightInstance::OpenUrl_private, this, callbackId, url, ppk, binaryResponse), false);
+  auto cancel_flag = std::make_shared<volatile int>(0);
+  {
+    std::lock_guard<std::mutex> lock(m_ActiveRequestsMutex);
+    m_ActiveRequests[callbackId] = cancel_flag;
+  }
+  m_Dispatcher.post_job(std::bind(&MoonlightInstance::OpenUrl_private, this, callbackId, url, ppk, binaryResponse, cancel_flag), false);
 }
 
 MessageResult makeCert() {

@@ -157,12 +157,13 @@ NvHTTP.prototype = {
   },
 
   _openUrlWithTimeout: function(url, ppkstr) {
+    var req = sendMessage('openUrl', [url, ppkstr, false]);
     return Promise.race([
-      sendMessage('openUrl', [url, ppkstr, false]),
+      req,
       new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout retrieving server info')), 5000))
     ]).catch(error => {
       if (error && error.message === 'Timeout retrieving server info') {
-        sendMessage('cancelRequest', []);
+        sendMessage('cancelRequest', [req.requestId]);
         throw -1;
       }
       throw error;
@@ -489,15 +490,16 @@ NvHTTP.prototype = {
   },
 
   getAppListWithCacheFlush: function() {
+    var req = sendMessage('openUrl', [
+      this._baseUrlHttps + '/applist?' + this._buildUidStr(), this.ppkstr, false
+    ]);
     return Promise.race([
-      sendMessage('openUrl', [
-        this._baseUrlHttps + '/applist?' + this._buildUidStr(), this.ppkstr, false
-      ]),
+      req,
       new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout retrieving app list')), 10000))
     ]).catch(error => {
       // If it's our timeout error, instruct the C++ layer to abort the hung network request
-      if (error.message === 'Timeout retrieving app list') {
-        sendMessage('cancelRequest', []);
+      if (error && error.message === 'Timeout retrieving app list') {
+        sendMessage('cancelRequest', [req.requestId]);
       }
       throw error;
     }).then(function(ret) {
@@ -920,15 +922,16 @@ NvHTTP.prototype = {
         this.serverMajorVersion.toString(), this.address, this.httpPort, randomNumber, this.getUid()
       ]).then(function(ppkstr) {
         this.ppkstr = ppkstr;
+        var req = sendMessage('openUrl', [
+          this._baseUrlHttps + '/pair?uniqueid=' + this.getUid() + '&devicename=roth&updateState=1&phrase=pairchallenge', this.ppkstr, false
+        ]);
         return Promise.race([
-          sendMessage('openUrl', [
-            this._baseUrlHttps + '/pair?uniqueid=' + this.getUid() + '&devicename=roth&updateState=1&phrase=pairchallenge', this.ppkstr, false
-          ]),
+          req,
           new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout during pairchallenge')), 5000))
         ]).catch(function(error) {
-          if (error.message === 'Timeout during pairchallenge') {
+          if (error && error.message === 'Timeout during pairchallenge') {
             console.warn('%c[utils.js, pair]', 'color: gray;', 'Warning: HTTPS request timed out, canceling C++ HTTP request');
-            sendMessage('cancelRequest', []);
+            sendMessage('cancelRequest', [req.requestId]);
           }
           throw error;
         }.bind(this)).then(function(ret) {

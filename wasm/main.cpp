@@ -415,12 +415,19 @@ MessageResult MoonlightInstance::StopStream() {
   return MessageResult::Resolve();
 }
 
-extern "C" void http_cancel_request();
-
-MessageResult MoonlightInstance::CancelRequest() {
-  ClLogMessage("%s: Canceling any ongoing HTTP request...\n", __func__);
-  // Begin canceling the HTTP request
-  http_cancel_request();
+MessageResult MoonlightInstance::CancelRequest(int callbackId) {
+  ClLogMessage("%s: Canceling HTTP request %d...\n", __func__, callbackId);
+  std::lock_guard<std::mutex> lock(m_ActiveRequestsMutex);
+  if (callbackId == -1) {
+    for (auto& pair : m_ActiveRequests) {
+      *(pair.second) = 1;
+    }
+  } else {
+    auto it = m_ActiveRequests.find(callbackId);
+    if (it != m_ActiveRequests.end()) {
+      *(it->second) = 1;
+    }
+  }
 
   return MessageResult::Resolve();
 }
@@ -576,8 +583,8 @@ MessageResult stopStream() {
   return g_Instance->StopStream();
 }
 
-MessageResult cancelRequest() {
-  return g_Instance->CancelRequest();
+MessageResult cancelRequest(int callbackId) {
+  return g_Instance->CancelRequest(callbackId);
 }
 
 void toggleStats() {
