@@ -158,9 +158,6 @@ NvHTTP.prototype = {
 
   _openUrlWithTimeout: function(url, ppkstr) {
     return sendMessage('openUrl', [url, ppkstr, false, 5000]).catch(error => {
-      if (error == 28) {
-        throw -1;
-      }
       throw error;
     });
   },
@@ -910,9 +907,6 @@ NvHTTP.prototype = {
         return sendMessage('openUrl', [
           this._baseUrlHttps + '/pair?uniqueid=' + this.getUid() + '&devicename=roth&updateState=1&phrase=pairchallenge', this.ppkstr, false, 5000
         ]).catch(function(error) {
-          if (error == 28) {
-            console.warn('%c[utils.js, pair]', 'color: gray;', 'Warning: HTTPS request timed out natively');
-          }
           throw error;
         }.bind(this)).then(function(ret) {
           $xml = this._parseXML(ret);
