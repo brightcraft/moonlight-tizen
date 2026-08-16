@@ -87,7 +87,7 @@ MessageResult MoonlightInstance::HttpInit(std::string cert, std::string privateK
   return MessageResult::Resolve();
 }
 
-void MoonlightInstance::OpenUrl_private(int callbackId, std::string url, std::string ppk, bool binaryResponse) {
+void MoonlightInstance::OpenUrl_private(int callbackId, std::string url, std::string ppk, bool binaryResponse, int timeout_ms) {
   // For launch/resume requests, append the additional query parameters
   if (url.find("/launch?") != std::string::npos || url.find("/resume?") != std::string::npos) {
     url += LiGetLaunchUrlQueryParameters();
@@ -101,7 +101,8 @@ void MoonlightInstance::OpenUrl_private(int callbackId, std::string url, std::st
     return;
   }
 
-  err = http_request(url.c_str(), ppk.empty() ? NULL : ppk.c_str(), data);
+  err = http_request(url.c_str(), ppk.empty() ? NULL : ppk.c_str(), data, timeout_ms);
+
   if (err) {
     http_free_data(data);
     PostPromiseMessage(callbackId, "reject", std::to_string(err));
@@ -121,8 +122,8 @@ void MoonlightInstance::OpenUrl_private(int callbackId, std::string url, std::st
   }
 }
 
-void MoonlightInstance::OpenUrl(int callbackId, std::string url, std::string ppk, bool binaryResponse) {
-  m_Dispatcher.post_job(std::bind(&MoonlightInstance::OpenUrl_private, this, callbackId, url, ppk, binaryResponse), false);
+void MoonlightInstance::OpenUrl(int callbackId, std::string url, std::string ppk, bool binaryResponse, int timeout_ms) {
+  m_Dispatcher.post_job(std::bind(&MoonlightInstance::OpenUrl_private, this, callbackId, url, ppk, binaryResponse, timeout_ms), false);
 }
 
 MessageResult makeCert() {
@@ -133,12 +134,12 @@ MessageResult httpInit(std::string cert, std::string privateKey, std::string myU
   return g_Instance->HttpInit(cert, privateKey, myUniqueId);
 }
 
-void openUrl(int callbackId, std::string url, emscripten::val ppk, bool binaryResponse) {
+void openUrl(int callbackId, std::string url, emscripten::val ppk, bool binaryResponse, int timeout_ms) {
   std::string ppkstr = "";
   if (ppk != emscripten::val::null()) {
     ppkstr = ppk.as<std::string>();
   }
-  g_Instance->OpenUrl(callbackId, url, ppkstr, binaryResponse);
+  g_Instance->OpenUrl(callbackId, url, ppkstr, binaryResponse, timeout_ms);
 }
 
 EMSCRIPTEN_BINDINGS(http) {

@@ -76,7 +76,7 @@ static int _progress_callback(void *clientp, double dltotal, double dlnow, doubl
   return 0;
 }
 
-int http_request(const char* url, const char* ppkstr, PHTTP_DATA data) {
+int http_request(const char* url, const char* ppkstr, PHTTP_DATA data, int timeout_ms) {
   int ret;
   CURL *curl;
   const char* real_url = url;
@@ -102,6 +102,10 @@ int http_request(const char* url, const char* ppkstr, PHTTP_DATA data) {
   curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
   curl_easy_setopt(curl, CURLOPT_SSL_ENABLE_ALPN, 0L);
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, data);
+
+  if (timeout_ms > 0) {
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, (long)timeout_ms);
+  }
 
   const char* bracket_start = strchr(url, '[');
   const char* bracket_end = strchr(url, ']');

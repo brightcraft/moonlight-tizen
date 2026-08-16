@@ -165,7 +165,7 @@ class MoonlightInstance {
   MessageResult MakeCert();
 
   MessageResult HttpInit(std::string cert, std::string privateKey, std::string myUniqueId);
-  void OpenUrl(int callbackId, std::string url, std::string ppk, bool binaryResponse);
+  void OpenUrl(int callbackId, std::string url, std::string ppk, bool binaryResponse, int timeout_ms);
 
   LoadResult LoadCert(const char* certStr, const char* keyStr);
 
@@ -205,7 +205,7 @@ class MoonlightInstance {
 
   void WaitFor(std::condition_variable* variable, std::function<bool()> condition);
 
-  void OpenUrl_private(int callbackId, std::string url, std::string ppk, bool binaryResponse);
+  void OpenUrl_private(int callbackId, std::string url, std::string ppk, bool binaryResponse, int timeout_ms);
   void STUN_private(int callbackId);
   void Pair_private(int callbackId, std::string serverMajorVersion, std::string address, int httpPort, std::string randomNumber);
 
@@ -291,7 +291,7 @@ void PostPromiseMessage(int callbackId, const std::string& type, const std::vect
 MessageResult makeCert();
 
 MessageResult httpInit(std::string cert, std::string privateKey, std::string myUniqueId);
-void openUrl(int callbackId, std::string url, emscripten::val ppk, bool binaryResponse);
+void openUrl(int callbackId, std::string url, emscripten::val ppk, bool binaryResponse, int timeout_ms);
 
 MessageResult startStream(std::string host, int httpPort, std::string width, std::string height, std::string fps, std::string bitrate,
   std::string rikey, std::string rikeyid, std::string appversion, std::string gfeversion, std::string rtspurl, int serverCodecModeSupport,

@@ -157,12 +157,8 @@ NvHTTP.prototype = {
   },
 
   _openUrlWithTimeout: function(url, ppkstr) {
-    return Promise.race([
-      sendMessage('openUrl', [url, ppkstr, false]),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout retrieving server info')), 5000))
-    ]).catch(error => {
-      if (error && error.message === 'Timeout retrieving server info') {
-        sendMessage('cancelRequest', []);
+    return sendMessage('openUrl', [url, ppkstr, false, 5000]).catch(error => {
+      if (error == 28) {
         throw -1;
       }
       throw error;
@@ -489,18 +485,9 @@ NvHTTP.prototype = {
   },
 
   getAppListWithCacheFlush: function() {
-    return Promise.race([
-      sendMessage('openUrl', [
-        this._baseUrlHttps + '/applist?' + this._buildUidStr(), this.ppkstr, false
-      ]),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout retrieving app list')), 10000))
-    ]).catch(error => {
-      // If it's our timeout error, instruct the C++ layer to abort the hung network request
-      if (error.message === 'Timeout retrieving app list') {
-        sendMessage('cancelRequest', []);
-      }
-      throw error;
-    }).then(function(ret) {
+    return sendMessage('openUrl', [
+      this._baseUrlHttps + '/applist?' + this._buildUidStr(), this.ppkstr, false, 10000
+    ]).then(function(ret) {
       $xml = this._parseXML(ret);
       $root = $xml.find('root');
 
@@ -920,15 +907,11 @@ NvHTTP.prototype = {
         this.serverMajorVersion.toString(), this.address, this.httpPort, randomNumber, this.getUid()
       ]).then(function(ppkstr) {
         this.ppkstr = ppkstr;
-        return Promise.race([
-          sendMessage('openUrl', [
-            this._baseUrlHttps + '/pair?uniqueid=' + this.getUid() + '&devicename=roth&updateState=1&phrase=pairchallenge', this.ppkstr, false
-          ]),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout during pairchallenge')), 5000))
+        return sendMessage('openUrl', [
+          this._baseUrlHttps + '/pair?uniqueid=' + this.getUid() + '&devicename=roth&updateState=1&phrase=pairchallenge', this.ppkstr, false, 5000
         ]).catch(function(error) {
-          if (error.message === 'Timeout during pairchallenge') {
-            console.warn('%c[utils.js, pair]', 'color: gray;', 'Warning: HTTPS request timed out, canceling C++ HTTP request');
-            sendMessage('cancelRequest', []);
+          if (error == 28) {
+            console.warn('%c[utils.js, pair]', 'color: gray;', 'Warning: HTTPS request timed out natively');
           }
           throw error;
         }.bind(this)).then(function(ret) {
