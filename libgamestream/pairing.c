@@ -246,7 +246,7 @@ int gs_unpair(const char* address, unsigned short httpPort) {
   format_address_for_url(address, host_for_url, sizeof(host_for_url));
 
   snprintf(url, sizeof(url), "http://%s:%u/unpair?uniqueid=%s", host_for_url, sanitizedHttpPort, g_UniqueId);
-  ret = http_request(url, NULL, data, NULL);
+  ret = http_request(url, NULL, data);
 
   http_free_data(data);
   return ret;
@@ -270,7 +270,7 @@ int gs_pair(int serverMajorVersion, const char* address, unsigned short httpPort
   PHTTP_DATA data = http_create_data();
   if (data == NULL)
     return GS_OUT_OF_MEMORY;
-  else if ((ret = http_request(url, NULL, data, NULL)) != GS_OK)
+  else if ((ret = http_request(url, NULL, data)) != GS_OK)
     goto cleanup;
 
   if ((ret = xml_search(data->memory, data->size, "paired", &result)) != GS_OK)
@@ -312,7 +312,7 @@ int gs_pair(int serverMajorVersion, const char* address, unsigned short httpPort
   bytes_to_hex(challenge_enc, challenge_hex, 16);
 
   snprintf(url, sizeof(url), "http://%s:%u/pair?uniqueid=%s&devicename=roth&updateState=1&clientchallenge=%s", host_for_url, sanitizedHttpPort, g_UniqueId, challenge_hex);
-  if ((ret = http_request(url, NULL, data, NULL)) != GS_OK)
+  if ((ret = http_request(url, NULL, data)) != GS_OK)
     goto cleanup;
 
   free(result);
@@ -366,7 +366,7 @@ int gs_pair(int serverMajorVersion, const char* address, unsigned short httpPort
   bytes_to_hex(challenge_response_hash_enc, challenge_response_hex, 32);
 
   snprintf(url, sizeof(url), "http://%s:%u/pair?uniqueid=%s&devicename=roth&updateState=1&serverchallengeresp=%s", host_for_url, sanitizedHttpPort, g_UniqueId, challenge_response_hex);
-  if ((ret = http_request(url, NULL, data, NULL)) != GS_OK)
+  if ((ret = http_request(url, NULL, data)) != GS_OK)
     goto cleanup;
 
   free(result);
@@ -410,7 +410,7 @@ int gs_pair(int serverMajorVersion, const char* address, unsigned short httpPort
   bytes_to_hex(client_pairing_secret, client_pairing_secret_hex, 16 + 256);
 
   snprintf(url, sizeof(url), "http://%s:%u/pair?uniqueid=%s&devicename=roth&updateState=1&clientpairingsecret=%s", host_for_url, sanitizedHttpPort, g_UniqueId, client_pairing_secret_hex);
-  if ((ret = http_request(url, NULL, data, NULL)) != GS_OK)
+  if ((ret = http_request(url, NULL, data)) != GS_OK)
     goto cleanup;
 
   free(result);

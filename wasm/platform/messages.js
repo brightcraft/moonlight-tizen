@@ -111,8 +111,8 @@ var sendMessage = function(method, params) {
       }
     });
   } else {
-    const id = callbacks_ids++;
-    const p = new Promise(function(resolve, reject) {
+    return new Promise(function(resolve, reject) {
+      const id = callbacks_ids++;
       callbacks[id] = {
         'resolve': resolve,
         'reject': reject
@@ -120,8 +120,6 @@ var sendMessage = function(method, params) {
 
       AsyncFunctions[method](id, ...params);
     });
-    p.requestId = id;
-    return p;
   }
 }
 

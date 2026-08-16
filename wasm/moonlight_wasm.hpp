@@ -1,8 +1,6 @@
 #include <atomic>
 #include <memory>
 #include <queue>
-#include <map>
-#include <mutex>
 
 #include <emscripten/bind.h>
 #include <emscripten/html5.h>
@@ -97,7 +95,7 @@ class MoonlightInstance {
     bool disableWarnings, bool performanceStats);
   MessageResult StopStream();
 
-  MessageResult CancelRequest(int callbackId);
+  MessageResult CancelRequest();
 
   void STUN(int callbackId);
   void Pair(int callbackId, std::string serverMajorVersion, std::string address, int httpPort, std::string randomNumber);
@@ -206,7 +204,8 @@ class MoonlightInstance {
   };
 
   void WaitFor(std::condition_variable* variable, std::function<bool()> condition);
-  void OpenUrl_private(int callbackId, std::string url, std::string ppk, bool binaryResponse, std::shared_ptr<volatile int> cancel_flag);
+
+  void OpenUrl_private(int callbackId, std::string url, std::string ppk, bool binaryResponse);
   void STUN_private(int callbackId);
   void Pair_private(int callbackId, std::string serverMajorVersion, std::string address, int httpPort, std::string randomNumber);
 
@@ -260,9 +259,6 @@ class MoonlightInstance {
 
   Dispatcher m_Dispatcher;
 
-  std::map<int, std::shared_ptr<volatile int>> m_ActiveRequests;
-  std::mutex m_ActiveRequestsMutex;
-
   std::mutex m_Mutex;
   std::condition_variable m_EmssStateChanged;
   std::condition_variable m_EmssAudioStateChanged;
@@ -304,7 +300,7 @@ MessageResult startStream(std::string host, int httpPort, std::string width, std
   bool disableWarnings, bool performanceStats);
 MessageResult stopStream();
 
-MessageResult cancelRequest(int callbackId);
+MessageResult cancelRequest();
 
 void toggleStats();
 void stun(int callbackId);

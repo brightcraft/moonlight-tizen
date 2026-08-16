@@ -938,7 +938,7 @@ function pairingDialog(nvhttpHost, onSuccess, onFailure) {
     $('#cancelPairing').off('click');
     $('#cancelPairing').on('click', function() {
       console.log('%c[index.js, pairingDialog]', 'color: green;', 'Closing app dialog and returning.');
-      sendMessage('cancelRequest', [-1]);
+      sendMessage('cancelRequest', []);
       wasPairingCanceled = true;
       pairingOverlay.style.display = 'none';
       pairingDialog.close();
