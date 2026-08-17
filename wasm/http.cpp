@@ -88,7 +88,7 @@ MessageResult MoonlightInstance::HttpInit(std::string cert, std::string privateK
   return MessageResult::Resolve();
 }
 
-void MoonlightInstance::OpenUrl_private(int callbackId, std::string url, std::string ppk, bool binaryResponse, int timeoutMs) {
+void MoonlightInstance::OpenUrl_private(int callbackId, std::string url, std::string ppk, bool binaryResponse) {
   // For launch/resume requests, append the additional query parameters
   if (url.find("/launch?") != std::string::npos || url.find("/resume?") != std::string::npos) {
     url += LiGetLaunchUrlQueryParameters();
@@ -102,7 +102,7 @@ void MoonlightInstance::OpenUrl_private(int callbackId, std::string url, std::st
     return;
   }
 
-  err = http_request(url.c_str(), ppk.empty() ? NULL : ppk.c_str(), data, timeoutMs);
+  err = http_request(url.c_str(), ppk.empty() ? NULL : ppk.c_str(), data);
 
   if (err) {
     http_free_data(data);
@@ -123,9 +123,9 @@ void MoonlightInstance::OpenUrl_private(int callbackId, std::string url, std::st
   }
 }
 
-void MoonlightInstance::OpenUrl(int callbackId, std::string url, std::string ppk, bool binaryResponse, int timeoutMs) {
-  std::thread([this, callbackId, url, ppk, binaryResponse, timeoutMs]() {
-    this->OpenUrl_private(callbackId, url, ppk, binaryResponse, timeoutMs);
+void MoonlightInstance::OpenUrl(int callbackId, std::string url, std::string ppk, bool binaryResponse) {
+  std::thread([this, callbackId, url, ppk, binaryResponse]() {
+    this->OpenUrl_private(callbackId, url, ppk, binaryResponse);
   }).detach();
 }
 
@@ -137,12 +137,12 @@ MessageResult httpInit(std::string cert, std::string privateKey, std::string myU
   return g_Instance->HttpInit(cert, privateKey, myUniqueId);
 }
 
-void openUrl(int callbackId, std::string url, emscripten::val ppk, bool binaryResponse, int timeoutMs) {
+void openUrl(int callbackId, std::string url, emscripten::val ppk, bool binaryResponse) {
   std::string ppkstr = "";
   if (ppk != emscripten::val::null()) {
     ppkstr = ppk.as<std::string>();
   }
-  g_Instance->OpenUrl(callbackId, url, ppkstr, binaryResponse, timeoutMs);
+  g_Instance->OpenUrl(callbackId, url, ppkstr, binaryResponse);
 }
 
 EMSCRIPTEN_BINDINGS(http) {

@@ -76,7 +76,7 @@ static int _progress_callback(void *clientp, double dltotal, double dlnow, doubl
   return 0;
 }
 
-int http_request(const char* url, const char* ppkstr, PHTTP_DATA data, int timeoutMs) {
+int http_request(const char* url, const char* ppkstr, PHTTP_DATA data) {
   int ret;
   CURL *curl;
   const char* real_url = url;
@@ -102,10 +102,6 @@ int http_request(const char* url, const char* ppkstr, PHTTP_DATA data, int timeo
   curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
   curl_easy_setopt(curl, CURLOPT_SSL_ENABLE_ALPN, 0L);
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, data);
-
-  if (timeoutMs > 0) {
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, (long)timeoutMs);
-  }
 
   const char* bracket_start = strchr(url, '[');
   const char* bracket_end = strchr(url, ']');
@@ -172,7 +168,7 @@ int http_request(const char* url, const char* ppkstr, PHTTP_DATA data, int timeo
   if (res == CURLE_SSL_PINNEDPUBKEYNOTMATCH) {
     ret = GS_CERT_MISMATCH;
   } else if (res != CURLE_OK) {
-    ret = res;
+    ret = GS_FAILED;
   } else if (data->memory == NULL) {
     ret = GS_OUT_OF_MEMORY;
   } else {
