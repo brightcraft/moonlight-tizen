@@ -111,6 +111,8 @@ function NvHTTP(address, clientUid, userEnteredAddress = '', macAddress) {
   this._pollCount = 0;
   this._consecutivePollFailures = 0;
   this._pollCompletionCallbacks = [];
+  this._boxArtQueue = [];
+  this._activeBoxArts = 0;
   this.paired = false;
   this.online = false;
   this.numofapps = 0;
@@ -160,6 +162,30 @@ NvHTTP.prototype = {
     return sendMessage('openUrl', [url, ppkstr, false, 5000]).catch(error => {
       throw error;
     });
+  },
+
+  // Queues a box art download request to prevent thread pool exhaustion.
+  // When a user has 40+ apps, fetching them all simultaneously exhausts the 20-thread WASM pool.
+  _queueBoxArtRequest: function(url, ppkstr) {
+    return new Promise(function(resolve, reject) {
+      this._boxArtQueue.push({ url: url, ppkstr: ppkstr, resolve: resolve, reject: reject });
+      this._processBoxArtQueue();
+    }.bind(this));
+  },
+
+  // Processes the box art queue, limiting concurrent network requests to a maximum of 5.
+  // This guarantees we never exhaust the WASM PTHREAD_POOL_SIZE of 20, leaving threads
+  // available for pollServer and minimizing the impact of any hanging requests.
+  _processBoxArtQueue: function() {
+    if (this._activeBoxArts >= 5 || this._boxArtQueue.length === 0) return;
+    
+    this._activeBoxArts++;
+    var req = this._boxArtQueue.shift();
+    
+    sendMessage('openUrl', [req.url, req.ppkstr, true]).then(req.resolve).catch(req.reject).finally(function() {
+      this._activeBoxArts--;
+      this._processBoxArtQueue();
+    }.bind(this));
   },
 
   // Refreshes the server info using the base URL. This is useful for testing whether we can successfully ping a host at the base URL
@@ -597,10 +623,10 @@ NvHTTP.prototype = {
         // The original PNG box art is not available locally, so fetch it from the host
         console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Could not read cached box art from internal storage!', readError.message);
 
-        // Fetch the new box art from the network
-        sendMessage('openUrl', [
-          self._baseUrlHttps + '/appasset?' + self._buildUidStr() + '&appid=' + appId + '&AssetType=2&AssetIdx=0', self.ppkstr, true
-        ]).then(function(boxArtBuffer) {
+        // Fetch the new box art from the network using the concurrency queue
+        self._queueBoxArtRequest(
+          self._baseUrlHttps + '/appasset?' + self._buildUidStr() + '&appid=' + appId + '&AssetType=2&AssetIdx=0', self.ppkstr
+        ).then(function(boxArtBuffer) {
           // Convert the binary response into a Blob so it can be converted to a data URL
           var blob = new Blob([boxArtBuffer], { type: 'image/png' });
           var reader = new FileReader();

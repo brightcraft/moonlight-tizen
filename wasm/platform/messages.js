@@ -127,9 +127,10 @@ var sendMessage = function(method, params) {
     var timeout_ms = (method === 'openUrl') ? params[3] : 0;
 
     if (timeout_ms && timeout_ms > 0) {
+      var GS_FAILED = -1;
       return Promise.race([
         asyncPromise,
-        new Promise((_, reject) => setTimeout(() => reject('28'), timeout_ms))
+        new Promise((_, reject) => setTimeout(() => reject(GS_FAILED), timeout_ms))
       ]);
     } else {
       return asyncPromise;
