@@ -5,7 +5,7 @@
         <tizen:src name="index.html" reload="disable"/>
         <tizen:operation name="http://samsung.com/appcontrol/operation/eden_resume"/>
     </tizen:app-control>
-    <tizen:application id="MoonLight2.MoonlightWasm" package="MoonLight2" required_version="5.5" launch_mode="caller"/>
+    <tizen:application id="MoonLightS.MoonlightWasm" package="MoonLightS" required_version="5.5" launch_mode="caller"/>
     <content src="index.html"/>
     <description>Moonlight Game Streaming</description>
     <feature name="http://tizen.org/feature/screen.size.all"/>
@@ -30,7 +30,7 @@
     <tizen:privilege name="http://tizen.org/privilege/tv.audio"/>
     <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
     <tizen:profile name="tv-samsung"/>
-    <tizen:service id="MoonLight2.service" on-boot="true" auto-restart="true">
+    <tizen:service id="MoonLightS.service" on-boot="true" auto-restart="true">
         <tizen:content src="service/service.js"/>
         <tizen:name>moonlight_service</tizen:name>
         <tizen:description>Moonlight Smart Hub Preview Handler Service</tizen:description>
