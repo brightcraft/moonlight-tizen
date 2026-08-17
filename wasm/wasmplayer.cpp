@@ -506,8 +506,8 @@ int MoonlightInstance::VidDecSubmitDecodeUnit(PDECODE_UNIT decodeUnit) {
   };
 
   // Track total time spent reassembling and decoding this frame
-  m_ActiveWndVideoStats.totalReassemblyTime += decodeUnit->enqueueTimeMs - decodeUnit->receiveTimeMs;
-  m_ActiveWndVideoStats.totalDecodeTime += LiGetMillis() - decodeUnit->enqueueTimeMs;
+  m_ActiveWndVideoStats.totalReassemblyTime += (uint32_t)MAX(0, (int32_t)(decodeUnit->enqueueTimeMs - decodeUnit->receiveTimeMs));
+  m_ActiveWndVideoStats.totalDecodeTime += (uint32_t)MAX(0, (int32_t)(LiGetMillis() - decodeUnit->enqueueTimeMs));
   m_ActiveWndVideoStats.decodedFrames++;
 
   // Calculate time before rendering
