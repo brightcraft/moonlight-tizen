@@ -18,8 +18,8 @@ const SyncFunctions = {
 };
 
 const AsyncFunctions = {
-  // url, ppk, binaryResponse, timeoutMs (default 0)
-  'openUrl': (id, url, ppk, binary, timeout_ms = 0) => Module.openUrl(id, url, ppk, binary),
+  // url, ppk, binaryResponse
+  'openUrl': (id, url, ppk, binary) => Module.openUrl(id, url, ppk, binary),
   // no parameters
   'STUN': (...args) => Module.stun(...args),
   // serverMajorVersion, address, httpPort, randomNumber
