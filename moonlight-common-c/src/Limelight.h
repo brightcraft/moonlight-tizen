@@ -957,6 +957,10 @@ void LiRequestIdrFrame(void);
 #define LI_FF_CONTROLLER_TOUCH_EVENTS 0x02 // LiSendControllerTouchEvent() supported
 uint32_t LiGetHostFeatureFlags(void);
 
+// Gets the estimated lifetime network drop percentage using FEC data (if available).
+// Returns -1.0f if the server doesn't support FEC or there's not enough data.
+float LiGetEstimatedNetworkLossPercentage(void);
+
 #ifdef __cplusplus
 }
 #endif

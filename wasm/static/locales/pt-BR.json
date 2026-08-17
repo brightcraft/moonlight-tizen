@@ -332,6 +332,7 @@
   "Rendering frame rate:": "Taxa de quadros de renderização:",
   "Incoming bitrate from network:": "Taxa de bits recebida da rede:",
   "Host processing latency min/max/average:": "Latência de processamento do host mínima/máxima/média:",
+  "Frames dropped by your host:": "Quadros descartados pelo seu host:",
   "Frames dropped by your network connection:": "Quadros descartados pela sua conexão de rede:",
   "Frames dropped due to network jitter:": "Perda de frames devido a instabilidade na rede:",
   "Average network latency:": "Latência média da rede:",
