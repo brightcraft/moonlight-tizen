@@ -1176,8 +1176,8 @@ const Views = {
   },
   AudioSettings: {
     view: new ListView(() => [
-      'selectAudio',
       'selectAudioBackend',
+      'selectAudio',
       // Only one of these settings is shown at a time, as each one belongs to a single backend
       isWebAudioBackendSelected() ? 'selectAudioJitter' : 'audioSyncBtn',
       'playHostAudioBtn'
@@ -1216,38 +1216,6 @@ const Views = {
       unmark(this.view.current());
     },
   },
-  SelectAudioMenu: {
-    isActive: () => isPopupMenuActive('audioConfigMenu'),
-    view: new ListView(() => 
-      document.getElementById('audioConfigMenu')
-      .parentNode.children[3].children[1].children),
-    up: function() {
-      this.view.prevOption();
-    },
-    down: function() {
-      this.view.nextOption();
-    },
-    left: function() {},
-    right: function() {},
-    accept: function() {
-      clickElement(this.view.current());
-      closeActiveVisibleMenu();
-      setTimeout(() => focusElement('selectAudio'), 250);
-    },
-    back: function() {
-      closePopupMenu('selectAudio');
-      closeActiveVisibleMenu();
-      focusElement('selectAudio');
-    },
-    press: function() {},
-    switch: function() {},
-    enter: function() {
-      mark(this.view.current());
-    },
-    leave: function() {
-      unmark(this.view.current());
-    },
-  },
   SelectAudioBackendMenu: {
     isActive: () => isPopupMenuActive('audioBackendMenu'),
     view: new ListView(() =>
@@ -1270,6 +1238,38 @@ const Views = {
       closePopupMenu('selectAudioBackend');
       closeActiveVisibleMenu();
       focusElement('selectAudioBackend');
+    },
+    press: function() {},
+    switch: function() {},
+    enter: function() {
+      mark(this.view.current());
+    },
+    leave: function() {
+      unmark(this.view.current());
+    },
+  },
+  SelectAudioMenu: {
+    isActive: () => isPopupMenuActive('audioConfigMenu'),
+    view: new ListView(() => 
+      document.getElementById('audioConfigMenu')
+      .parentNode.children[3].children[1].children),
+    up: function() {
+      this.view.prevOption();
+    },
+    down: function() {
+      this.view.nextOption();
+    },
+    left: function() {},
+    right: function() {},
+    accept: function() {
+      clickElement(this.view.current());
+      closeActiveVisibleMenu();
+      setTimeout(() => focusElement('selectAudio'), 250);
+    },
+    back: function() {
+      closePopupMenu('selectAudio');
+      closeActiveVisibleMenu();
+      focusElement('selectAudio');
     },
     press: function() {},
     switch: function() {},

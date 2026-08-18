@@ -91,8 +91,8 @@ function attachListeners() {
   $('#mouseEmulationSwitch').on('click', saveMouseEmulation);
   $('#flipABfaceButtonsSwitch').on('click', saveFlipABfaceButtons);
   $('#flipXYfaceButtonsSwitch').on('click', saveFlipXYfaceButtons);
-  $('.audioConfigMenu li').on('click', saveAudioConfiguration);
   $('.audioBackendMenu li').on('click', saveAudioBackend);
+  $('.audioConfigMenu li').on('click', saveAudioConfiguration);
   $('#audioSyncSwitch').on('click', saveAudioSync);
   $('#jitterSlider').on('input', saveAudioJitter);
   $('#playHostAudioSwitch').on('click', savePlayHostAudio);
@@ -122,8 +122,8 @@ function attachListeners() {
   registerMenu('selectFramerate', Views.SelectFramerateMenu);
   registerMenu('selectBitrate', Views.SelectBitrateMenu);
   registerMenu('selectLanguage', Views.SelectLanguageMenu);
-  registerMenu('selectAudio', Views.SelectAudioMenu);
   registerMenu('selectAudioBackend', Views.SelectAudioBackendMenu);
+  registerMenu('selectAudio', Views.SelectAudioMenu);
   registerMenu('selectAudioJitter', Views.SelectAudioJitterMenu);
   registerMenu('selectCodec', Views.SelectCodecMenu);
 
@@ -2516,8 +2516,8 @@ function startGame(host, appID) {
       const mouseEmulation = $('#mouseEmulationSwitch').parent().hasClass('is-checked') ? 1 : 0;
       const flipABfaceButtons = $('#flipABfaceButtonsSwitch').parent().hasClass('is-checked') ? 1 : 0;
       const flipXYfaceButtons = $('#flipXYfaceButtonsSwitch').parent().hasClass('is-checked') ? 1 : 0;
-      var audioConfig = $('#selectAudio').data('value').toString();
       var audioBackend = $('#selectAudioBackend').data('value').toString();
+      var audioConfig = $('#selectAudio').data('value').toString();
       const audioSync = $('#audioSyncSwitch').parent().hasClass('is-checked') ? 1 : 0;
       const audioJitter = parseInt($('#jitterSlider').val());
       const playHostAudio = $('#playHostAudioSwitch').parent().hasClass('is-checked') ? 1 : 0;
@@ -2539,8 +2539,8 @@ function startGame(host, appID) {
       '\n Mouse emulation: ' + mouseEmulation + 
       '\n Flip A/B face buttons: ' + flipABfaceButtons + 
       '\n Flip X/Y face buttons: ' + flipXYfaceButtons + 
+      '\n Audio backend: ' + audioBackend + 
       '\n Audio configuration: ' + audioConfig + 
-      '\n Audio backend: ' + audioBackend +
       '\n Audio synchronization: ' + audioSync + 
       '\n Audio jitter buffer: ' + audioJitter + ' ms' +
       '\n Play host audio: ' + playHostAudio + 
@@ -2590,7 +2590,7 @@ function startGame(host, appID) {
             host.address, host.httpPort, streamWidth, streamHeight, frameRate, bitrate.toString(), rikey, rikeyid.toString(),
             host.appVersion, host.gfeVersion, $root.find('sessionUrl0').text().trim(), host.serverCodecModeSupport,
             framePacing, optimizeGames, rumbleFeedback, mouseEmulation, flipABfaceButtons, flipXYfaceButtons,
-            audioConfig, audioBackend, audioSync, audioJitter, playHostAudio, videoCodec, hdrMode, fullRange, gameMode,
+            audioBackend, audioConfig, audioSync, audioJitter, playHostAudio, videoCodec, hdrMode, fullRange, gameMode,
             disableWarnings, performanceStats
           ]);
         }, function(failedResumeApp) {
@@ -2642,7 +2642,7 @@ function startGame(host, appID) {
           host.address, host.httpPort, streamWidth, streamHeight, frameRate, bitrate.toString(), rikey, rikeyid.toString(),
           host.appVersion, host.gfeVersion, $root.find('sessionUrl0').text().trim(), host.serverCodecModeSupport,
           framePacing, optimizeGames, rumbleFeedback, mouseEmulation, flipABfaceButtons, flipXYfaceButtons,
-          audioConfig, audioBackend, audioSync, audioJitter, playHostAudio, videoCodec, hdrMode, fullRange, gameMode,
+          audioBackend, audioConfig, audioSync, audioJitter, playHostAudio, videoCodec, hdrMode, fullRange, gameMode,
           disableWarnings, performanceStats
         ]);
       }, function(failedLaunchApp) {
@@ -3102,31 +3102,6 @@ function saveFlipXYfaceButtons() {
   }, 100);
 }
 
-function saveAudioConfiguration() {
-  var chosenAudioConfig = $(this).data('value');
-  $('#selectAudio').text($(this).text()).attr('data-value', chosenAudioConfig).data('value', chosenAudioConfig);
-  console.log('%c[index.js, saveAudioConfiguration]', 'color: green;', 'Saving audioConfig value: ' + chosenAudioConfig);
-  storeData('audioConfig', chosenAudioConfig, null);
-
-  // Trigger warning check after changing audio configuration
-  warnAudioConfiguration();
-}
-
-function warnAudioConfiguration() {
-  var chosenAudioConfig = $('#selectAudio').data('value');
-
-  // Audio configuration warning
-  if (!audioWarning && (chosenAudioConfig === '71Surround' || chosenAudioConfig === '51Surround')) {
-    // Warn only if audio configuration is selected to 5.1 or 7.1 Surround
-    snackbarLogLong(t('Warning: Surround Sound (5.1/7.1) may not be supported by your TV and is not guaranteed to work due to platform limitations!'));
-    // Set flag for audio configuration warning
-    audioWarning = true;
-  } else if (audioWarning && (chosenAudioConfig === 'Stereo')) {
-    // Reset the flag for audio configuration warning if the condition goes back to normal (Stereo)
-    audioWarning = false;
-  }
-}
-
 function saveAudioBackend() {
   var chosenAudioBackend = $(this).data('value');
   $('#selectAudioBackend').text($(this).text()).attr('data-value', chosenAudioBackend).data('value', chosenAudioBackend);
@@ -3154,6 +3129,31 @@ function updateAudioBackendSettings() {
 // Check whether the Web Audio backend is the currently selected audio backend
 function isWebAudioBackendSelected() {
   return $('#selectAudioBackend').data('value') === 'WebAudio';
+}
+
+function saveAudioConfiguration() {
+  var chosenAudioConfig = $(this).data('value');
+  $('#selectAudio').text($(this).text()).attr('data-value', chosenAudioConfig).data('value', chosenAudioConfig);
+  console.log('%c[index.js, saveAudioConfiguration]', 'color: green;', 'Saving audioConfig value: ' + chosenAudioConfig);
+  storeData('audioConfig', chosenAudioConfig, null);
+
+  // Trigger warning check after changing audio configuration
+  warnAudioConfiguration();
+}
+
+function warnAudioConfiguration() {
+  var chosenAudioConfig = $('#selectAudio').data('value');
+
+  // Audio configuration warning
+  if (!audioWarning && (chosenAudioConfig === '71Surround' || chosenAudioConfig === '51Surround')) {
+    // Warn only if audio configuration is selected to 5.1 or 7.1 Surround
+    snackbarLogLong(t('Warning: Surround Sound (5.1/7.1) may not be supported by your TV and is not guaranteed to work due to platform limitations!'));
+    // Set flag for audio configuration warning
+    audioWarning = true;
+  } else if (audioWarning && (chosenAudioConfig === 'Stereo')) {
+    // Reset the flag for audio configuration warning if the condition goes back to normal (Stereo)
+    audioWarning = false;
+  }
 }
 
 function saveAudioSync() {
@@ -3424,15 +3424,15 @@ function restoreDefaultsSettingsValues() {
   document.querySelector('#flipXYfaceButtonsBtn').MaterialSwitch.off();
   storeData('flipXYfaceButtons', defaultFlipXYfaceButtons, null);
 
-  const defaultAudioConfig = 'Stereo';
-  $('#selectAudio').text('Stereo').data('value', defaultAudioConfig);
-  storeData('audioConfig', defaultAudioConfig, null);
-
   const defaultAudioBackend = 'EMSS';
   $('#selectAudioBackend').text('EMSS').attr('data-value', defaultAudioBackend).data('value', defaultAudioBackend);
   storeData('audioBackend', defaultAudioBackend, null);
   // Show the settings of the restored audio backend
   updateAudioBackendSettings();
+
+  const defaultAudioConfig = 'Stereo';
+  $('#selectAudio').text('Stereo').data('value', defaultAudioConfig);
+  storeData('audioConfig', defaultAudioConfig, null);
 
   const defaultAudioSync = false;
   document.querySelector('#audioSyncBtn').MaterialSwitch.off();
@@ -3723,18 +3723,6 @@ function loadUserDataCb() {
     }
   });
 
-  console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored audioConfig preferences.');
-  getData('audioConfig', function(previousValue) {
-    if (previousValue.audioConfig != null) {
-      $('.audioConfigMenu li').each(function() {
-        if ($(this).data('value') === previousValue.audioConfig) {
-          // Update the audio configuration field based on the given value
-          $('#selectAudio').text($(this).text()).attr('data-value', previousValue.audioConfig).data('value', previousValue.audioConfig);
-        }
-      });
-    }
-  });
-
   console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored audioBackend preferences.');
   getData('audioBackend', function(previousValue) {
     if (previousValue.audioBackend != null) {
@@ -3747,6 +3735,18 @@ function loadUserDataCb() {
     }
     // Show the settings of the stored audio backend
     updateAudioBackendSettings();
+  });
+
+  console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored audioConfig preferences.');
+  getData('audioConfig', function(previousValue) {
+    if (previousValue.audioConfig != null) {
+      $('.audioConfigMenu li').each(function() {
+        if ($(this).data('value') === previousValue.audioConfig) {
+          // Update the audio configuration field based on the given value
+          $('#selectAudio').text($(this).text()).attr('data-value', previousValue.audioConfig).data('value', previousValue.audioConfig);
+        }
+      });
+    }
   });
 
   console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored audioSync preferences.');

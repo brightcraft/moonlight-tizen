@@ -881,7 +881,7 @@ body {
     border: 1px solid #FFA620;
 }
 #selectResolution, #selectFramerate, #selectBitrate, #selectLanguage, #removeAllHostsBtn,
-#selectAudio, #selectAudioBackend, #selectAudioJitter, #selectCodec, #navigationGuideBtn,
+#selectAudioBackend, #selectAudio, #selectAudioJitter, #selectCodec, #navigationGuideBtn,
 #checkUpdatesBtn, #restartAppBtn {
     font-size: 1.45rem;
     letter-spacing: 0.5px;
@@ -889,7 +889,7 @@ body {
 }
 #selectResolution, #selectFramerate, #selectBitrate, #framePacingBtn, #selectLanguage, #ipAddressFieldModeBtn,
 #sortAppsListBtn, #optimizeGamesBtn, #removeAllHostsBtn, #rumbleFeedbackBtn, #mouseEmulationBtn,
-#flipABfaceButtonsBtn, #flipXYfaceButtonsBtn, #selectAudio, #selectAudioBackend, #audioSyncBtn,
+#flipABfaceButtonsBtn, #flipXYfaceButtonsBtn, #selectAudioBackend, #selectAudio, #audioSyncBtn,
 #selectAudioJitter, #playHostAudioBtn,
 #selectCodec, #hdrModeBtn, #fullRangeBtn, #gameModeBtn, #unlockAllFpsBtn, #optimizeBitrateBtn,
 #disableWarningsBtn, #performanceStatsBtn, #navigationGuideBtn, #checkUpdatesBtn, #restartAppBtn {
@@ -945,12 +945,12 @@ body {
     background-color: #484C5F;
 }
 .videoResolutionMenu, .videoFramerateMenu, .videoBitrateMenu,
-.languageMenu, .audioConfigMenu, .audioBackendMenu, .audioJitterMenu,
+.languageMenu, .audioBackendMenu, .audioConfigMenu, .audioJitterMenu,
 .videoCodecMenu, .mdl-menu__container {
     width: 59.4% !important;
 }
 .videoResolutionMenu, .videoFramerateMenu, .videoBitrateMenu,
-.languageMenu, .audioConfigMenu, .audioBackendMenu, .audioJitterMenu,
+.languageMenu, .audioBackendMenu, .audioConfigMenu, .audioJitterMenu,
 .videoCodecMenu, .mdl-menu__outline {
     width: 100% !important;
     top: 2.5px !important;
@@ -994,7 +994,7 @@ body {
 }
 #videoResolutionMenu > #selectResolution, #videoFramerateMenu > #selectFramerate,
 #videoBitrateMenu > #selectBitrate, #languageMenu > #selectLanguage,
-#audioConfigMenu > #selectAudio, #audioBackendMenu > #selectAudioBackend,
+#audioBackendMenu > #selectAudioBackend, #audioConfigMenu > #selectAudio,
 #audioJitterMenu > #selectAudioJitter, #videoCodecMenu > #selectCodec {
     color: #ececec;
     background: url('../res/ic_arrow_drop_down_48px.svg') 94.8% 50% no-repeat rgba(64, 67, 84, 1);
@@ -1022,8 +1022,8 @@ body {
 #framePacingBtn:hover, #framePacingBtn:focus, #selectLanguage:hover, #selectLanguage:focus, #ipAddressFieldModeBtn:hover, #ipAddressFieldModeBtn:focus, #sortAppsListBtn:hover,
 #sortAppsListBtn:focus, #optimizeGamesBtn:hover, #optimizeGamesBtn:focus, #removeAllHostsBtn:hover, #removeAllHostsBtn:focus, #rumbleFeedbackBtn:hover,
 #rumbleFeedbackBtn:focus, #mouseEmulationBtn:hover, #mouseEmulationBtn:focus, #flipABfaceButtonsBtn:hover, #flipABfaceButtonsBtn:focus,
-#flipXYfaceButtonsBtn:hover, #flipXYfaceButtonsBtn:focus, #selectAudio:hover, #selectAudio:focus, #selectAudioBackend:hover,
-#selectAudioBackend:focus, #audioSyncBtn:hover, #audioSyncBtn:focus, #selectAudioJitter:hover, #selectAudioJitter:focus,
+#flipXYfaceButtonsBtn:hover, #flipXYfaceButtonsBtn:focus, #selectAudioBackend:hover, #selectAudioBackend:focus, #selectAudio:hover,
+#selectAudio:focus, #audioSyncBtn:hover, #audioSyncBtn:focus, #selectAudioJitter:hover, #selectAudioJitter:focus,
 #playHostAudioBtn:hover, #playHostAudioBtn:focus, #selectCodec:hover, #selectCodec:focus, #hdrModeBtn:hover, #hdrModeBtn:focus, #fullRangeBtn:hover,
 #fullRangeBtn:focus, #gameModeBtn:hover, #gameModeBtn:focus, #unlockAllFpsBtn:hover, #unlockAllFpsBtn:focus, #optimizeBitrateBtn:hover,
 #optimizeBitrateBtn:focus, #disableWarningsBtn:hover, #disableWarningsBtn:focus, #performanceStatsBtn:hover, #performanceStatsBtn:focus,

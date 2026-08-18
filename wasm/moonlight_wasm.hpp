@@ -97,7 +97,7 @@ class MoonlightInstance {
   MessageResult StartStream(std::string host, int httpPort, std::string width, std::string height, std::string fps, std::string bitrate,
     std::string rikey, std::string rikeyid, std::string appversion, std::string gfeversion, std::string rtspurl, int serverCodecModeSupport,
     bool framePacing, bool optimizeGames, bool rumbleFeedback, bool mouseEmulation, bool flipABfaceButtons, bool flipXYfaceButtons,
-    std::string audioConfig, std::string audioBackend, bool audioSync, int audioJitterMs, bool playHostAudio, std::string videoCodec,
+    std::string audioBackend, std::string audioConfig, bool audioSync, int audioJitterMs, bool playHostAudio, std::string videoCodec,
     bool hdrMode, bool fullRange, bool gameMode, bool disableWarnings, bool performanceStats);
   MessageResult StopStream();
 
@@ -235,8 +235,8 @@ class MoonlightInstance {
   bool m_MouseEmulationEnabled;
   bool m_FlipABfaceButtonsEnabled;
   bool m_FlipXYfaceButtonsEnabled;
-  int m_AudioConfig;
   AudioBackend m_AudioBackend;
+  int m_AudioConfig;
   bool m_AudioSyncEnabled;
   int m_AudioJitterMs;
   bool m_PlayHostAudioEnabled;
@@ -304,7 +304,7 @@ void openUrl(int callbackId, std::string url, emscripten::val ppk, bool binaryRe
 MessageResult startStream(std::string host, int httpPort, std::string width, std::string height, std::string fps, std::string bitrate,
   std::string rikey, std::string rikeyid, std::string appversion, std::string gfeversion, std::string rtspurl, int serverCodecModeSupport,
   bool framePacing, bool optimizeGames, bool rumbleFeedback, bool mouseEmulation, bool flipABfaceButtons, bool flipXYfaceButtons,
-  std::string audioConfig, std::string audioBackend, bool audioSync, int audioJitterMs, bool playHostAudio, std::string videoCodec,
+  std::string audioBackend, std::string audioConfig, bool audioSync, int audioJitterMs, bool playHostAudio, std::string videoCodec,
   bool hdrMode, bool fullRange, bool gameMode, bool disableWarnings, bool performanceStats);
 MessageResult stopStream();
 
