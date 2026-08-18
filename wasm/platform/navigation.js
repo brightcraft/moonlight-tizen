@@ -78,19 +78,17 @@ function clickElement(target) {
   }
   // Search for common toggle switch child elements within the target element
   const toggleSwitch = element.querySelector('input[type="checkbox"], .mdl-switch__input, [role="switch"], [aria-pressed]');
-  // If a clickable child element is found, use it instead of the container
+  // If a clickable child element is found, use it to trigger animations
   if (toggleSwitch && typeof toggleSwitch.click === 'function') {
-    // Dispatching events
+    // Dispatching events for MDL ripple animations
     const eventOptions = { view: window, bubbles: true, cancelable: true };
     toggleSwitch.dispatchEvent(new MouseEvent('mousedown', eventOptions));
     toggleSwitch.dispatchEvent(new MouseEvent('mouseup', eventOptions));
-    toggleSwitch.dispatchEvent(new MouseEvent('click', eventOptions));
     setTimeout(() => focusElement(toggleSwitch), 250);
-    return;
   }
   // Click the resolved element itself if it supports click event
   if (typeof element.click === 'function') {
-    isGamepadActive ? element.click() : target.click();
+    element.click();
   }
 }
 

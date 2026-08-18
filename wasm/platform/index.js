@@ -3277,7 +3277,7 @@ function saveVideoCodec() {
     updateVideoCodec('#h264', selectedH264Codec);
     snackbarLog(t('HDR has been disabled due to unsupported H.264 codec.'));
     // Turn off the HDR mode switch and save the state
-    $('#hdrModeSwitch').parent().removeClass('is-checked');
+    document.querySelector('#hdrModeBtn').MaterialSwitch.off();
     updateHdrMode();
   } else { // Selecting other video codecs while HDR mode is disabled
     // Continue to select the SDR profile of other video codecs
@@ -3325,7 +3325,7 @@ function saveHdrMode() {
       // H.264 does not support HDR profile, so stay on H.264 codec
       snackbarLog(t('H.264 codec does not support the HDR profile.'));
       // Turn off the HDR mode switch and save the state
-      $('#hdrModeSwitch').parent().removeClass('is-checked');
+      document.querySelector('#hdrModeBtn').MaterialSwitch.off();
       updateHdrMode();
     } else if (selectedVideoCodec === chosenHevcCodec) { // HEVC
       // Select the HDR profile of the HEVC codec (HEVC Main10)
@@ -3339,7 +3339,7 @@ function saveHdrMode() {
       // Unknown codec format does not support HDR profile
       snackbarLog(t('Selected codec does not support the HDR profile.'));
       // Turn off the HDR mode switch and save the state
-      $('#hdrModeSwitch').parent().removeClass('is-checked');
+      document.querySelector('#hdrModeBtn').MaterialSwitch.off();
       updateHdrMode();
     }
   }, 100);
