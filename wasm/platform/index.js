@@ -2281,6 +2281,9 @@ function showApps(host) {
         }
 
         var boxArtPromises = [];
+        
+        // Reset preview promises for this showApps invocation
+        window.previewPromises = [];
 
         sortedAppList.forEach(function(app) {
           // Double clicking the button will cause multiple box arts to appear.
@@ -2425,11 +2428,13 @@ function showApps(host) {
           // Resume background polling now that all box art downloads are complete
           beginBackgroundPollingOfHost(host);
 
-          // Wait 250ms to ensure tizen.filesystem.resolve callbacks have completed
-          setTimeout(function() {
+          // Wait for all Smart Hub Preview JPEGs to finish encoding and saving to disk
+          // before sending the updated data to the background service.
+          var previewsDone = window.previewPromises || [];
+          Promise.all(previewsDone).then(function() {
             savePreviewApps();
             updatePreviewData();
-          }, 250);
+          });
         });
       }, function(failedAppList) {
         // Hide the spinner if the host has failed to retrieve the app list
