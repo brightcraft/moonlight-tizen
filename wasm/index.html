@@ -276,6 +276,19 @@
           </div>
           <div id="audioSettings" class="settings-options">
             <div class="setting-option">
+              <label data-i18n="Audio backend">Audio backend</label>
+              <span class="mdl-list__item-text-body" data-i18n="- Choose EMSS for the original implementation or Web Audio if you hear crackling or stuttering while streaming.">
+                - Choose EMSS for the original implementation or Web Audio if you hear crackling or stuttering while streaming.
+              </span>
+              <div id="audioBackendMenu">
+                <button type="button" id="selectAudioBackend" class="mdl-button mdl-js-button mdl-js-ripple-effect" data-value="EMSS" data-i18n="EMSS">EMSS</button>
+              </div>
+              <ul class="audioBackendMenu mdl-menu mdl-menu--bottom-left mdl-js-menu mdl-js-ripple-effect" for="selectAudioBackend">
+                <li class="mdl-menu__item" data-value="EMSS" data-i18n="EMSS">EMSS</li>
+                <li class="mdl-menu__item" data-value="WebAudio" data-i18n="Web Audio">Web Audio</li>
+              </ul>
+            </div>
+            <div class="setting-option">
               <label data-i18n="Audio configuration">Audio configuration
                 <span class="badge badge-experimental" data-i18n="Experimental">Experimental</span>
               </label>
@@ -291,7 +304,7 @@
                 <li class="mdl-menu__item" data-value="71Surround" data-i18n="7.1 Surround Sound">7.1 Surround Sound</li>
               </ul>
             </div>
-            <div class="setting-option">
+            <div id="audioSyncOption" class="setting-option">
               <label data-i18n="Audio synchronization">Audio synchronization</label>
               <span class="mdl-list__item-text-body" data-i18n="- This can help reduce delays by keeping audio in sync for a consistent sound while streaming.">
                 - This can help reduce delays by keeping audio in sync for a consistent sound while streaming.
@@ -303,6 +316,20 @@
                     Allow audio synchronization support for optimal sound output
                   </span>
                 </label>
+              </div>
+            </div>
+            <div id="audioJitterOption" class="setting-option">
+              <label data-i18n="Audio jitter buffer">Audio jitter buffer</label>
+              <span class="mdl-list__item-text-body" data-i18n="- Increase to keep the sound smooth over an unstable network or decrease to lower the audio delay.">
+                - Increase to keep the sound smooth over an unstable network or decrease to lower the audio delay.
+              </span>
+              <div id="audioJitterMenu">
+                <button type="button" id="selectAudioJitter" class="mdl-button mdl-js-button mdl-js-ripple-effect">100 ms</button>
+              </div>
+              <div class="audioJitterMenu mdl-menu mdl-menu--bottom-left mdl-js-menu mdl-js-ripple-effect" for="selectAudioJitter">
+                <span id="jitterLowestValue">50</span>
+                <input type="range" id="jitterSlider" class="mdl-slider mdl-js-slider" min="50" max="500" step="25" value="100">
+                <span id="jitterHighestValue">500</span>
               </div>
             </div>
             <div class="setting-option">
@@ -506,6 +533,7 @@
   <script type="text/javascript" src="platform/i18n.js"></script>
   <script type="text/javascript" src="platform/common.js"></script>
   <script type="text/javascript" src="platform/gamepad.js"></script>
+  <script type="text/javascript" src="platform/audio.js"></script>
   <script type="text/javascript" src="platform/index.js"></script>
   <script type="text/javascript" src="platform/navigation.js"></script>
   <script type="text/javascript" src="platform/remote_controller.js"></script>

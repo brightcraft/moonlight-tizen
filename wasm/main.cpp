@@ -35,7 +35,9 @@ using EmssRenderingMode = samsung::wasm::ElementaryMediaStreamSource::RenderingM
 MoonlightInstance* g_Instance;
 
 MoonlightInstance::MoonlightInstance()
-  : m_OpusDecoder(NULL),
+  : m_AudioBackend(AudioBackend::Emss),
+    m_AudioJitterMs(0),
+    m_OpusDecoder(NULL),
     m_MouseLocked(false),
     m_MouseLastPosX(-1),
     m_MouseLastPosY(-1),
@@ -219,6 +221,19 @@ void* MoonlightInstance::ConnectionThreadFunc(void* context) {
     PostToJs("Selecting the fallback server code mode to: SCM_H264");
   }
 
+  // Initialize the audio renderer capabilities with the value shared by both audio backends
+  MoonlightInstance::s_ArCallbacks.capabilities = CAPABILITY_DIRECT_SUBMIT;
+  // Handle setting of the audio renderer capabilities based on the selected audio backend
+  if (me->m_AudioBackend == AudioBackend::WebAudio) { // Web Audio
+    // The Web Audio backend reads the samples per frame from the Opus configuration, so it can
+    // render the longer frames that the RTSP negotiation may choose on low bitrate streams
+    MoonlightInstance::s_ArCallbacks.capabilities |= CAPABILITY_SUPPORTS_ARBITRARY_AUDIO_DURATION;
+    PostToJs("Selecting the audio renderer capabilities to: CAPABILITY_DIRECT_SUBMIT | CAPABILITY_SUPPORTS_ARBITRARY_AUDIO_DURATION");
+  } else { // EMSS
+    // The EMSS backend expects the fixed 5 ms frames that are negotiated without that capability
+    PostToJs("Selecting the audio renderer capabilities to: CAPABILITY_DIRECT_SUBMIT");
+  }
+
   err = LiStartConnection(&serverInfo, &me->m_StreamConfig, &MoonlightInstance::s_ClCallbacks,
     &MoonlightInstance::s_DrCallbacks, &MoonlightInstance::s_ArCallbacks, NULL, 0, NULL, 0);
   if (err != 0) {
@@ -249,8 +264,8 @@ static void HexStringToBytes(const char* str, char* output) {
 MessageResult MoonlightInstance::StartStream(std::string host, int httpPort, std::string width, std::string height, std::string fps, std::string bitrate,
   std::string rikey, std::string rikeyid, std::string appversion, std::string gfeversion, std::string rtspurl, int serverCodecModeSupport,
   bool framePacing, bool optimizeGames, bool rumbleFeedback, bool mouseEmulation, bool flipABfaceButtons, bool flipXYfaceButtons,
-  std::string audioConfig, bool audioSync, bool playHostAudio, std::string videoCodec, bool hdrMode, bool fullRange, bool gameMode,
-  bool disableWarnings, bool performanceStats) {
+  std::string audioBackend, std::string audioConfig, bool audioSync, int audioJitterMs, bool playHostAudio, std::string videoCodec,
+  bool hdrMode, bool fullRange, bool gameMode, bool disableWarnings, bool performanceStats) {
   
   if (m_StopThread != 0) {
     pthread_join(m_StopThread, NULL);
@@ -275,8 +290,10 @@ MessageResult MoonlightInstance::StartStream(std::string host, int httpPort, std
   PostToJs("Setting the Mouse emulation to: " + std::to_string(mouseEmulation));
   PostToJs("Setting the Flip A/B face buttons to: " + std::to_string(flipABfaceButtons));
   PostToJs("Setting the Flip X/Y face buttons to: " + std::to_string(flipXYfaceButtons));
+  PostToJs("Setting the Audio backend to: " + audioBackend);
   PostToJs("Setting the Audio configuration to: " + audioConfig);
   PostToJs("Setting the Audio synchronization to: " + std::to_string(audioSync));
+  PostToJs("Setting the Audio jitter buffer to: " + std::to_string(audioJitterMs) + " ms");
   PostToJs("Setting the Play host audio to: " + std::to_string(playHostAudio));
   PostToJs("Setting the Video codec to: " + videoCodec);
   PostToJs("Setting the Video HDR mode to: " + std::to_string(hdrMode));
@@ -293,6 +310,23 @@ MessageResult MoonlightInstance::StartStream(std::string host, int httpPort, std
   m_StreamConfig.bitrate = stoi(bitrate); // kilobits per second
   m_StreamConfig.packetSize = 1392;
   m_StreamConfig.streamingRemotely = STREAM_CFG_AUTO;
+
+  // Initialize the audio backend with default value
+  m_AudioBackend = AudioBackend::Emss;
+  // Handle setting of the audio backend based on the selected backend
+  if (audioBackend == "EMSS") { // Elementary Media Stream Source
+    // Apply the appropriate value for the EMSS backend
+    m_AudioBackend = AudioBackend::Emss;
+    PostToJs("Selecting the audio backend to: AUDIO_BACKEND_EMSS");
+  } else if (audioBackend == "WebAudio") { // Web Audio
+    // Apply the appropriate value for the Web Audio backend
+    m_AudioBackend = AudioBackend::WebAudio;
+    PostToJs("Selecting the audio backend to: AUDIO_BACKEND_WEB_AUDIO");
+  } else { // Unknown
+    // Default case for unsupported audio backend selection
+    ClLogMessage("Unsupported audio backend '%s' detected! Reverting to the default backend...\n", audioBackend.c_str());
+    PostToJs("Selecting the fallback audio backend to: AUDIO_BACKEND_EMSS");
+  }
 
   // Initialize the audio configuration with default value
   m_StreamConfig.audioConfiguration = 0;
@@ -389,6 +423,7 @@ MessageResult MoonlightInstance::StartStream(std::string host, int httpPort, std
   m_FlipABfaceButtonsEnabled = flipABfaceButtons;
   m_FlipXYfaceButtonsEnabled = flipXYfaceButtons;
   m_AudioSyncEnabled = audioSync;
+  m_AudioJitterMs = audioJitterMs;
   m_PlayHostAudioEnabled = playHostAudio;
   m_HdrModeEnabled = hdrMode;
   m_FullRangeEnabled = fullRange;
@@ -563,12 +598,12 @@ int main(int argc, char** argv) {
 MessageResult startStream(std::string host, int httpPort, std::string width, std::string height, std::string fps, std::string bitrate,
   std::string rikey, std::string rikeyid, std::string appversion, std::string gfeversion, std::string rtspurl, int serverCodecModeSupport,
   bool framePacing, bool optimizeGames, bool rumbleFeedback, bool mouseEmulation, bool flipABfaceButtons, bool flipXYfaceButtons,
-  std::string audioConfig, bool audioSync, bool playHostAudio, std::string videoCodec, bool hdrMode, bool fullRange, bool gameMode,
-  bool disableWarnings, bool performanceStats) {
+  std::string audioBackend, std::string audioConfig, bool audioSync, int audioJitterMs, bool playHostAudio, std::string videoCodec,
+  bool hdrMode, bool fullRange, bool gameMode, bool disableWarnings, bool performanceStats) {
   PostToJs("Starting the streaming session...");
   return g_Instance->StartStream(host, httpPort, width, height, fps, bitrate, rikey, rikeyid, appversion, gfeversion, rtspurl, serverCodecModeSupport,
-  framePacing, optimizeGames, rumbleFeedback, mouseEmulation, flipABfaceButtons, flipXYfaceButtons, audioConfig,
-  audioSync, playHostAudio, videoCodec, hdrMode, fullRange, gameMode, disableWarnings, performanceStats);
+  framePacing, optimizeGames, rumbleFeedback, mouseEmulation, flipABfaceButtons, flipXYfaceButtons, audioBackend, audioConfig,
+  audioSync, audioJitterMs, playHostAudio, videoCodec, hdrMode, fullRange, gameMode, disableWarnings, performanceStats);
 }
 
 MessageResult stopStream() {

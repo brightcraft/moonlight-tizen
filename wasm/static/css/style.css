@@ -881,14 +881,16 @@ body {
     border: 1px solid #FFA620;
 }
 #selectResolution, #selectFramerate, #selectBitrate, #selectLanguage, #removeAllHostsBtn,
-#selectAudio, #selectCodec, #navigationGuideBtn, #checkUpdatesBtn, #restartAppBtn {
+#selectAudioBackend, #selectAudio, #selectAudioJitter, #selectCodec, #navigationGuideBtn,
+#checkUpdatesBtn, #restartAppBtn {
     font-size: 1.45rem;
     letter-spacing: 0.5px;
     text-indent: 36px;
 }
 #selectResolution, #selectFramerate, #selectBitrate, #framePacingBtn, #selectLanguage, #ipAddressFieldModeBtn,
 #sortAppsListBtn, #optimizeGamesBtn, #removeAllHostsBtn, #rumbleFeedbackBtn, #mouseEmulationBtn,
-#flipABfaceButtonsBtn, #flipXYfaceButtonsBtn, #selectAudio, #audioSyncBtn, #playHostAudioBtn,
+#flipABfaceButtonsBtn, #flipXYfaceButtonsBtn, #selectAudioBackend, #selectAudio, #audioSyncBtn,
+#selectAudioJitter, #playHostAudioBtn,
 #selectCodec, #hdrModeBtn, #fullRangeBtn, #gameModeBtn, #unlockAllFpsBtn, #optimizeBitrateBtn,
 #disableWarningsBtn, #performanceStatsBtn, #navigationGuideBtn, #checkUpdatesBtn, #restartAppBtn {
     color: #ececec;
@@ -943,21 +945,23 @@ body {
     background-color: #484C5F;
 }
 .videoResolutionMenu, .videoFramerateMenu, .videoBitrateMenu,
-.languageMenu, .audioConfigMenu, .videoCodecMenu, .mdl-menu__container {
+.languageMenu, .audioBackendMenu, .audioConfigMenu, .audioJitterMenu,
+.videoCodecMenu, .mdl-menu__container {
     width: 59.4% !important;
 }
 .videoResolutionMenu, .videoFramerateMenu, .videoBitrateMenu,
-.languageMenu, .audioConfigMenu, .videoCodecMenu, .mdl-menu__outline {
+.languageMenu, .audioBackendMenu, .audioConfigMenu, .audioJitterMenu,
+.videoCodecMenu, .mdl-menu__outline {
     width: 100% !important;
     top: 2.5px !important;
     border-radius: 0 0 8px 8px;
 }
-.videoBitrateMenu {
+.videoBitrateMenu, .audioJitterMenu {
     background-color: #333846;
     display: flex;
     align-items: center;
 }
-.videoBitrateMenu, .mdl-menu__container {
+.videoBitrateMenu, .audioJitterMenu, .mdl-menu__container {
     height: 20% !important;
 }
 .mdl-slider {
@@ -968,19 +972,20 @@ body {
     height: 12px;
     border-radius: 8px;
 }
-#bitrateLowestValue {
+#bitrateLowestValue, #jitterLowestValue {
     color: #ececec;
     margin: 0 -12px 0 14px;
     font-size: 1.45rem;
     letter-spacing: 0.5px;
 }
-#bitrateHighestValue {
+#bitrateHighestValue, #jitterHighestValue {
     color: #ececec;
     margin: 0 12px 0 -14px;
     font-size: 1.45rem;
     letter-spacing: 0.5px;
 }
-#bitrateLowestValue.hovered, #bitrateHighestValue.hovered {
+#bitrateLowestValue.hovered, #bitrateHighestValue.hovered,
+#jitterLowestValue.hovered, #jitterHighestValue.hovered {
     background-color: #333846;
 }
 .dropdown-items {
@@ -989,7 +994,8 @@ body {
 }
 #videoResolutionMenu > #selectResolution, #videoFramerateMenu > #selectFramerate,
 #videoBitrateMenu > #selectBitrate, #languageMenu > #selectLanguage,
-#audioConfigMenu > #selectAudio, #videoCodecMenu > #selectCodec {
+#audioBackendMenu > #selectAudioBackend, #audioConfigMenu > #selectAudio,
+#audioJitterMenu > #selectAudioJitter, #videoCodecMenu > #selectCodec {
     color: #ececec;
     background: url('../res/ic_arrow_drop_down_48px.svg') 94.8% 50% no-repeat rgba(64, 67, 84, 1);
 }
@@ -1016,7 +1022,8 @@ body {
 #framePacingBtn:hover, #framePacingBtn:focus, #selectLanguage:hover, #selectLanguage:focus, #ipAddressFieldModeBtn:hover, #ipAddressFieldModeBtn:focus, #sortAppsListBtn:hover,
 #sortAppsListBtn:focus, #optimizeGamesBtn:hover, #optimizeGamesBtn:focus, #removeAllHostsBtn:hover, #removeAllHostsBtn:focus, #rumbleFeedbackBtn:hover,
 #rumbleFeedbackBtn:focus, #mouseEmulationBtn:hover, #mouseEmulationBtn:focus, #flipABfaceButtonsBtn:hover, #flipABfaceButtonsBtn:focus,
-#flipXYfaceButtonsBtn:hover, #flipXYfaceButtonsBtn:focus, #selectAudio:hover, #selectAudio:focus, #audioSyncBtn:hover, #audioSyncBtn:focus,
+#flipXYfaceButtonsBtn:hover, #flipXYfaceButtonsBtn:focus, #selectAudioBackend:hover, #selectAudioBackend:focus, #selectAudio:hover,
+#selectAudio:focus, #audioSyncBtn:hover, #audioSyncBtn:focus, #selectAudioJitter:hover, #selectAudioJitter:focus,
 #playHostAudioBtn:hover, #playHostAudioBtn:focus, #selectCodec:hover, #selectCodec:focus, #hdrModeBtn:hover, #hdrModeBtn:focus, #fullRangeBtn:hover,
 #fullRangeBtn:focus, #gameModeBtn:hover, #gameModeBtn:focus, #unlockAllFpsBtn:hover, #unlockAllFpsBtn:focus, #optimizeBitrateBtn:hover,
 #optimizeBitrateBtn:focus, #disableWarningsBtn:hover, #disableWarningsBtn:focus, #performanceStatsBtn:hover, #performanceStatsBtn:focus,
