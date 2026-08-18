@@ -334,6 +334,7 @@ NvHTTP.prototype = {
     // Only append '.local' if the hostname doesn't already end with it
     var localSuffix = this.hostname.endsWith('.local') ? this.hostname : this.hostname + '.local';
     addCandidate(localSuffix);
+    addCandidate(this.localAddress);
     addCandidate(this.externalIP);
     addCandidate(this.userEnteredAddress);
 
@@ -613,13 +614,19 @@ NvHTTP.prototype = {
 
         // Generate and save the optimized JPEG preview box art asynchronously from storage.
         // The original PNG box art can be returned immediately without waiting for preview generation.
-        self.generatePreviewImage(dataUrl, appId).then(function(previewDataUrl) {
+        var previewPromise = self.generatePreviewImage(dataUrl, appId).then(function(previewDataUrl) {
           if (previewDataUrl) {
             self.savePreviewImage(appId, previewDataUrl);
           }
         }, function(error) {
           console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Failed to generate Smart Hub Preview box art from storage for app ID ' + appId + ': ' + error);
         });
+
+        if (!window.previewPromises) {
+          window.previewPromises = [];
+        }
+        window.previewPromises.push(previewPromise);
+
         resolve(dataUrl);
       } catch (readError) {
         // The original PNG box art is not available locally, so fetch it from the host
@@ -673,13 +680,19 @@ NvHTTP.prototype = {
 
             // Generate and save the optimized JPEG preview box art asynchronously from network.
             // The original PNG box art can be returned immediately without waiting for preview generation.
-            self.generatePreviewImage(dataUrl, appId).then(function(previewDataUrl) {
+            var previewPromise = self.generatePreviewImage(dataUrl, appId).then(function(previewDataUrl) {
               if (previewDataUrl) {
                 self.savePreviewImage(appId, previewDataUrl);
               }
             }, function(error) {
               console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Failed to generate Smart Hub Preview box art from network for app ID ' + appId + ': ' + error);
             });
+
+            if (!window.previewPromises) {
+              window.previewPromises = [];
+            }
+            window.previewPromises.push(previewPromise);
+
             resolve(dataUrl);
           };
 

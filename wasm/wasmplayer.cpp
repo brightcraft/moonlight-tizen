@@ -156,7 +156,9 @@ int MoonlightInstance::StartupVidDecSetup(int videoFormat, int width, int height
   }
   ClLogMessage("Closed\n");
 
-  {
+  // The Web Audio backend renders the audio itself in platform/audio.js, so the EMSS audio
+  // track is only added when the EMSS backend is selected
+  if (g_Instance->m_AudioBackend == AudioBackend::Emss) {
     samsung::wasm::ChannelLayout channelLayout; // Selected audio channel layout from audio config
     switch (CHANNEL_COUNT_FROM_AUDIO_CONFIGURATION(g_Instance->m_AudioConfig)) {
       case 2:
@@ -263,9 +265,12 @@ int MoonlightInstance::StartupVidDecSetup(int videoFormat, int width, int height
   });
 
   ClLogMessage("Waiting to start\n");
-  g_Instance->WaitFor(&g_Instance->m_EmssAudioStateChanged, [] {
-    return g_Instance->m_AudioStarted.load();
-  });
+  // Only the EMSS backend opens an audio track, so the Web Audio backend has nothing to wait for
+  if (g_Instance->m_AudioBackend == AudioBackend::Emss) {
+    g_Instance->WaitFor(&g_Instance->m_EmssAudioStateChanged, [] {
+      return g_Instance->m_AudioStarted.load();
+    });
+  }
   g_Instance->WaitFor(&g_Instance->m_EmssVideoStateChanged, [] {
     return g_Instance->m_VideoStarted.load();
   });
