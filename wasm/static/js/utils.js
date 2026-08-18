@@ -315,6 +315,7 @@ NvHTTP.prototype = {
     // Only append '.local' if the hostname doesn't already end with it
     var localSuffix = this.hostname.endsWith('.local') ? this.hostname : this.hostname + '.local';
     addCandidate(localSuffix);
+    addCandidate(this.localAddress);
     addCandidate(this.externalIP);
     addCandidate(this.userEnteredAddress);
 
