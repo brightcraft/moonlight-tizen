@@ -144,6 +144,8 @@
   "Audio synchronization": "Sincronização de áudio",
   "- This can help reduce delays by keeping audio in sync for a consistent sound while streaming.": "- Isso pode ajudar a reduzir atrasos mantendo o áudio sincronizado para um som consistente durante a transmissão.",
   "Allow audio synchronization support for optimal sound output": "Permitir suporte à sincronização de áudio para saída de som ideal",
+  "Audio jitter buffer": "Buffer de jitter de áudio",
+  "- Increase to keep the sound smooth over an unstable network or decrease to lower the audio delay.": "- Aumente para manter o som estável em uma rede instável ou diminua para reduzir o atraso de áudio.",
   "Play audio on host": "Reproduzir áudio no host",
   "Allow playing audio from the computer and this device": "Permitir reprodução de áudio no computador e neste dispositivo",
   "Video codec": "Codec de vídeo",
