@@ -246,6 +246,7 @@ static int reconstructFrame(PRTP_VIDEO_QUEUE queue) {
     if (queue->receivedDataPackets == queue->bufferDataPackets) {
 #endif
         // We've received a full frame with no need for FEC.
+        connectionReceivedFrameFecStats(queue->bufferDataPackets, queue->receivedDataPackets, queue->receivedParityPackets);
         return 0;
     }
 
@@ -342,6 +343,7 @@ static int reconstructFrame(PRTP_VIDEO_QUEUE queue) {
         
         // Report the final FEC status if we needed to perform a recovery
         reportFinalFrameFecStatus(queue);
+        connectionReceivedFrameFecStats(queue->bufferDataPackets, queue->receivedDataPackets, queue->receivedParityPackets);
     }
 
 cleanup_packets:
@@ -594,6 +596,7 @@ int RtpvAddPacket(PRTP_VIDEO_QUEUE queue, PRTP_PACKET packet, int length, PRTPV_
         if (queue->pendingFecBlockList.count != 0) {
             // Report the final status of the FEC queue before dropping this frame
             reportFinalFrameFecStatus(queue);
+            connectionReceivedFrameFecStats(queue->bufferDataPackets, queue->receivedDataPackets, queue->receivedParityPackets);
 
             if (queue->multiFecLastBlockNumber != 0) {
                 Limelog("Unrecoverable frame %d (block %d of %d): %d+%d=%d received < %d needed\n",
@@ -638,6 +641,7 @@ int RtpvAddPacket(PRTP_VIDEO_QUEUE queue, PRTP_PACKET packet, int length, PRTPV_
         if (fecCurrentBlockNumber != expectedFecBlockNumber) {
             // Report the final status of the FEC queue before dropping this frame
             reportFinalFrameFecStatus(queue);
+            connectionReceivedFrameFecStats(queue->bufferDataPackets, queue->receivedDataPackets, queue->receivedParityPackets);
 
             Limelog("Unrecoverable frame %d: lost FEC blocks %d to %d\n",
                     nvPacket->frameIndex,
