@@ -641,18 +641,13 @@ NvHTTP.prototype = {
               // Open the destination file for writing the original PNG data
               var fileHandleWrite = tizen.filesystem.openFile(boxArtDir + '/' + boxArtFileName, 'w');
 
-              // Extract the base64 payload from the PNG data URL and decode it into binary data
-              var base64Payload = dataUrl.split(',')[1];
-              var binaryStr = atob(base64Payload);
-              var bytes = new Uint8Array(binaryStr.length);
-
-              // Convert the decoded binary string into a Uint8Array for Tizen filesystem storage
-              for (var i = 0; i < binaryStr.length; i++) {
-                bytes[i] = binaryStr.charCodeAt(i);
+              // Prefer writeBlob (dedicated Blob writer) for reliability on Tizen 5.x;
+              // fall back to writeData if writeBlob is not available.
+              if (typeof fileHandleWrite.writeBlob === 'function') {
+                fileHandleWrite.writeBlob(blob);
+              } else {
+                fileHandleWrite.writeData(blob);
               }
-              
-              // Write the original PNG bytes to private storage and close the file
-              fileHandleWrite.writeData(bytes);
               fileHandleWrite.close();
               console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Saved original PNG box art: ' + boxArtFileName);
             } catch (error) {
