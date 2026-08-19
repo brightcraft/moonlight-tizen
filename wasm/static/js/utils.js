@@ -555,67 +555,65 @@ NvHTTP.prototype = {
       // Try to load the cached original box art from private storage
       try {
         // Open the cached original PNG box art for reading
-        var fileHandleRead = tizen.filesystem.openFile(boxArtDir + '/' + boxArtFileName, 'r');
-        // Read the binary PNG data from the file (returns Uint8Array)
-        var fileData = fileHandleRead.readData();
-        // Close the file after the binary data has been read
+        var fileHandleRead = tizen.filesystem.openFile(boxArtDir + "/" + boxArtFileName, "r");
+        var fileContentInBlob = fileHandleRead.readBlob();
         fileHandleRead.close();
-
-        // Convert the Uint8Array binary box art data to a base64 data URL for display
-        var binary = '';
-
-        // Convert each byte from the Uint8Array into a binary string
-        for (var i = 0; i < fileData.length; i++) {
-          binary += String.fromCharCode(fileData[i]);
+        
+        // Guard against empty/corrupt cached files
+        if (!fileContentInBlob || fileContentInBlob.size === 0) {
+          throw new Error("Cached original box art file is empty.");
         }
 
-        // Encode the binary string as base64 and create a PNG data URL
-        var base64Data = btoa(binary);
-        var dataUrl = 'data:image/png;base64,' + base64Data;
+        var reader = new FileReader();
+        reader.onloadend = function() {
+          var dataUrl = reader.result;
+          console.log("%c[utils.js, getBoxArt]", "color: gray;", "Returning storage-cached box art: ", appId);
 
-        console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Returning storage-cached box art: ', appId);
-
-        // Return the cached original box art directly when Smart Hub Preview is not supported
-        if (!isSmartHubSupported) {
-          resolve(dataUrl);
-          return;
-        }
-
-        // Check whether an optimized Smart Hub Preview has already been cached
-        var previewFileName = 'preview-' + appId + '.jpg';
-        var previewFilePath = 'documents/' + previewFileName;
-
-        // Try to open the cached preview box art to determine whether it already exists
-        try {
-          // Open the cached preview file to check whether it already exists
-          var previewFileHandle = tizen.filesystem.openFile(previewFilePath, 'r');
-          previewFileHandle.close();
-
-          console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Smart Hub Preview box art file already cached: ' + previewFileName);
-          // The preview already exists, so no additional processing is required
-          resolve(dataUrl);
-          return;
-        } catch (previewReadError) {
-          // The preview box art file does not exist, so generate it from the original box art
-          console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Smart Hub Preview box art file not found, generating: ' + previewFileName);
-        }
-
-        // Generate and save the optimized JPEG preview box art asynchronously from storage.
-        // The original PNG box art can be returned immediately without waiting for preview generation.
-        var previewPromise = self.generatePreviewImage(dataUrl, appId).then(function(previewDataUrl) {
-          if (previewDataUrl) {
-            self.savePreviewImage(appId, previewDataUrl);
+          // Return the cached original box art directly when Smart Hub Preview is not supported
+          if (!isSmartHubSupported) {
+            resolve(dataUrl);
+            return;
           }
-        }, function(error) {
-          console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Failed to generate Smart Hub Preview box art from storage for app ID ' + appId + ': ' + error);
-        });
 
-        if (!window.previewPromises) {
-          window.previewPromises = [];
-        }
-        window.previewPromises.push(previewPromise);
+          // Check whether an optimized Smart Hub Preview has already been cached
+          var previewFileName = "preview-" + appId + ".jpg";
+          var previewFilePath = "documents/" + previewFileName;
 
-        resolve(dataUrl);
+          // Try to open the cached preview box art to determine whether it already exists
+          try {
+            // Open the cached preview file to check whether it already exists
+            var previewFileHandle = tizen.filesystem.openFile(previewFilePath, "r");
+            previewFileHandle.close();
+
+            console.log("%c[utils.js, getBoxArt]", "color: gray;", "Smart Hub Preview box art file already cached: " + previewFileName);
+            // The preview already exists, so no additional processing is required
+            resolve(dataUrl);
+            return;
+          } catch (previewReadError) {
+            // The preview box art file does not exist, so generate it from the original box art
+            console.log("%c[utils.js, getBoxArt]", "color: gray;", "Smart Hub Preview box art file not found, generating: " + previewFileName);
+          }
+
+          // Generate and save the optimized JPEG preview box art asynchronously from storage.
+          var previewPromise = self.generatePreviewImage(dataUrl, appId).then(function(previewDataUrl) {
+            if (previewDataUrl) {
+              self.savePreviewImage(appId, previewDataUrl);
+            }
+          }, function(error) {
+            console.warn("%c[utils.js, getBoxArt]", "color: gray;", "Warning: Failed to generate Smart Hub Preview box art from storage for app ID " + appId + ": " + error);
+          });
+
+          if (!window.previewPromises) {
+            window.previewPromises = [];
+          }
+          window.previewPromises.push(previewPromise);
+
+          resolve(dataUrl);
+        };
+        // Ensure proper MIME type so the data URL is recognized as an image
+        var typedBlob = new Blob([fileContentInBlob], { type: "image/png" });
+        reader.readAsDataURL(typedBlob);
+        return; // Let onloadend resolve the promise
       } catch (readError) {
         // The original PNG box art is not available locally, so fetch it from the host
         console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Could not read cached box art from internal storage!', readError.message);
@@ -641,18 +639,8 @@ NvHTTP.prototype = {
               // Open the destination file for writing the original PNG data
               var fileHandleWrite = tizen.filesystem.openFile(boxArtDir + '/' + boxArtFileName, 'w');
 
-              // Extract the base64 payload from the PNG data URL and decode it into binary data
-              var base64Payload = dataUrl.split(',')[1];
-              var binaryStr = atob(base64Payload);
-              var bytes = new Uint8Array(binaryStr.length);
-
-              // Convert the decoded binary string into a Uint8Array for Tizen filesystem storage
-              for (var i = 0; i < binaryStr.length; i++) {
-                bytes[i] = binaryStr.charCodeAt(i);
-              }
-              
               // Write the original PNG bytes to private storage and close the file
-              fileHandleWrite.writeData(bytes);
+              fileHandleWrite.writeData(boxArtBuffer);
               fileHandleWrite.close();
               console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Saved original PNG box art: ' + boxArtFileName);
             } catch (error) {
