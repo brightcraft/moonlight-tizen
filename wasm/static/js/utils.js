@@ -552,6 +552,21 @@ NvHTTP.prototype = {
 
       var self = this;
       
+      var queuePreviewTask = function(imgDataUrl, sourceInfo) {
+        if (!window.previewTasks) {
+          window.previewTasks = [];
+        }
+        window.previewTasks.push(function() {
+          return self.generatePreviewImage(imgDataUrl, appId).then(function(previewDataUrl) {
+            if (previewDataUrl) {
+              self.savePreviewImage(appId, previewDataUrl);
+            }
+          }).catch(function(error) {
+            console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Failed to generate Smart Hub Preview box art from ' + sourceInfo + ' for app ID ' + appId + ': ' + error);
+          });
+        });
+      };
+      
       // Try to load the cached original box art from private storage
       try {
         // Open the cached original PNG box art for reading
@@ -601,20 +616,11 @@ NvHTTP.prototype = {
         }
 
         // Generate and save the optimized JPEG preview box art asynchronously from storage.
+        // We push this to a task queue so it can be executed sequentially in the background
+        // AFTER all network requests have completed, preventing CPU starvation.
+        queuePreviewTask(dataUrl, 'storage');
+
         // The original PNG box art can be returned immediately without waiting for preview generation.
-        var previewPromise = self.generatePreviewImage(dataUrl, appId).then(function(previewDataUrl) {
-          if (previewDataUrl) {
-            self.savePreviewImage(appId, previewDataUrl);
-          }
-        }, function(error) {
-          console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Failed to generate Smart Hub Preview box art from storage for app ID ' + appId + ': ' + error);
-        });
-
-        if (!window.previewPromises) {
-          window.previewPromises = [];
-        }
-        window.previewPromises.push(previewPromise);
-
         resolve(dataUrl);
       } catch (readError) {
         // The original PNG box art is not available locally, so fetch it from the host
@@ -667,20 +673,11 @@ NvHTTP.prototype = {
             }
 
             // Generate and save the optimized JPEG preview box art asynchronously from network.
+            // We push this to a task queue so it can be executed sequentially in the background
+            // AFTER all network requests have completed, preventing CPU starvation.
+            queuePreviewTask(dataUrl, 'network');
+
             // The original PNG box art can be returned immediately without waiting for preview generation.
-            var previewPromise = self.generatePreviewImage(dataUrl, appId).then(function(previewDataUrl) {
-              if (previewDataUrl) {
-                self.savePreviewImage(appId, previewDataUrl);
-              }
-            }, function(error) {
-              console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Failed to generate Smart Hub Preview box art from network for app ID ' + appId + ': ' + error);
-            });
-
-            if (!window.previewPromises) {
-              window.previewPromises = [];
-            }
-            window.previewPromises.push(previewPromise);
-
             resolve(dataUrl);
           };
 

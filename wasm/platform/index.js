@@ -2282,8 +2282,8 @@ function showApps(host) {
 
         var boxArtPromises = [];
         
-        // Reset preview promises for this showApps invocation
-        window.previewPromises = [];
+        // Reset preview tasks for this showApps invocation
+        window.previewTasks = [];
 
         sortedAppList.forEach(function(app) {
           // Double clicking the button will cause multiple box arts to appear.
@@ -2425,15 +2425,28 @@ function showApps(host) {
         resolve();
 
         Promise.all(settledPromises).then(function() {
-          // Resume background polling now that all box art downloads are complete
-          beginBackgroundPollingOfHost(host);
+          // Sequentially generate all Smart Hub Preview JPEGs in the background
+          // after all network downloads are complete, preventing CPU starvation.
+          var tasks = window.previewTasks || [];
+          var sequentialPreviews = Promise.resolve();
+          
+          tasks.forEach(function(task) {
+            sequentialPreviews = sequentialPreviews.then(function() {
+              return task().then(function() {
+                // Yield to the Tizen OS event loop for 10ms between canvases
+                return new Promise(function(resolveStep) { setTimeout(resolveStep, 10); });
+              });
+            });
+          });
 
-          // Wait for all Smart Hub Preview JPEGs to finish encoding and saving to disk
-          // before sending the updated data to the background service.
-          var previewsDone = window.previewPromises || [];
-          Promise.all(previewsDone).then(function() {
+          sequentialPreviews.then(function() {
+            // Wait for all Smart Hub Preview JPEGs to finish encoding and saving to disk
+            // before sending the updated data to the background service.
             savePreviewApps();
             updatePreviewData();
+
+            // Resume background polling now that all box art downloads and preview processing are complete
+            beginBackgroundPollingOfHost(host);
           });
         });
       }, function(failedAppList) {
