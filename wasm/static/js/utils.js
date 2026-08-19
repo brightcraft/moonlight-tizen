@@ -173,11 +173,11 @@ NvHTTP.prototype = {
     }.bind(this));
   },
 
-  // Processes the box art queue, limiting concurrent network requests to a maximum of 5.
+  // Processes the box art queue, limiting concurrent network requests to a maximum of 1.
   // This guarantees we never exhaust the WASM PTHREAD_POOL_SIZE of 20, leaving threads
   // available for pollServer and minimizing the impact of any hanging requests.
   _processBoxArtQueue: function() {
-    if (this._activeBoxArts >= 5 || this._boxArtQueue.length === 0) return;
+    if (this._activeBoxArts >= 1 || this._boxArtQueue.length === 0) return;
     
     this._activeBoxArts++;
     var req = this._boxArtQueue.shift();
