@@ -162,13 +162,19 @@ int http_request(const char* url, const char* ppkstr, PHTTP_DATA data) {
   }
 
   CURLcode res = curl_easy_perform(curl);
+  long http_code = 0;
+  curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
 
-  printf("CURL: %s (PPK: '%s') -> %s\n", url, ppkstr ? ppkstr : "<NULL>", curl_easy_strerror(res));
+  if (http_code > 0) {
+    printf("CURL: %s (PPK: '%s') -> %s (HTTP %ld)\n", url, ppkstr ? ppkstr : "<NULL>", curl_easy_strerror(res), http_code);
+  } else {
+    printf("CURL: %s (PPK: '%s') -> %s (%d)\n", url, ppkstr ? ppkstr : "<NULL>", curl_easy_strerror(res), res);
+  }
   
   if (res == CURLE_SSL_PINNEDPUBKEYNOTMATCH) {
     ret = GS_CERT_MISMATCH;
   } else if (res != CURLE_OK) {
-    ret = GS_FAILED;
+    ret = -res;
   } else if (data->memory == NULL) {
     ret = GS_OUT_OF_MEMORY;
   } else {
