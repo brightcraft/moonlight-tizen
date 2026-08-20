@@ -101,6 +101,8 @@ function translateBackendMessage(text) {
  * @param  {(String|Array)} params An array of options or a single string
  * @return {void}        The Wasm module calls back through the handleMessage method
  */
+var _httpLock = Promise.resolve();
+
 var sendMessage = function(method, params) {
   if (SyncFunctions[method]) {
     return new Promise(function(resolve, reject) {
@@ -111,31 +113,62 @@ var sendMessage = function(method, params) {
         reject(ret.ret);
       }
     });
+  } else if (method === 'openUrl') {
+    // We MUST enforce the timeout in JavaScript because Emscripten's libcurl wrapper
+    // completely ignores native timeouts (e.g., CURLOPT_CONNECTTIMEOUT) and relies on
+    // the browser's native XHR timeout, which can take up to 1 minute.
+    var timeout_ms = params[3] || 0;
+    return new Promise(function(resolve, reject) {
+      _httpLock = _httpLock.catch(function() {}).then(function() {
+        return new Promise(function(innerResolve, innerReject) {
+          var isFinished = false;
+          var timeoutId = null;
+
+          if (timeout_ms > 0) {
+            timeoutId = setTimeout(function() {
+              if (!isFinished) {
+                isFinished = true;
+                console.warn('%c[messages.js, sendMessage]', 'color: gray;', 'Warning: HTTPS request timed out, canceling C++ HTTP request for URL:', params[0]);
+                SyncFunctions['cancelRequest']();
+                reject(-1); // GS_FAILED
+                innerResolve();
+              }
+            }, timeout_ms);
+          }
+
+          const id = callbacks_ids++;
+          callbacks[id] = {
+            'resolve': function(msg) {
+              if (!isFinished) {
+                isFinished = true;
+                if (timeoutId) clearTimeout(timeoutId);
+                resolve(msg);
+              }
+              innerResolve();
+            },
+            'reject': function(err) {
+              if (!isFinished) {
+                isFinished = true;
+                if (timeoutId) clearTimeout(timeoutId);
+                reject(err);
+              }
+              innerResolve();
+            }
+          };
+
+          AsyncFunctions['openUrl'](id, ...params);
+        });
+      });
+    });
   } else {
-    var asyncPromise = new Promise(function(resolve, reject) {
+    return new Promise(function(resolve, reject) {
       const id = callbacks_ids++;
       callbacks[id] = {
         'resolve': resolve,
         'reject': reject
       };
-
       AsyncFunctions[method](id, ...params);
     });
-
-    // We MUST enforce the timeout in JavaScript because Emscripten's libcurl wrapper
-    // completely ignores native timeouts (e.g., CURLOPT_CONNECTTIMEOUT) and relies on
-    // the browser's native XHR timeout, which can take up to 1 minute.
-    var timeout_ms = (method === 'openUrl') ? params[3] : 0;
-
-    if (timeout_ms && timeout_ms > 0) {
-      var GS_FAILED = -1;
-      return Promise.race([
-        asyncPromise,
-        new Promise((_, reject) => setTimeout(() => reject(GS_FAILED), timeout_ms))
-      ]);
-    } else {
-      return asyncPromise;
-    }
   }
 }
 

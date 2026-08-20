@@ -3,7 +3,6 @@
 #include <http.h>
 #include <errors.h>
 #include <string.h>
-#include <thread>
 
 #include <mkcert.h>
 #include <openssl/bio.h>
@@ -123,9 +122,7 @@ void MoonlightInstance::OpenUrl_private(int callbackId, std::string url, std::st
 }
 
 void MoonlightInstance::OpenUrl(int callbackId, std::string url, std::string ppk, bool binaryResponse) {
-  std::thread([this, callbackId, url, ppk, binaryResponse]() {
-    this->OpenUrl_private(callbackId, url, ppk, binaryResponse);
-  }).detach();
+  m_Dispatcher.post_job(std::bind(&MoonlightInstance::OpenUrl_private, this, callbackId, url, ppk, binaryResponse), false);
 }
 
 MessageResult makeCert() {
