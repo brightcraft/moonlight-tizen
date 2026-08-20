@@ -118,6 +118,7 @@ var sendMessage = function(method, params) {
     // completely ignores native timeouts (e.g., CURLOPT_CONNECTTIMEOUT) and relies on
     // the browser's native XHR timeout, which can take up to 1 minute.
     var timeout_ms = params[3] || 0;
+
     return new Promise(function(resolve, reject) {
       _httpLock = _httpLock.catch(function() {}).then(function() {
         return new Promise(function(innerResolve, innerReject) {

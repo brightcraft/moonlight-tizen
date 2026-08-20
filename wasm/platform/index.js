@@ -763,6 +763,7 @@ function parseHostAndPortInput(rawInput) {
 // If the `Add Host +` is selected on the host grid, then show the 
 // Add Host dialog to enter the connection details for the host PC
 function addHostDialog() {
+  if (typeof window.abortSubnetScan === 'function') window.abortSubnetScan();
   // Find the existing overlay and dialog elements
   var addHostOverlay = document.querySelector('#addHostDialogOverlay');
   var addHostDialog = document.querySelector('#addHostDialog');
@@ -883,6 +884,7 @@ function addHostDialog() {
 
 // Show the Pairing dialog before pairing with the given NvHTTP host object. Returns whether the pairing was successful or failed.
 function pairingDialog(nvhttpHost, onSuccess, onFailure) {
+  if (typeof window.abortSubnetScan === 'function') window.abortSubnetScan();
   if (!onFailure) {
     onFailure = function() {}
   }
@@ -2199,6 +2201,7 @@ function showApps(host) {
 
     // Stop navigation before showing the loading screen
     Navigation.stop();
+    if (typeof window.abortSubnetScan === 'function') window.abortSubnetScan();
 
     // Hide the main header before showing a loading screen
     $('#main-header').children().hide();
@@ -4067,7 +4070,6 @@ function loadHTTPCertsCb() {
           hosts[hostUID] = revivedHost;
           addHostToGrid(revivedHost);
         }
-        startPollingHosts();
         // Register loadSystemInfo to re-run every time the language changes
         if (window.i18n && typeof window.i18n.onRefresh === 'function') {
           window.i18n.onRefresh(loadSystemInfo);
@@ -4079,10 +4081,19 @@ function loadHTTPCertsCb() {
           updatePreviewData();
         });
         console.log('%c[index.js, loadHTTPCertsCb]', 'color: green;', 'Loading previously connected hosts...');
-        // Start subnet scanning silently in the background after hosts are fully loaded
+        // Ensure that any existing active polls are cleared before resetting
+        Object.keys(activePolls).forEach(function(serverUid) {
+          window.clearInterval(activePolls[serverUid]);
+          delete activePolls[serverUid];
+        });
+
         setTimeout(() => {
           snackbarLog(t('Scanning the local network to discover new hosts...'));
-          startSubnetScanner();
+          if (typeof startSubnetScanner === 'function') {
+            startSubnetScanner().then(startPollingHosts);
+          } else {
+            startPollingHosts();
+          }
         }, 1000);
       });
     });

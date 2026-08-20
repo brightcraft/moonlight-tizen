@@ -164,7 +164,6 @@ NvHTTP.prototype = {
     });
   },
 
-
   // Refreshes the server info using the base URL. This is useful for testing whether we can successfully ping a host at the base URL
   refreshServerInfo: function() {
     if (this.ppkstr == null) {
