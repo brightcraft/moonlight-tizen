@@ -89,6 +89,7 @@ function attachListeners() {
   $('#framePacingSwitch').on('click', saveFramePacing);
   $('#ipAddressFieldModeSwitch').on('click', saveIpAddressFieldMode);
   $('#ipAddressTextInput').on('input', updateIpAddressInputValidationState);
+  $('#autoWolSwitch').on('click', saveAutoWol);
   $('#sortAppsListSwitch').on('click', saveSortAppsList);
   $('#optimizeGamesSwitch').on('click', saveOptimizeGames);
   $('#removeAllHostsBtn').on('click', deleteAllHostsDialog);
@@ -522,7 +523,7 @@ function restoreUiAfterWasmLoad() {
   setTimeout(() => checkForAppUpdatesAtStartup(), 10000);
 }
 
-function hostChosen(host) {
+function hostChosen(host, onSuccessCallback) {
   if (isPairingInProgress) {
     snackbarLogLong(t('A pairing request is currently in progress. Please wait for it to timeout or finish before trying again.'));
     return;
@@ -530,6 +531,19 @@ function hostChosen(host) {
 
   // If the host is already offline or fails to connect, notify the user.
   if (!host.online) {
+    const autoWolSwitch = document.getElementById('autoWolSwitch');
+    if (autoWolSwitch && autoWolSwitch.checked) {
+      autoWolDialog(host, function() {
+        // Success callback: The host is now online.
+        if (onSuccessCallback) {
+          onSuccessCallback();
+        } else {
+          // Re-call hostChosen(host) to proceed normally.
+          hostChosen(host);
+        }
+      });
+    }
+
     // Let the user know what to do to bring the host back online and until then, we'll be back to the previous view.
     console.error('%c[index.js, hostChosen]', 'color: green;', 'Error: Connection to host failed or host is offline!');
     snackbarLogLong(t('Failed to connect to %1$s. Ensure Sunshine is running on your host PC or GameStream is enabled in GeForce Experience SHIELD settings.', 'the host'));
@@ -984,6 +998,107 @@ function pairingDialog(nvhttpHost, onSuccess, onFailure) {
   });
 }
 
+function autoWolDialog(host, onSuccess, onCancel, autoStart) {
+  var overlay = document.querySelector('#autoWolDialogOverlay');
+  var dialog = document.querySelector('#autoWolDialog');
+  var dialogText = $('#autoWolDialogText');
+  var continueBtn = $('#continueAutoWol');
+  var cancelBtn = $('#cancelAutoWol');
+
+  dialogText.html(t('Connection to host failed or host is offline.') + '<br><br>' + t('Do you want to send a Wake-on-LAN request to wake it up?'));
+  cancelBtn.html(t('Cancel'));
+  cancelBtn.css('width', '');
+  continueBtn.show();
+
+  overlay.style.display = 'flex';
+  dialog.showModal();
+  isDialogOpen = true;
+  Navigation.push(Views.AutoWolDialog);
+
+  var pollInterval = null;
+  var scanInterval = null;
+  var hasFailed = false;
+
+  var cleanup = function() {
+    if (pollInterval) clearInterval(pollInterval);
+    if (scanInterval) clearInterval(scanInterval);
+    overlay.style.display = 'none';
+    dialog.close();
+    isDialogOpen = false;
+    Navigation.pop();
+  };
+
+  continueBtn.off('click');
+  continueBtn.on('click', function() {
+    continueBtn.hide();
+    cancelBtn.css('width', '100%');
+    Views.AutoWolDialog.view.reset(); // move focus to cancelBtn conceptually or wait for UI
+    focusElement('cancelAutoWol');
+    
+    dialogText.html(t('Sending a Wake On LAN request to %1$s...', host.hostname));
+
+    host.sendWOL().then(function(msg) {
+      if (msg) console.log('%c[index.js, autoWolDialog]', 'color: green;', msg);
+      dialogText.html(
+        t('Wake-on-LAN request sent to %1$s.', host.hostname) + '<br><br>' +
+        t('Waiting for the host PC to wake up and connect to the network...')
+      );
+
+      if (typeof startSubnetScanner === 'function') {
+        startSubnetScanner();
+        scanInterval = setInterval(function() {
+          startSubnetScanner();
+        }, 5000);
+      }
+
+      pollInterval = setInterval(function() {
+        host.pollServer(function(returnedHost) {
+          if (returnedHost.online) {
+            cleanup();
+            onSuccess();
+          }
+        });
+      }, 3000);
+
+    }).catch(function(error) {
+      hasFailed = true;
+      if (pollInterval) clearInterval(pollInterval);
+      if (scanInterval) clearInterval(scanInterval);
+      
+      // Dummy t() calls so i18n-sync.js extracts these dynamic C++ errors
+      // t('Invalid MAC address format')
+      // t('Failed to create socket')
+      // t('Failed to enable broadcast')
+      // t('Failed to send magic packet')
+      // t('Unknown error')
+      var errorMessage = typeof error === 'string' ? error : (error && error.message ? error.message : 'Unknown error');
+      dialogText.html(
+        t('Failed to send Wake-on-LAN request to %1$s!', host.hostname) + '<br><br>' +
+        t('Error: %1$s', t(errorMessage))
+      );
+      cancelBtn.html(t('OK'));
+      cancelBtn.css('width', '100%');
+    });
+  });
+
+  cancelBtn.off('click');
+  cancelBtn.on('click', function() {
+    if (hasFailed) {
+      console.error('%c[index.js, autoWolDialog]', 'color: green;', 'Wake-on-LAN request failed.');
+    } else {
+      console.log('%c[index.js, autoWolDialog]', 'color: green;', 'Wake-on-LAN request canceled by user.');
+    }
+    cleanup();
+    if (onCancel) onCancel();
+  });
+
+  // If autoStart is true, bypass the user confirmation and immediately execute the send action
+  // This is used by the Wake PC context menu option to cleanly reuse the dialog's polling logic
+  if (autoStart) {
+    continueBtn.click();
+  }
+}
+
 // Add the new NvHTTP Host object inside the host grid
 function addHostToGrid(host, ismDNSDiscovered) {
   // Create the host container with the appropriate attributes for the host card
@@ -1153,8 +1268,7 @@ function hostMenuDialog(host) {
       text: t('Wake PC'),
       action: function() {
         // Send a Wake-on-LAN request to the target host
-        snackbarLogLong(t('Sending a Wake On LAN request to %1$s...', host.hostname));
-        host.sendWOL();
+        setTimeout(() => autoWolDialog(host, function() {}, function() {}, true), 100);
       }
     },
     {
@@ -3183,6 +3297,24 @@ function saveIpAddressFieldMode() {
   }, 100);
 }
 
+function saveAutoWol() {
+  setTimeout(() => {
+    const chosenAutoWol = $('#autoWolSwitch').parent().hasClass('is-checked');
+    console.log('%c[index.js, saveAutoWol]', 'color: green;', 'Saving Auto WoL state: ' + chosenAutoWol);
+    storeData('autoWol', chosenAutoWol, null);
+
+    if (chosenAutoWol) {
+      // Show the Warning dialog when enabling Auto Wake-on-LAN
+      setTimeout(() => {
+        warningDialog(t('Auto Wake-on-LAN'),
+          t('Please ensure that Wake-on-LAN is properly enabled in your host PC\'s BIOS/UEFI and network adapter settings.') + '<br><br>' +
+          t('Additionally, Sunshine must be configured to start automatically on boot for this feature to work correctly.')
+        );
+      }, 250);
+    }
+  }, 100);
+}
+
 function saveSortAppsList() {
   setTimeout(() => {
     const chosenSortAppsList = $('#sortAppsListSwitch').parent().hasClass('is-checked');
@@ -3800,6 +3932,17 @@ function loadUserDataCb() {
     handleIpAddressFieldMode();
   });
 
+  console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored autoWol preferences.');
+  getData('autoWol', function(previousValue) {
+    if (previousValue.autoWol == null) {
+      document.querySelector('#autoWolBtn').MaterialSwitch.off(); // Set the default state
+    } else if (previousValue.autoWol == false) {
+      document.querySelector('#autoWolBtn').MaterialSwitch.off();
+    } else {
+      document.querySelector('#autoWolBtn').MaterialSwitch.on();
+    }
+  });
+
   console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored sortAppsList preferences.');
   getData('sortAppsList', function(previousValue) {
     if (previousValue.sortAppsList == null) {
@@ -4122,7 +4265,10 @@ function waitForHostAndNavigateToApp(serverUid, appId) {
 
       // Check whether the host is online before trying to connect
       if (!host.online) {
-        hostChosen(host);
+        hostChosen(host, function() {
+          // Success callback: The host is now online. Retry the deep link navigation.
+          waitForHostAndNavigateToApp(serverUid, appId);
+        });
         return;
       }
 

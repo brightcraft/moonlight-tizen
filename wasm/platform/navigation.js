@@ -661,6 +661,42 @@ const Views = {
       setTimeout(() => blurElement(this.view.current()), 100);
     },
   },
+  AutoWolDialog: {
+    view: new ListView(() => {
+      const buttons = [];
+      if ($('#continueAutoWol').is(':visible')) buttons.push('continueAutoWol');
+      if ($('#cancelAutoWol').is(':visible')) buttons.push('cancelAutoWol');
+      return buttons;
+    }),
+    up: function() {},
+    down: function() {},
+    left: function() {
+      this.view.prev();
+      focusElement(this.view.current());
+    },
+    right: function() {
+      this.view.next();
+      focusElement(this.view.current());
+    },
+    accept: function() {
+      clickElement(this.view.current());
+    },
+    back: function() {
+      resolveElement('cancelAutoWol').click();
+    },
+    press: function() {},
+    switch: function() {
+      focusElement(this.view.current());
+    },
+    enter: function() {
+      mark(this.view.current());
+      setTimeout(() => focusElement(this.view.current()), 100);
+    },
+    leave: function() {
+      unmark(this.view.current());
+      setTimeout(() => blurElement(this.view.current()), 100);
+    },
+  },
   HostMenuDialog: {
     view: new ListView(() => {
       const actions = ['refreshApps', 'wakeHost', 'deleteHost', 'viewDetails', 'closeHostMenu'];
@@ -1095,6 +1131,7 @@ const Views = {
     view: new ListView(() => [
       'sortAppsListBtn',
       'optimizeGamesBtn',
+      'autoWolBtn',
       'removeAllHostsBtn'
     ]),
     up: function() {

@@ -393,7 +393,7 @@ body {
     text-transform: uppercase;
 }
 #pairingDialogText, #deleteHostDialogText, .host-details-text, #appSupportDialogText,
-#navGuideDialogText, .update-app-text, #restoreDefaultsDialogText, #quitAppDialogText,
+#autoWolDialogText, #navGuideDialogText, .update-app-text, #restoreDefaultsDialogText, #quitAppDialogText,
 #warningDialogText, #restartAppDialogText, #exitAppDialogText {
     font-size: 1.45rem;
     line-height: normal;
@@ -407,12 +407,12 @@ body {
 #closeHostMenu, #closeHostDetails, #cancelDeleteHost, #closeAppSupport,
 #closeNavGuide, #closeUpdateApp, #continueRestoreDefaults, #cancelRestoreDefaults,
 #continueQuitApp, #cancelQuitApp, #closeWarning, #continueRestartApp,
-#cancelRestartApp, #continueExitApp, #cancelExitApp {
+#cancelRestartApp, #continueExitApp, #cancelExitApp, #continueAutoWol, #cancelAutoWol {
     text-transform: uppercase;
 }
 #continueAddHost, #cancelAddHost, #continueDeleteHost, #cancelDeleteHost,
 #continueRestoreDefaults, #cancelRestoreDefaults, #continueQuitApp, #cancelQuitApp,
-#continueRestartApp, #cancelRestartApp, #continueExitApp, #cancelExitApp {
+#continueRestartApp, #cancelRestartApp, #continueExitApp, #cancelExitApp, #continueAutoWol, #cancelAutoWol {
     width: 48%;
     height: 40px;
     font-size: 1.4rem;
@@ -420,7 +420,7 @@ body {
 }
 #cancelAddHost, #cancelPairing, #cancelDeleteHost, #closeAppSupport,
 #cancelRestoreDefaults, #cancelQuitApp, #closeWarning, #cancelRestartApp,
-#cancelExitApp {
+#cancelExitApp, #cancelAutoWol {
     height: 40px;
     margin: 0 10px 20px 0;
     font-size: 1.4rem;
@@ -888,7 +888,7 @@ body {
     text-indent: 36px;
 }
 #selectResolution, #selectFramerate, #selectBitrate, #framePacingBtn, #selectLanguage, #ipAddressFieldModeBtn,
-#sortAppsListBtn, #optimizeGamesBtn, #removeAllHostsBtn, #rumbleFeedbackBtn, #mouseEmulationBtn,
+#sortAppsListBtn, #optimizeGamesBtn, #autoWolBtn, #removeAllHostsBtn, #rumbleFeedbackBtn, #mouseEmulationBtn,
 #flipABfaceButtonsBtn, #flipXYfaceButtonsBtn, #selectAudioBackend, #selectAudio, #audioSyncBtn,
 #selectAudioJitter, #playHostAudioBtn,
 #selectCodec, #hdrModeBtn, #fullRangeBtn, #gameModeBtn, #unlockAllFpsBtn, #optimizeBitrateBtn,
@@ -1016,11 +1016,11 @@ body {
 #closeUpdateApp:hover, #closeUpdateApp:focus, #continueRestoreDefaults:hover, #continueRestoreDefaults:focus, #cancelRestoreDefaults:hover,
 #cancelRestoreDefaults:focus, #continueQuitApp:hover, #continueQuitApp:focus, #cancelQuitApp:hover, #cancelQuitApp:focus, #closeWarning:hover,
 #closeWarning:focus, #continueRestartApp:hover, #continueRestartApp:focus, #cancelRestartApp:hover, #cancelRestartApp:focus, #continueExitApp:hover,
-#continueExitApp:focus, #cancelExitApp:hover, #cancelExitApp:focus, #settingsBtn:hover, #settingsBtn:focus, #supportBtn:hover, #supportBtn:focus,
+#continueExitApp:focus, #cancelExitApp:hover, #cancelExitApp:focus, #continueAutoWol:hover, #continueAutoWol:focus, #cancelAutoWol:hover, #cancelAutoWol:focus, #settingsBtn:hover, #settingsBtn:focus, #supportBtn:hover, #supportBtn:focus,
 #goBackBtn:hover, #goBackBtn:focus, #restoreDefaultsBtn:hover, #restoreDefaultsBtn:focus, #quitRunningAppBtn:hover, #quitRunningAppBtn:focus,
 #selectResolution:hover, #selectResolution:focus, #selectFramerate:hover, #selectFramerate:focus, #selectBitrate:hover, #selectBitrate:focus,
 #framePacingBtn:hover, #framePacingBtn:focus, #selectLanguage:hover, #selectLanguage:focus, #ipAddressFieldModeBtn:hover, #ipAddressFieldModeBtn:focus, #sortAppsListBtn:hover,
-#sortAppsListBtn:focus, #optimizeGamesBtn:hover, #optimizeGamesBtn:focus, #removeAllHostsBtn:hover, #removeAllHostsBtn:focus, #rumbleFeedbackBtn:hover,
+#sortAppsListBtn:focus, #optimizeGamesBtn:hover, #optimizeGamesBtn:focus, #autoWolBtn:hover, #autoWolBtn:focus, #removeAllHostsBtn:hover, #removeAllHostsBtn:focus, #rumbleFeedbackBtn:hover,
 #rumbleFeedbackBtn:focus, #mouseEmulationBtn:hover, #mouseEmulationBtn:focus, #flipABfaceButtonsBtn:hover, #flipABfaceButtonsBtn:focus,
 #flipXYfaceButtonsBtn:hover, #flipXYfaceButtonsBtn:focus, #selectAudioBackend:hover, #selectAudioBackend:focus, #selectAudio:hover,
 #selectAudio:focus, #audioSyncBtn:hover, #audioSyncBtn:focus, #selectAudioJitter:hover, #selectAudioJitter:focus,
