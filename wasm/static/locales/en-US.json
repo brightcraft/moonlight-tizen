@@ -47,8 +47,6 @@
   "Refresh apps": "Refresh apps",
   "Refreshing the list of %1$s applications...": "Refreshing the list of %1$s applications...",
   "Wake PC": "Wake PC",
-  "Connection to host failed or host is offline.": "Connection to host failed or host is offline.",
-  "Do you want to send a Wake-on-LAN request to wake it up?": "Do you want to send a Wake-on-LAN request to wake it up?",
   "Sending a Wake-on-LAN request to %1$s...": "Sending a Wake-on-LAN request to %1$s...",
   "Wake-on-LAN request sent to %1$s.": "Wake-on-LAN request sent to %1$s.",
   "Waiting for the host PC to wake up and connect to the network...": "Waiting for the host PC to wake up and connect to the network...",

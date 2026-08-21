@@ -998,24 +998,20 @@ function pairingDialog(nvhttpHost, onSuccess, onFailure) {
   });
 }
 
-function autoWolDialog(host, onSuccess, onCancel, autoStart) {
+function autoWolDialog(host, onSuccess, onCancel) {
   var overlay = document.querySelector('#autoWolDialogOverlay');
   var dialog = document.querySelector('#autoWolDialog');
   var dialogText = $('#autoWolDialogText');
-  var continueBtn = $('#continueAutoWol');
   var cancelBtn = $('#cancelAutoWol');
 
-  dialogText.html(t('Connection to host failed or host is offline.') + '<br><br>' + t('Do you want to send a Wake-on-LAN request to wake it up?'));
   cancelBtn.html(t('Cancel'));
-  cancelBtn.css('width', '');
-  continueBtn.show();
   Views.AutoWolDialog.view.reset();
 
   overlay.style.display = 'flex';
   dialog.showModal();
   isDialogOpen = true;
   Navigation.push(Views.AutoWolDialog);
-  focusElement('continueAutoWol');
+  focusElement('cancelAutoWol');
 
   var pollInterval = null;
   var scanInterval = null;
@@ -1030,14 +1026,8 @@ function autoWolDialog(host, onSuccess, onCancel, autoStart) {
     Navigation.pop();
   };
 
-  continueBtn.off('click');
-  continueBtn.on('click', function() {
-    continueBtn.hide();
-    cancelBtn.css('width', '100%');
-    Views.AutoWolDialog.view.reset(); // move focus to cancelBtn conceptually or wait for UI
-    focusElement('cancelAutoWol');
-    
-    dialogText.html(t('Sending a Wake On LAN request to %1$s...', host.hostname));
+  var sendWakeRequest = function() {
+    dialogText.html(t('Sending a Wake-on-LAN request to %1$s...', host.hostname));
 
     host.sendWOL().then(function(msg) {
       if (msg) console.log('%c[index.js, autoWolDialog]', 'color: green;', msg);
@@ -1057,7 +1047,7 @@ function autoWolDialog(host, onSuccess, onCancel, autoStart) {
         host.pollServer(function(returnedHost) {
           if (returnedHost.online) {
             cleanup();
-            onSuccess();
+            if (onSuccess) onSuccess();
           }
         });
       }, 3000);
@@ -1079,9 +1069,8 @@ function autoWolDialog(host, onSuccess, onCancel, autoStart) {
         t('Error: %1$s', t(errorMessage))
       );
       cancelBtn.html(t('OK'));
-      cancelBtn.css('width', '100%');
     });
-  });
+  };
 
   cancelBtn.off('click');
   cancelBtn.on('click', function() {
@@ -1094,11 +1083,7 @@ function autoWolDialog(host, onSuccess, onCancel, autoStart) {
     if (onCancel) onCancel();
   });
 
-  // If autoStart is true, bypass the user confirmation and immediately execute the send action
-  // This is used by the Wake PC context menu option to cleanly reuse the dialog's polling logic
-  if (autoStart) {
-    continueBtn.click();
-  }
+  sendWakeRequest();
 }
 
 // Add the new NvHTTP Host object inside the host grid
@@ -1270,7 +1255,7 @@ function hostMenuDialog(host) {
       text: t('Wake PC'),
       action: function() {
         // Send a Wake-on-LAN request to the target host
-        setTimeout(() => autoWolDialog(host, function() {}, function() {}, true), 100);
+        setTimeout(() => autoWolDialog(host, function() {}, function() {}), 100);
       }
     },
     {

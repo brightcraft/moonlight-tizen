@@ -662,12 +662,9 @@ const Views = {
     },
   },
   AutoWolDialog: {
-    view: new ListView(() => {
-      const buttons = [];
-      if ($('#continueAutoWol').is(':visible')) buttons.push('continueAutoWol');
-      if ($('#cancelAutoWol').is(':visible')) buttons.push('cancelAutoWol');
-      return buttons;
-    }),
+    view: new ListView(() => [
+      'cancelAutoWol'
+    ]),
     up: function() {},
     down: function() {},
     left: function() {

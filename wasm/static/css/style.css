@@ -407,12 +407,12 @@ body {
 #closeHostMenu, #closeHostDetails, #cancelDeleteHost, #closeAppSupport,
 #closeNavGuide, #closeUpdateApp, #continueRestoreDefaults, #cancelRestoreDefaults,
 #continueQuitApp, #cancelQuitApp, #closeWarning, #continueRestartApp,
-#cancelRestartApp, #continueExitApp, #cancelExitApp, #continueAutoWol, #cancelAutoWol {
+#cancelRestartApp, #continueExitApp, #cancelExitApp, #cancelAutoWol {
     text-transform: uppercase;
 }
 #continueAddHost, #cancelAddHost, #continueDeleteHost, #cancelDeleteHost,
 #continueRestoreDefaults, #cancelRestoreDefaults, #continueQuitApp, #cancelQuitApp,
-#continueRestartApp, #cancelRestartApp, #continueExitApp, #cancelExitApp, #continueAutoWol, #cancelAutoWol {
+#continueRestartApp, #cancelRestartApp, #continueExitApp, #cancelExitApp {
     width: 48%;
     height: 40px;
     font-size: 1.4rem;
@@ -1010,13 +1010,13 @@ body {
 /* =============================
    Interactive Elements
 ============================= */
-#continueAddHost:hover, #continueAddHost:focus, #cancelAddHost:hover, #cancelAddHost:focus, #cancelPairing:hover, #cancelPairing:focus,
+#continueAddHost:hover, #continueAddHost:focus, #cancelAddHost:hover, #cancelAddHost:focus, #cancelPairing:hover, #cancelPairing:focus, #cancelAutoWol:hover, #cancelAutoWol:focus,
 #continueDeleteHost:hover, #continueDeleteHost:focus, #cancelDeleteHost:hover, #cancelDeleteHost:focus, #closeHostMenu:hover, #closeHostMenu:focus,
 #closeHostDetails:hover, #closeHostDetails:focus, #closeAppSupport:hover, #closeAppSupport:focus, #closeNavGuide:hover, #closeNavGuide:focus,
 #closeUpdateApp:hover, #closeUpdateApp:focus, #continueRestoreDefaults:hover, #continueRestoreDefaults:focus, #cancelRestoreDefaults:hover,
 #cancelRestoreDefaults:focus, #continueQuitApp:hover, #continueQuitApp:focus, #cancelQuitApp:hover, #cancelQuitApp:focus, #closeWarning:hover,
 #closeWarning:focus, #continueRestartApp:hover, #continueRestartApp:focus, #cancelRestartApp:hover, #cancelRestartApp:focus, #continueExitApp:hover,
-#continueExitApp:focus, #cancelExitApp:hover, #cancelExitApp:focus, #continueAutoWol:hover, #continueAutoWol:focus, #cancelAutoWol:hover, #cancelAutoWol:focus, #settingsBtn:hover, #settingsBtn:focus, #supportBtn:hover, #supportBtn:focus,
+#continueExitApp:focus, #cancelExitApp:hover, #cancelExitApp:focus, #settingsBtn:hover, #settingsBtn:focus, #supportBtn:hover, #supportBtn:focus,
 #goBackBtn:hover, #goBackBtn:focus, #restoreDefaultsBtn:hover, #restoreDefaultsBtn:focus, #quitRunningAppBtn:hover, #quitRunningAppBtn:focus,
 #selectResolution:hover, #selectResolution:focus, #selectFramerate:hover, #selectFramerate:focus, #selectBitrate:hover, #selectBitrate:focus,
 #framePacingBtn:hover, #framePacingBtn:focus, #selectLanguage:hover, #selectLanguage:focus, #ipAddressFieldModeBtn:hover, #ipAddressFieldModeBtn:focus, #sortAppsListBtn:hover,
