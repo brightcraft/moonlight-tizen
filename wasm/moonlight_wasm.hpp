@@ -214,6 +214,7 @@ class MoonlightInstance {
   void OpenUrl_private(int callbackId, std::string url, std::string ppk, bool binaryResponse);
   void STUN_private(int callbackId);
   void Pair_private(int callbackId, std::string serverMajorVersion, std::string address, int httpPort, std::string randomNumber);
+  void WakeOnLan_private(int callbackId, std::string macAddress);
 
   void LockMouse();
   void UnlockMouse();

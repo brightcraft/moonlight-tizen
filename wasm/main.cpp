@@ -495,12 +495,17 @@ void MoonlightInstance::Pair(int callbackId, std::string serverMajorVersion, std
 }
 
 void MoonlightInstance::WakeOnLan(int callbackId, std::string macAddress) {
+  m_Dispatcher.post_job(std::bind(&MoonlightInstance::WakeOnLan_private, this, callbackId, macAddress), false);
+}
+
+void MoonlightInstance::WakeOnLan_private(int callbackId, std::string macAddress) {
   unsigned char magicPacket[102];
   unsigned char mac[6];
 
   // Validate and parse the MAC address
   if (sscanf(macAddress.c_str(), "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]) != 6) {
     ClLogMessage("Invalid MAC address format: %s\n", macAddress.c_str());
+    PostPromiseMessage(callbackId, "reject", "Invalid MAC address format");
     return;
   }
 
@@ -516,6 +521,7 @@ void MoonlightInstance::WakeOnLan(int callbackId, std::string macAddress) {
   int udpSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
   if (udpSocket == -1) {
     ClLogMessage("Failed to create socket");
+    PostPromiseMessage(callbackId, "reject", "Failed to create socket");
     return;
   }
 
@@ -524,6 +530,7 @@ void MoonlightInstance::WakeOnLan(int callbackId, std::string macAddress) {
   if (setsockopt(udpSocket, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast)) == -1) {
     ClLogMessage("Failed to enable broadcast");
     close(udpSocket);
+    PostPromiseMessage(callbackId, "reject", "Failed to enable broadcast");
     return;
   }
 
@@ -534,11 +541,14 @@ void MoonlightInstance::WakeOnLan(int callbackId, std::string macAddress) {
   addr.sin_addr.s_addr = INADDR_BROADCAST;
   addr.sin_port = htons(9); // Wake-on-LAN typically uses port 9
 
+  bool sent = false;
+
   // Send the magic packet over IPv4
   if (sendto(udpSocket, magicPacket, sizeof(magicPacket), 0, (struct sockaddr*) &addr, sizeof(addr)) == -1) {
     ClLogMessage("Failed to send magic packet");
   } else {
     ClLogMessage("Magic packet sent successfully to MAC address: %s\n", macAddress.c_str());
+    sent = true;
   }
 
   // Close the IPv4 socket
@@ -558,9 +568,17 @@ void MoonlightInstance::WakeOnLan(int callbackId, std::string macAddress) {
       ClLogMessage("Failed to send IPv6 magic packet");
     } else {
       ClLogMessage("IPv6 Magic packet sent successfully to MAC address: %s\n", macAddress.c_str());
+      sent = true;
     }
     close(udp6Socket);
   }
+
+  if (!sent) {
+    PostPromiseMessage(callbackId, "reject", "Failed to send magic packet");
+    return;
+  }
+
+  PostPromiseMessage(callbackId, "resolve", "Magic packet sent successfully to MAC address: " + macAddress);
 }
 
 bool MoonlightInstance::Init(uint32_t argc, const char* argn[], const char* argv[]) {
