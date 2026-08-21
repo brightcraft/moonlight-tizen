@@ -212,6 +212,20 @@
               </div>
             </div>
             <div class="setting-option">
+              <label data-i18n="Auto Wake-on-LAN">Auto Wake-on-LAN</label>
+              <span class="mdl-list__item-text-body" data-i18n="- Automatically sends a Wake-on-LAN request and waits for the host to come online.">
+                - Automatically sends a Wake-on-LAN request and waits for the host to come online.
+              </span>
+              <div id="autoWolMenu">
+                <label id="autoWolBtn" class="mdl-switch mdl-js-switch mdl-js-ripple-effect" for="autoWolSwitch">
+                  <input type="checkbox" id="autoWolSwitch" class="mdl-switch__input">
+                  <span class="mdl-switch__label" data-i18n="Allow Wake-on-LAN automatically when host is offline">
+                    Allow Wake-on-LAN automatically when host is offline
+                  </span>
+                </label>
+              </div>
+            </div>
+            <div class="setting-option">
               <label data-i18n="Remove all hosts">Remove all hosts</label>
               <span class="mdl-list__item-text-body"></span>
               <div id="removeAllHostsMenu">
@@ -577,6 +591,21 @@
       </div>
       <div class="mdl-dialog__actions">
         <button type="button" id="cancelPairing" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect" data-i18n="Cancel">Cancel</button>
+      </div>
+    </dialog>
+  </div>
+  <div id="autoWolDialogOverlay" class="dialog-overlay">
+    <dialog id="autoWolDialog" class="mdl-dialog">
+      <h3 id="autoWolDialogTitle" class="mdl-dialog__title" data-i18n="Wake PC">Wake PC</h3>
+      <div class="mdl-dialog__content">
+        <p id="autoWolDialogText">
+          <span data-i18n="Connection to host failed or host is offline.">Connection to host failed or host is offline.</span><br><br>
+          <span data-i18n="Do you want to send a Wake-on-LAN request to wake it up?">Do you want to send a Wake-on-LAN request to wake it up?</span>
+        </p>
+      </div>
+      <div class="mdl-dialog__actions">
+        <button type="button" id="cancelAutoWol" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect" data-i18n="Cancel">Cancel</button>
+        <button type="button" id="continueAutoWol" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect" data-i18n="Continue">Continue</button>
       </div>
     </dialog>
   </div>
