@@ -540,7 +540,6 @@ function hostChosen(host, onSuccessCallback) {
           // Re-call hostChosen(host) to proceed normally.
           hostChosen(host);
         }
-        return;
       });
     }
 
