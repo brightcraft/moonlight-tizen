@@ -54,6 +54,7 @@
   "Unknown error": "Erro desconhecido",
   "Error: %1$s": "Erro: %1$s",
   "Invalid MAC address format": "Formato de endereço MAC inválido",
+  "Invalid MAC address: default zero MAC address not allowed": "Endereço MAC inválido: endereço MAC padrão zero não permitido",
   "Failed to create socket": "Falha ao criar o soquete",
   "Failed to enable broadcast": "Falha ao ativar o broadcast",
   "Failed to send magic packet": "Falha ao enviar o pacote mágico",

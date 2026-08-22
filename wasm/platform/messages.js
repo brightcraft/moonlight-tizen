@@ -87,6 +87,7 @@ function replaceKnownStatsLabels(text) {
 function replaceKnownWolErrorLabels(text) {
   const wolErrorLabels = [
     'Invalid MAC address format',
+    'Invalid MAC address: default zero MAC address not allowed',
     'Failed to create socket',
     'Failed to enable broadcast',
     'Failed to send magic packet',
@@ -95,6 +96,7 @@ function replaceKnownWolErrorLabels(text) {
 
   const translatedWolErrorLabels = [
     t('Invalid MAC address format'),
+    t('Invalid MAC address: default zero MAC address not allowed'),
     t('Failed to create socket'),
     t('Failed to enable broadcast'),
     t('Failed to send magic packet'),

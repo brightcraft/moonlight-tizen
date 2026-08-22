@@ -1086,7 +1086,7 @@ function autoWolDialog(host, onSuccess, onCancel) {
   cancelBtn.off('click');
   cancelBtn.on('click', function() {
     if (hasFailed) {
-      console.error('%c[index.js, autoWolDialog]', 'color: green;', 'Wake-on-LAN request failed.');
+      console.error('%c[index.js, autoWolDialog]', 'color: green;', 'Wake-on-LAN request failed: ' + errorMessage);
     } else {
       console.log('%c[index.js, autoWolDialog]', 'color: green;', 'Wake-on-LAN request canceled by user.');
     }
