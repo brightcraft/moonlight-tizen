@@ -1073,16 +1073,11 @@ function autoWolDialog(host, onSuccess, onCancel) {
       if (pollInterval) clearInterval(pollInterval);
       if (scanInterval) clearInterval(scanInterval);
       
-      // Dummy t() calls so i18n-sync.js extracts these dynamic C++ errors
-      // t('Invalid MAC address format')
-      // t('Failed to create socket')
-      // t('Failed to enable broadcast')
-      // t('Failed to send magic packet')
-      // t('Unknown error')
       var errorMessage = typeof error === 'string' ? error : (error && error.message ? error.message : 'Unknown error');
+      var translatedError = replaceKnownWolErrorLabels(errorMessage);
       dialogText.html(
         t('Failed to send Wake-on-LAN request to %1$s!', host.hostname) + '<br><br>' +
-        t('Error: %1$s', t(errorMessage))
+        t('Error: %1$s', translatedError)
       );
       cancelBtn.html(t('OK'));
     });

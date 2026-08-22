@@ -84,6 +84,32 @@ function replaceKnownStatsLabels(text) {
     .replace(/Slow connection to PC\.\nReduce your bitrate!/g, t('Slow connection to PC.\nReduce your bitrate!'));
 }
 
+function replaceKnownWolErrorLabels(text) {
+  const wolErrorLabels = [
+    'Invalid MAC address format',
+    'Failed to create socket',
+    'Failed to enable broadcast',
+    'Failed to send magic packet',
+    'Unknown error'
+  ];
+
+  const translatedWolErrorLabels = [
+    t('Invalid MAC address format'),
+    t('Failed to create socket'),
+    t('Failed to enable broadcast'),
+    t('Failed to send magic packet'),
+    t('Unknown error')
+  ];
+
+  let translated = text;
+  wolErrorLabels.forEach((label, i) => {
+    const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    translated = translated.replace(new RegExp(escapedLabel, 'gi'), translatedWolErrorLabels[i]);
+  });
+
+  return translated;
+}
+
 function translateBackendMessage(text) {
   const normalized = normalizeBackendMessageText(text);
 
