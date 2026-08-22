@@ -3686,9 +3686,19 @@ function loadSystemInfo() {
   const systemInfoPlaceholder = document.getElementById('systemInfoBtn');
   const buildVer = getBuildVersion(appInfo.version);
 
+  let appName = appInfo.name;
+  try {
+    var metaData = tizen.application.getAppMetaData(appInfo.id);
+    if (metaData && metaData.some(m => m.key === 'http://samsung.com/tv/metadata/use.game.mode' && m.value === 'true')) {
+      appName += '-ForceGM';
+    }
+  } catch (e) {
+    console.warn('%c[index.js, loadSystemInfo]', 'color: green;', 'Failed to probe AppMetaData for ForceGM check:', e);
+  }
+
   // Get the system information from the TV
   if (systemInfoPlaceholder) {
-    console.log('%c[index.js, loadSystemInfo]', 'color: green;', 'App Version: ' + appInfo.name + ' v' + buildVer);
+    console.log('%c[index.js, loadSystemInfo]', 'color: green;', 'App Version: ' + appName + ' v' + buildVer);
     console.log('%c[index.js, loadSystemInfo]', 'color: green;', 'Platform Version: Tizen ' + (platformVer ? platformVer : 'Unknown'));
     console.log('%c[index.js, loadSystemInfo]', 'color: green;', 'TV Model Series: ' + (modelSeries ? modelSeries : 'Unknown'));
     console.log('%c[index.js, loadSystemInfo]', 'color: green;', 'TV Model Name: ' + (modelName ? modelName : 'Unknown'));
@@ -3697,7 +3707,7 @@ function loadSystemInfo() {
     console.log('%c[index.js, loadSystemInfo]', 'color: green;', 'HDR Capable: ' + (isHdrCapable ? 'Yes' : 'No'));
     // Insert the system information into the placeholder
     systemInfoPlaceholder.innerText =
-      t('App Version: %1$s v%2$s', appInfo.name, buildVer) + '\n' +
+      t('App Version: %1$s v%2$s', appName, buildVer) + '\n' +
       t('Platform Version: Tizen %1$s', platformVer ? platformVer : t('Unknown')) + '\n' +
       t('TV Model Series: %1$s', modelSeries ? modelSeries : t('Unknown')) + '\n' +
       t('TV Model Name: %1$s', modelName ? modelName : t('Unknown')) + '\n' +
