@@ -1799,7 +1799,7 @@ function updateAppDialog(latestVersion, releaseNotes) {
   closeUpdateAppDialog.text(t('Close'));
   closeUpdateAppDialog.off('click').click(function() {
     console.log('%c[index.js, updateAppDialog]', 'color: green;', 'Closing app dialog and returning.');
-    updateAppDialogOverlay.css('display', 'none');
+    $(updateAppDialogOverlay).css('display', 'none');
     updateAppDialog[0].close();
     isDialogOpen = false;
     Navigation.pop();
@@ -1812,7 +1812,7 @@ function updateAppDialog(latestVersion, releaseNotes) {
   }
 
   // Show the dialog and push the view
-  updateAppDialogOverlay.css('display', 'flex');
+  $(updateAppDialogOverlay).css('display', 'flex');
   updateAppDialog[0].showModal();
   isDialogOpen = true;
   Navigation.push(Views.UpdateMoonlightDialog);
