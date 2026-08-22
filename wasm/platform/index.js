@@ -540,7 +540,6 @@ function hostChosen(host, onSuccessCallback) {
           // Re-call hostChosen(host) to proceed normally.
           hostChosen(host);
         }
-        return;
       });
     }
 
@@ -1011,11 +1010,9 @@ function autoWolDialog(host, onSuccess, onCancel) {
 
   // Set the checkbox state based on the host's autoWolEnabled property
   if (host.autoWolEnabled === true) {
-    autoWolCheckboxBtn.parent().addClass('is-checked');
-    autoWolCheckbox.prop('checked', true);
+    document.querySelector('#autoWolCheckboxBtn').MaterialSwitch.on();
   } else {
-    autoWolCheckboxBtn.parent().removeClass('is-checked');
-    autoWolCheckbox.prop('checked', false);
+    document.querySelector('#autoWolCheckboxBtn').MaterialSwitch.off();
   }
 
   // Attach onchange event listener to the checkbox
