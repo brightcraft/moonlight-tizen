@@ -1782,8 +1782,8 @@ function updateAppButton(latestVersion) {
 // Show the Update Moonlight dialog
 function updateAppDialog(latestVersion, releaseNotes) {
   // Find the existing overlay and dialog elements
-  var updateAppDialogOverlay = document.querySelector('#updateAppDialogOverlay');
-  var updateAppDialog = document.querySelector('#updateAppDialog');
+  var updateAppDialogOverlay = $('#updateAppDialogOverlay');
+  var updateAppDialog = $('#updateAppDialog');
 
   // Reset the dialog title
   $('#updateAppDialogTitle').text(t('Update Moonlight'));
@@ -1799,21 +1799,21 @@ function updateAppDialog(latestVersion, releaseNotes) {
   closeUpdateAppDialog.text(t('Close'));
   closeUpdateAppDialog.off('click').click(function() {
     console.log('%c[index.js, updateAppDialog]', 'color: green;', 'Closing app dialog and returning.');
-    updateAppDialogOverlay.style.display = 'none';
-    updateAppDialog.close();
+    updateAppDialogOverlay.css('display', 'none');
+    updateAppDialog[0].close();
     isDialogOpen = false;
     Navigation.pop();
     Navigation.switch();
   });
 
   // If the dialog element doesn't support the showModal method, register it with dialogPolyfill
-  if (!updateAppDialog.showModal) {
-    dialogPolyfill.registerDialog(updateAppDialog);
+  if (!updateAppDialog[0].showModal) {
+    dialogPolyfill.registerDialog(updateAppDialog[0]);
   }
 
   // Show the dialog and push the view
-  updateAppDialogOverlay.style.display = 'flex';
-  updateAppDialog.showModal();
+  updateAppDialogOverlay.css('display', 'flex');
+  updateAppDialog[0].showModal();
   isDialogOpen = true;
   Navigation.push(Views.UpdateMoonlightDialog);
   setTimeout(() => Navigation.switch(), 5);
