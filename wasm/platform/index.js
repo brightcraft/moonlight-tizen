@@ -89,7 +89,6 @@ function attachListeners() {
   $('#framePacingSwitch').on('click', saveFramePacing);
   $('#ipAddressFieldModeSwitch').on('click', saveIpAddressFieldMode);
   $('#ipAddressTextInput').on('input', updateIpAddressInputValidationState);
-  $('#autoWolSwitch').on('click', saveAutoWol);
   $('#sortAppsListSwitch').on('click', saveSortAppsList);
   $('#optimizeGamesSwitch').on('click', saveOptimizeGames);
   $('#removeAllHostsBtn').on('click', deleteAllHostsDialog);
@@ -531,8 +530,8 @@ function hostChosen(host, onSuccessCallback) {
 
   // If the host is already offline or fails to connect, notify the user.
   if (!host.online) {
-    const autoWolSwitch = document.getElementById('autoWolSwitch');
-    if (autoWolSwitch && autoWolSwitch.checked) {
+    // Only show the Wake PC dialog if the user has explicitly enabled per-host auto-Wake-on-LAN
+    if (host.autoWolEnabled === true) {
       autoWolDialog(host, function() {
         // Success callback: The host is now online.
         if (onSuccessCallback) {
@@ -541,12 +540,12 @@ function hostChosen(host, onSuccessCallback) {
           // Re-call hostChosen(host) to proceed normally.
           hostChosen(host);
         }
-      });
+      }, function() {});
+    } else {
+      // Let the user know what to do to bring the host back online and until then, we'll be back to the previous view.
+      console.error('%c[index.js, hostChosen]', 'color: green;', 'Error: Connection to host failed or host is offline!');
+      snackbarLogLong(t('Failed to connect to %1$s. Ensure Sunshine is running on your host PC or GameStream is enabled in GeForce Experience SHIELD settings.', 'the host'));
     }
-
-    // Let the user know what to do to bring the host back online and until then, we'll be back to the previous view.
-    console.error('%c[index.js, hostChosen]', 'color: green;', 'Error: Connection to host failed or host is offline!');
-    snackbarLogLong(t('Failed to connect to %1$s. Ensure Sunshine is running on your host PC or GameStream is enabled in GeForce Experience SHIELD settings.', 'the host'));
     return;
   }
 
@@ -1003,9 +1002,28 @@ function autoWolDialog(host, onSuccess, onCancel) {
   var dialog = document.querySelector('#autoWolDialog');
   var dialogText = $('#autoWolDialogText');
   var cancelBtn = $('#cancelAutoWol');
+  var autoWolCheckbox = $('#autoWolCheckboxSwitch');
+  var autoWolCheckboxBtn = $('#autoWolCheckboxBtn');
 
   cancelBtn.html(t('Cancel'));
   Views.AutoWolDialog.view.reset();
+
+  // Set the checkbox state based on the host's autoWolEnabled property
+  if (host.autoWolEnabled === true) {
+    autoWolCheckboxBtn.parent().addClass('is-checked');
+    autoWolCheckbox.prop('checked', true);
+  } else {
+    autoWolCheckboxBtn.parent().removeClass('is-checked');
+    autoWolCheckbox.prop('checked', false);
+  }
+
+  // Attach onchange event listener to the checkbox
+  autoWolCheckbox.off('change');
+  autoWolCheckbox.on('change', function() {
+    host.autoWolEnabled = $(this).prop('checked');
+    console.log('%c[index.js, autoWolDialog]', 'color: green;', 'Host autoWolEnabled set to: ' + host.autoWolEnabled);
+    saveHosts();
+  });
 
   overlay.style.display = 'flex';
   dialog.showModal();
@@ -1083,6 +1101,7 @@ function autoWolDialog(host, onSuccess, onCancel) {
     if (onCancel) onCancel();
   });
 
+  // Send wake request immediately since user explicitly opened the Wake PC menu
   sendWakeRequest();
 }
 
@@ -3284,24 +3303,6 @@ function saveIpAddressFieldMode() {
   }, 100);
 }
 
-function saveAutoWol() {
-  setTimeout(() => {
-    const chosenAutoWol = $('#autoWolSwitch').parent().hasClass('is-checked');
-    console.log('%c[index.js, saveAutoWol]', 'color: green;', 'Saving Auto WoL state: ' + chosenAutoWol);
-    storeData('autoWol', chosenAutoWol, null);
-
-    if (chosenAutoWol) {
-      // Show the Warning dialog when enabling Auto Wake-on-LAN
-      setTimeout(() => {
-        warningDialog(t('Auto Wake-on-LAN'),
-          t('Please ensure that Wake-on-LAN is properly enabled in your host PC\'s BIOS/UEFI and network adapter settings.') + '<br><br>' +
-          t('Additionally, Sunshine must be configured to start automatically on boot for this feature to work correctly.')
-        );
-      }, 250);
-    }
-  }, 100);
-}
-
 function saveSortAppsList() {
   setTimeout(() => {
     const chosenSortAppsList = $('#sortAppsListSwitch').parent().hasClass('is-checked');
@@ -3919,17 +3920,6 @@ function loadUserDataCb() {
     handleIpAddressFieldMode();
   });
 
-  console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored autoWol preferences.');
-  getData('autoWol', function(previousValue) {
-    if (previousValue.autoWol == null) {
-      document.querySelector('#autoWolBtn').MaterialSwitch.off(); // Set the default state
-    } else if (previousValue.autoWol == false) {
-      document.querySelector('#autoWolBtn').MaterialSwitch.off();
-    } else {
-      document.querySelector('#autoWolBtn').MaterialSwitch.on();
-    }
-  });
-
   console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored sortAppsList preferences.');
   getData('sortAppsList', function(previousValue) {
     if (previousValue.sortAppsList == null) {
@@ -4194,6 +4184,7 @@ function loadHTTPCertsCb() {
           revivedHost.externalIP = hosts[hostUID].externalIP;
           revivedHost.hostname = hosts[hostUID].hostname;
           revivedHost.ppkstr = hosts[hostUID].ppkstr;
+          revivedHost.autoWolEnabled = hosts[hostUID].autoWolEnabled || false;
           hosts[hostUID] = revivedHost;
           addHostToGrid(revivedHost);
         }

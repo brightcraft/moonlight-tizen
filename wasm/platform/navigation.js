@@ -663,18 +663,25 @@ const Views = {
   },
   AutoWolDialog: {
     view: new ListView(() => [
+      'autoWolCheckboxSwitch',
       'cancelAutoWol'
     ]),
-    up: function() {},
-    down: function() {},
-    left: function() {
-      this.view.prev();
-      focusElement(this.view.current());
+    up: function() {
+      const currentItem = elementId(this.view.current());
+      if (currentItem === 'cancelAutoWol') {
+        this.view.prev();
+        focusElement(this.view.current());
+      }
     },
-    right: function() {
-      this.view.next();
-      focusElement(this.view.current());
+    down: function() {
+      const currentItem = elementId(this.view.current());
+      if (currentItem === 'autoWolCheckboxSwitch') {
+        this.view.next();
+        focusElement(this.view.current());
+      }
     },
+    left: function() {},
+    right: function() {},
     accept: function() {
       clickElement(this.view.current());
     },
@@ -1128,7 +1135,6 @@ const Views = {
     view: new ListView(() => [
       'sortAppsListBtn',
       'optimizeGamesBtn',
-      'autoWolBtn',
       'removeAllHostsBtn'
     ]),
     up: function() {
