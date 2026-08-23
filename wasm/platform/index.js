@@ -1988,6 +1988,8 @@ function warningDialog(title, message) {
 
   // Ensure the continueWarning button is hidden for standard warnings
   $('#continueWarning').hide();
+  // Add single-button class for CSS styling when only Close button is visible
+  warningDialog.classList.add('single-button');
 
   // Cancel the operation if the Close button is pressed
   $('#closeWarning').off('click');
@@ -1996,6 +1998,7 @@ function warningDialog(title, message) {
     warningDialogOverlay.style.display = 'none';
     warningDialog.close();
     isDialogOpen = false;
+    warningDialog.classList.remove('single-button');
     Navigation.pop();
     Navigation.switch();
   });
@@ -2008,7 +2011,7 @@ function wakeOnLanWarningDialog(host) {
   // Set the title and message
   document.getElementById('warningDialogTitle').innerHTML = t('Wake-on-LAN Warning');
   document.getElementById('warningDialogText').innerHTML = t(
-    'The MAC address of %1$s (%2$s) appears to be randomly generated.') + '<br><br>' +
+    'The MAC address of %1$s (%2$s) appears to be randomly generated.', host.hostname, host.macAddress) + '<br><br>' +
     t('The Operating System may be using a random MAC address instead of the physical network card address.') + ' ' +
     t('Wake-on-LAN may be unable to wake up the machine since the MAC address does not match the one from the network card.');
   // Show the dialog and push the view
@@ -2018,6 +2021,8 @@ function wakeOnLanWarningDialog(host) {
   Navigation.push(Views.WarningDialog);
   // Dynamically swap buttons: show "Continue" and change "Close" to act as Cancel
   $('#continueWarning').show();
+  // Remove single-button class since both buttons are now visible
+  warningDialog.classList.remove('single-button');
   // Cancel — close dialog without sending WoL (using Close button)
   $('#closeWarning').off('click');
   $('#closeWarning').on('click', function() {

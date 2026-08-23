@@ -14,9 +14,15 @@ function formatAddressForUrl(address) {
  * This means the second hex character of the MAC is one of: 2, 6, A, E.
  */
 function isRandomMacAddress(macAddress) {
-  if (!macAddress || macAddress === '00:00:00:00:00:00') return false;
+  if (!macAddress || macAddress === '00:00:00:00:00:00') {
+    console.error('%c[utils.js, refreshServerInfo]', 'color: gray;', 'Error: Invalid MAC address: empty or all zeros');
+    return false;
+  }
   var firstOctet = parseInt(macAddress.split(':')[0], 16);
-  if (isNaN(firstOctet)) return false;
+  if (isNaN(firstOctet)) {
+    console.error('%c[utils.js, refreshServerInfo]', 'color: gray;', 'Error: Invalid MAC address format: ' + macAddress);
+    return false;
+  }
   // Check the U/L bit (bit 1) — if set, address is locally administered
   return (firstOctet & 0x02) !== 0;
 }
