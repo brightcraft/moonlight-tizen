@@ -406,13 +406,14 @@ body {
 #continueAddHost, #cancelAddHost, #cancelPairing, #continueDeleteHost,
 #closeHostMenu, #closeHostDetails, #cancelDeleteHost, #closeAppSupport,
 #closeNavGuide, #closeUpdateApp, #continueRestoreDefaults, #cancelRestoreDefaults,
-#continueQuitApp, #cancelQuitApp, #closeWarning, #continueRestartApp,
-#cancelRestartApp, #continueExitApp, #cancelExitApp {
+#continueQuitApp, #cancelQuitApp, #continueWarning, #closeWarning, 
+#continueRestartApp, #cancelRestartApp, #continueExitApp, #cancelExitApp {
     text-transform: uppercase;
 }
 #continueAddHost, #cancelAddHost, #continueDeleteHost, #cancelDeleteHost,
 #continueRestoreDefaults, #cancelRestoreDefaults, #continueQuitApp, #cancelQuitApp,
-#continueRestartApp, #cancelRestartApp, #continueExitApp, #cancelExitApp {
+#continueWarning, #closeWarning, #continueRestartApp, #cancelRestartApp,
+#continueExitApp, #cancelExitApp {
     width: 48%;
     height: 40px;
     font-size: 1.4rem;
@@ -425,6 +426,16 @@ body {
     margin: 0 10px 20px 0;
     font-size: 1.4rem;
     letter-spacing: 0.5px;
+}
+/* Warning dialog buttons - side by side when both visible, full width when only closeWarning is visible */
+#warningDialog .mdl-dialog__actions #continueWarning,
+#warningDialog .mdl-dialog__actions #closeWarning {
+    width: 48%;
+    margin-bottom: 10px;
+}
+/* When only closeWarning is visible (continueWarning is hidden), make it full width */
+#warningDialog.single-button .mdl-dialog__actions #closeWarning {
+    width: 100%;
 }
 #continueAddHost[disabled], #continueAddHost.mdl-button--disabled {
     color: #fff;
@@ -888,7 +899,7 @@ body {
     text-indent: 36px;
 }
 #selectResolution, #selectFramerate, #selectBitrate, #framePacingBtn, #selectLanguage, #ipAddressFieldModeBtn,
-#sortAppsListBtn, #optimizeGamesBtn, #removeAllHostsBtn, #rumbleFeedbackBtn, #mouseEmulationBtn,
+#sortAppsListBtn, #optimizeGamesBtn, #disableMacWarningBtn, #removeAllHostsBtn, #rumbleFeedbackBtn, #mouseEmulationBtn,
 #flipABfaceButtonsBtn, #flipXYfaceButtonsBtn, #selectAudioBackend, #selectAudio, #audioSyncBtn,
 #selectAudioJitter, #playHostAudioBtn,
 #selectCodec, #hdrModeBtn, #fullRangeBtn, #gameModeBtn, #unlockAllFpsBtn, #optimizeBitrateBtn,

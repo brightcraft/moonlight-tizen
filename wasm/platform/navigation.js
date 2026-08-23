@@ -1095,6 +1095,7 @@ const Views = {
     view: new ListView(() => [
       'sortAppsListBtn',
       'optimizeGamesBtn',
+      'disableMacWarningBtn',
       'removeAllHostsBtn'
     ]),
     up: function() {
@@ -1679,17 +1680,32 @@ const Views = {
     },
   },
   WarningDialog: {
-    view: new ListView(() => [
-      'closeWarning'
-    ]),
-    up: function() {
-      blurElement('closeWarning');
+    view: new ListView(() => {
+      // Dynamically return the visible buttons
+      // Order: Close first (index 0), Continue second (index 1) - matches HTML order
+      var buttons = [];
+      if ($('#closeWarning').is(':visible')) {
+        buttons.push('closeWarning');
+      }
+      if ($('#continueWarning').is(':visible')) {
+        buttons.push('continueWarning');
+      }
+      return buttons;
+    }),
+    up: function() {},
+    down: function() {},
+    left: function() {
+      if ($('#continueWarning').is(':visible') && $('#closeWarning').is(':visible')) {
+        this.view.next();
+        focusElement(this.view.current());
+      }
     },
-    down: function() {
-      focusElement('closeWarning');
+    right: function() {
+      if ($('#continueWarning').is(':visible') && $('#closeWarning').is(':visible')) {
+        this.view.prev();
+        focusElement(this.view.current());
+      }
     },
-    left: function() {},
-    right: function() {},
     accept: function() {
       clickElement(this.view.current());
     },
@@ -1701,6 +1717,13 @@ const Views = {
       focusElement(this.view.current());
     },
     enter: function() {
+      // Default to Close button (index 0) when both buttons are visible
+      // Otherwise default to the only visible button (index 0)
+      if ($('#continueWarning').is(':visible') && $('#closeWarning').is(':visible')) {
+        this.view.index = 0; // Close button
+      } else {
+        this.view.index = 0; // Only visible button (Close for standard warnings)
+      }
       mark(this.view.current());
       setTimeout(() => focusElement(this.view.current()), 100);
     },
