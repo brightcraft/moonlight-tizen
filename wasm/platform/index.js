@@ -1139,6 +1139,7 @@ function hostMenuDialog(host) {
       class: 'host-menu-button',
       'data-i18n': 'Refresh apps',
       text: t('Refresh apps'),
+      disabled: !host.online,
       action: function() {
         // Refresh the list of apps for the target host
         snackbarLogLong(t('Refreshing the list of %1$s applications...', host.hostname));
@@ -1185,7 +1186,7 @@ function hostMenuDialog(host) {
     var hostMenuDialogOption = $('<button>', {
       type: 'button',
       id: menuOption.id,
-      class: 'host-menu-button mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect',
+      class: 'mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect',
       text: menuOption.text,
       disabled: menuOption.disabled || false
     });
