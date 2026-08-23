@@ -306,6 +306,10 @@ NvHTTP.prototype = {
 
     var addCandidate = function(addr) {
       if (addr && !seen[addr]) { // skip empty strings AND duplicates
+        // Skip localhost addresses (127.0.0.1, ::1, etc.) as they're not routable from the client
+        if (addr === '127.0.0.1' || addr === '::1' || addr.startsWith('127.') || addr === 'localhost') {
+          return;
+        }
         seen[addr] = true;
         candidates.push(addr);
       }
