@@ -1095,6 +1095,7 @@ const Views = {
     view: new ListView(() => [
       'sortAppsListBtn',
       'optimizeGamesBtn',
+      'disableMacWarningBtn',
       'removeAllHostsBtn'
     ]),
     up: function() {
@@ -1679,17 +1680,35 @@ const Views = {
     },
   },
   WarningDialog: {
-    view: new ListView(() => [
-      'closeWarning'
-    ]),
+    view: new ListView(() => {
+      // Dynamically return the visible buttons
+      var buttons = [];
+      if ($('#continueWarning').is(':visible')) {
+        buttons.push('continueWarning');
+      }
+      if ($('#closeWarning').is(':visible')) {
+        buttons.push('closeWarning');
+      }
+      return buttons;
+    }),
     up: function() {
-      blurElement('closeWarning');
+      blurElement(this.view.current());
     },
     down: function() {
-      focusElement('closeWarning');
+      focusElement(this.view.current());
     },
-    left: function() {},
-    right: function() {},
+    left: function() {
+      if ($('#continueWarning').is(':visible')) {
+        this.view.prev();
+        focusElement(this.view.current());
+      }
+    },
+    right: function() {
+      if ($('#continueWarning').is(':visible')) {
+        this.view.next();
+        focusElement(this.view.current());
+      }
+    },
     accept: function() {
       clickElement(this.view.current());
     },

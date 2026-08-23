@@ -91,6 +91,7 @@ function attachListeners() {
   $('#ipAddressTextInput').on('input', updateIpAddressInputValidationState);
   $('#sortAppsListSwitch').on('click', saveSortAppsList);
   $('#optimizeGamesSwitch').on('click', saveOptimizeGames);
+  $('#disableMacWarningSwitch').on('click', saveDisableMacWarning);
   $('#removeAllHostsBtn').on('click', deleteAllHostsDialog);
   $('#rumbleFeedbackSwitch').on('click', saveRumbleFeedback);
   $('#mouseEmulationSwitch').on('click', saveMouseEmulation);
@@ -1152,9 +1153,16 @@ function hostMenuDialog(host) {
       'data-i18n': 'Wake PC',
       text: t('Wake PC'),
       action: function() {
-        // Send a Wake-on-LAN request to the target host
-        snackbarLogLong(t('Sending a Wake On LAN request to %1$s...', host.hostname));
-        host.sendWOL();
+        // Check if MAC is randomized and warning is not disabled
+        var warningDisabled = $('#disableMacWarningSwitch').parent().hasClass('is-checked');
+        if (!warningDisabled && isRandomMacAddress(host.macAddress)) {
+          // Show warning dialog for randomized MAC addresses
+          setTimeout(() => wakeOnLanWarningDialog(host), 100);
+        } else {
+          // Send a Wake-on-LAN request to the target host
+          snackbarLogLong(t('Sending a Wake On LAN request to %1$s...', host.hostname));
+          host.sendWOL();
+        }
       }
     },
     {
@@ -1978,6 +1986,9 @@ function warningDialog(title, message) {
   isDialogOpen = true;
   Navigation.push(Views.WarningDialog);
 
+  // Ensure the continueWarning button is hidden for standard warnings
+  $('#continueWarning').hide();
+
   // Cancel the operation if the Close button is pressed
   $('#closeWarning').off('click');
   $('#closeWarning').on('click', function() {
@@ -1987,6 +1998,52 @@ function warningDialog(title, message) {
     isDialogOpen = false;
     Navigation.pop();
     Navigation.switch();
+  });
+}
+
+// Show a WoL warning dialog for randomized (locally administered) MAC addresses
+function wakeOnLanWarningDialog(host) {
+  var warningDialogOverlay = document.querySelector('#warningDialogOverlay');
+  var warningDialog = document.querySelector('#warningDialog');
+  // Set the title and message
+  document.getElementById('warningDialogTitle').innerHTML = t('Wake-on-LAN Warning');
+  document.getElementById('warningDialogText').innerHTML = t(
+    'The MAC address of %1$s (%2$s) appears to be randomly generated.') + '<br><br>' +
+    t('The Operating System may be using a random MAC address instead of the physical network card address.') + ' ' +
+    t('Wake-on-LAN may be unable to wake up the machine since the MAC address does not match the one from the network card.');
+  // Show the dialog and push the view
+  warningDialogOverlay.style.display = 'flex';
+  warningDialog.showModal();
+  isDialogOpen = true;
+  Navigation.push(Views.WarningDialog);
+  // Dynamically swap buttons: show "Continue" and change "Close" to act as Cancel
+  $('#continueWarning').show();
+  // Cancel — close dialog without sending WoL (using Close button)
+  $('#closeWarning').off('click');
+  $('#closeWarning').on('click', function() {
+    console.log('%c[index.js, wakeOnLanWarningDialog]', 'color: green;', 'Closing WoL warning dialog and returning.');
+    warningDialogOverlay.style.display = 'none';
+    warningDialog.close();
+    isDialogOpen = false;
+    // Restore the default state for future non-WoL warnings
+    $('#continueWarning').hide();
+    Navigation.pop();
+    Navigation.switch();
+  });
+  // Continue — send WoL despite randomized MAC
+  $('#continueWarning').off('click');
+  $('#continueWarning').on('click', function() {
+    console.log('%c[index.js, wakeOnLanWarningDialog]', 'color: green;', 'User accepted WoL warning. Sending WoL to ' + host.hostname);
+    warningDialogOverlay.style.display = 'none';
+    warningDialog.close();
+    isDialogOpen = false;
+    // Restore the default state for future non-WoL warnings
+    $('#continueWarning').hide();
+    Navigation.pop();
+    Navigation.switch();
+    // Proceed with sending the WoL packet
+    snackbarLogLong(t('Sending a Wake On LAN request to %1$s...', host.hostname));
+    host.sendWOL();
   });
 }
 
@@ -3213,6 +3270,14 @@ function saveOptimizeGames() {
   }, 100);
 }
 
+function saveDisableMacWarning() {
+  setTimeout(() => {
+    const chosenDisableMacWarning = $('#disableMacWarningSwitch').parent().hasClass('is-checked');
+    console.log('%c[index.js, saveDisableMacWarning]', 'color: green;', 'Saving disable MAC warning state: ' + chosenDisableMacWarning);
+    storeData('disableMacWarning', chosenDisableMacWarning, null);
+  }, 100);
+}
+
 function saveRumbleFeedback() {
   setTimeout(() => {
     const chosenRumbleFeedback = $('#rumbleFeedbackSwitch').parent().hasClass('is-checked');
@@ -3551,6 +3616,10 @@ function restoreDefaultsSettingsValues() {
   document.querySelector('#optimizeGamesBtn').MaterialSwitch.off();
   storeData('optimizeGames', defaultOptimizeGames, null);
 
+  const defaultDisableMacWarning = false;
+  document.querySelector('#disableMacWarningBtn').MaterialSwitch.off();
+  storeData('disableMacWarning', defaultDisableMacWarning, null);
+
   const defaultRumbleFeedback = false;
   document.querySelector('#rumbleFeedbackBtn').MaterialSwitch.off();
   storeData('rumbleFeedback', defaultRumbleFeedback, null);
@@ -3819,6 +3888,17 @@ function loadUserDataCb() {
       document.querySelector('#optimizeGamesBtn').MaterialSwitch.off();
     } else {
       document.querySelector('#optimizeGamesBtn').MaterialSwitch.on();
+    }
+  });
+
+  console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored disableMacWarning preferences.');
+  getData('disableMacWarning', function(previousValue) {
+    if (previousValue.disableMacWarning == null) {
+      document.querySelector('#disableMacWarningBtn').MaterialSwitch.off(); // Set the default state (off = warning enabled)
+    } else if (previousValue.disableMacWarning == false) {
+      document.querySelector('#disableMacWarningBtn').MaterialSwitch.off();
+    } else {
+      document.querySelector('#disableMacWarningBtn').MaterialSwitch.on();
     }
   });
 

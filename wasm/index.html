@@ -212,6 +212,20 @@
               </div>
             </div>
             <div class="setting-option">
+              <label data-i18n="Random MAC address warning">Random MAC address warning</label>
+              <span class="mdl-list__item-text-body" data-i18n="- Disables the warning message when sending Wake-on-LAN to a host with a randomized MAC address.">
+                - Disables the warning message when sending Wake-on-LAN to a host with a randomized MAC address.
+              </span>
+              <div id="disableMacWarningMenu">
+                <label id="disableMacWarningBtn" class="mdl-switch mdl-js-switch mdl-js-ripple-effect" for="disableMacWarningSwitch">
+                  <input type="checkbox" id="disableMacWarningSwitch" class="mdl-switch__input">
+                  <span class="mdl-switch__label" data-i18n="Disable the MAC address randomization warning for Wake-on-LAN">
+                    Disable the MAC address randomization warning for Wake-on-LAN
+                  </span>
+                </label>
+              </div>
+            </div>
+            <div class="setting-option">
               <label data-i18n="Remove all hosts">Remove all hosts</label>
               <span class="mdl-list__item-text-body"></span>
               <div id="removeAllHostsMenu">
@@ -740,6 +754,7 @@
       </div>
       <div class="mdl-dialog__actions">
         <button type="button" id="closeWarning" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect" data-i18n="Close">Close</button>
+        <button type="button" id="continueWarning" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect" data-i18n="Continue" style="display:none;">Continue</button>
       </div>
     </dialog>
   </div>
