@@ -53,7 +53,7 @@ function findNvService(ipString) {
           hosts[returnedDiscoveredHost.serverUid].localAddress = returnedDiscoveredHost.localAddress;
           hosts[returnedDiscoveredHost.serverUid]._baseUrlHttp = returnedDiscoveredHost._baseUrlHttp;
           hosts[returnedDiscoveredHost.serverUid]._baseUrlHttps = returnedDiscoveredHost._baseUrlHttps;
-          hosts[returnedDiscoveredHost.serverUid].macAddress = returnedDiscoveredHost.macAddress;
+          updateMacAddress(returnedDiscoveredHost);
           if (typeof hosts[returnedDiscoveredHost.serverUid].updateExternalAddressIP4 === 'function') {
             hosts[returnedDiscoveredHost.serverUid].updateExternalAddressIP4();
           }

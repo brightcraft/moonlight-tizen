@@ -504,6 +504,19 @@ void MoonlightInstance::WakeOnLan(int callbackId, std::string macAddress) {
     return;
   }
 
+  // Check for invalid default MAC address (00:00:00:00:00:00)
+  bool isZeroMac = true;
+  for (int i = 0; i < 6; i++) {
+    if (mac[i] != 0) {
+      isZeroMac = false;
+      break;
+    }
+  }
+  if (isZeroMac) {
+    ClLogMessage("Invalid MAC address: default zero MAC address not allowed: %s\n", macAddress.c_str());
+    return;
+  }
+
   // Fill magic packet with the MAC address
   for (int i = 0; i < 6; i++) {
     magicPacket[i] = 0xFF;
