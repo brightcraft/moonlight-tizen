@@ -90,7 +90,8 @@ function replaceKnownWolErrorLabels(text) {
     'Invalid MAC address: default zero MAC address not allowed',
     'Failed to create socket',
     'Failed to enable broadcast',
-    'Failed to send magic packet',
+    'Failed to send magic packet to MAC address',
+    'Failed to send IPv6 magic packet to MAC address',
     'Unknown error'
   ];
 
@@ -99,7 +100,8 @@ function replaceKnownWolErrorLabels(text) {
     t('Invalid MAC address: default zero MAC address not allowed'),
     t('Failed to create socket'),
     t('Failed to enable broadcast'),
-    t('Failed to send magic packet'),
+    t('Failed to send magic packet to MAC address'),
+    t('Failed to send IPv6 magic packet to MAC address'),
     t('Unknown error')
   ];
 
