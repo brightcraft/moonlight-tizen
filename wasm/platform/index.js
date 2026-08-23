@@ -1151,6 +1151,7 @@ function hostMenuDialog(host) {
       class: 'host-menu-button',
       'data-i18n': 'Wake PC',
       text: t('Wake PC'),
+      disabled: host.online,
       action: function() {
         // Send a Wake-on-LAN request to the target host
         snackbarLogLong(t('Sending a Wake On LAN request to %1$s...', host.hostname));
@@ -1184,8 +1185,9 @@ function hostMenuDialog(host) {
     var hostMenuDialogOption = $('<button>', {
       type: 'button',
       id: menuOption.id,
-      class: 'mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect',
-      text: menuOption.text
+      class: 'host-menu-button mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect',
+      text: menuOption.text,
+      disabled: menuOption.disabled || false
     });
     // Trigger the action if the Option button is pressed
     hostMenuDialogOption.off('click');

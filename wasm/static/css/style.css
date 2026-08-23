@@ -446,6 +446,20 @@ body {
     font-size: 1.4rem;
     letter-spacing: 0.5px;
 }
+.host-menu-button[disabled], .host-menu-button.mdl-button--disabled {
+    color: #fff;
+    background-color: #838593 !important;
+    pointer-events: auto;
+    cursor: not-allowed;
+}
+.host-menu-button[disabled].hovered, .host-menu-button[disabled]:hover,
+.host-menu-button[disabled]:focus, .host-menu-button[disabled]:active,
+.host-menu-button.mdl-button--disabled:hover, .host-menu-button.mdl-button--disabled:focus,
+.host-menu-button.mdl-button--disabled:active {
+    background-color: #666875 !important;
+    box-shadow: 0 0 2px 3px rgba(170, 170, 170, 1) !important;
+    cursor: not-allowed;
+}
 #closeNavGuide {
     width: 58%;
     height: 40px;

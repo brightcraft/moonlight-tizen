@@ -664,7 +664,12 @@ const Views = {
   HostMenuDialog: {
     view: new ListView(() => {
       const actions = ['refreshApps', 'wakeHost', 'deleteHost', 'viewDetails', 'closeHostMenu'];
-      return actions.map(action => action === 'closeHostMenu' ? action : action + '-' + Views.HostMenuDialog.hostname);
+      const elements = actions.map(action => action === 'closeHostMenu' ? action : action + '-' + Views.HostMenuDialog.hostname);
+      // Filter out disabled elements
+      return elements.filter(id => {
+        const element = document.getElementById(id);
+        return element && !element.disabled;
+      });
     }),
     up: function() {
       this.view.prevOption();
