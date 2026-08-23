@@ -549,7 +549,7 @@ void MoonlightInstance::WakeOnLan(int callbackId, std::string macAddress) {
 
   // Send the magic packet over IPv4
   if (sendto(udpSocket, magicPacket, sizeof(magicPacket), 0, (struct sockaddr*) &addr, sizeof(addr)) == -1) {
-    ClLogMessage("Failed to send magic packet");
+    ClLogMessage("Failed to send magic packet to MAC address: %s\n", macAddress.c_str());
   } else {
     ClLogMessage("Magic packet sent successfully to MAC address: %s\n", macAddress.c_str());
   }
@@ -568,7 +568,7 @@ void MoonlightInstance::WakeOnLan(int callbackId, std::string macAddress) {
     inet_pton(AF_INET6, "ff02::1", &addr6.sin6_addr);
 
     if (sendto(udp6Socket, magicPacket, sizeof(magicPacket), 0, (struct sockaddr*) &addr6, sizeof(addr6)) == -1) {
-      ClLogMessage("Failed to send IPv6 magic packet");
+      ClLogMessage("Failed to send IPv6 magic packet to MAC address: %s\n", macAddress.c_str());
     } else {
       ClLogMessage("IPv6 Magic packet sent successfully to MAC address: %s\n", macAddress.c_str());
     }
