@@ -87,22 +87,34 @@ window.abortSubnetScan = function() {
 };
 
 function startSubnetScanner() {
-  return new Promise(function(resolve) {
+  if (window.subnetScanPromise) {
+    console.log('%c[main.js, startSubnetScanner]', 'color: orange;', 'Subnet scan already in progress, skipping new scan.');
+    return window.subnetScanPromise;
+  }
+
+  window.subnetScanPromise = new Promise(function(resolve) {
     try {
       var localIp = (typeof webapis !== 'undefined' && webapis.network) ? webapis.network.getIp() : null;
       // If the local IP cannot be determined, skip the subnet scan to avoid unnecessary network traffic
-      if (!localIp) return resolve();
+      if (!localIp) {
+        window.subnetScanPromise = null;
+        return resolve();
+      }
       
       var parts = localIp.split('.');
       // Check if the IP address is in the expected IPv4 format
       if (parts.length !== 4) {
         console.warn('%c[main.js, startSubnetScanner]', 'color: orange;', 'Unexpected IP format:', localIp);
+        window.subnetScanPromise = null;
         return resolve();
       }
       
       var subnet = parts[0] + '.' + parts[1] + '.' + parts[2];
       console.log('%c[main.js, startSubnetScanner]', 'color: green;', 'Starting chunked subnet /24 scan on', subnet + '.0/24');
       
+      if (window.subnetScanAbortCtrl) {
+        window.subnetScanAbortCtrl.abort();
+      }
       window.subnetScanAbortCtrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
       
       var IPs = [];
@@ -114,7 +126,10 @@ function startSubnetScanner() {
       
       function scanNext() {
         if (!window.subnetScanAbortCtrl || index >= IPs.length) {
-          if (activeCount === 0) resolve();
+          if (activeCount === 0) {
+            window.subnetScanPromise = null;
+            resolve();
+          }
           return;
         }
         
@@ -159,9 +174,11 @@ function startSubnetScanner() {
       }
     } catch (e) {
       console.error('%c[main.js, startSubnetScanner]', 'color: red;', 'Subnet scanner failed:', e);
+      window.subnetScanPromise = null;
       resolve();
     }
   });
+  return window.subnetScanPromise;
 }
 
 /**
