@@ -248,7 +248,22 @@ function delayedNavigation(callback) {
 
 // Updates the host status indicator based on the host's online and paired status
 function updateHostStatusIndicator(host) {
+  // Find the desired host cell using the server UUID
+  var hostCell = document.querySelector('#host-' + host.serverUid);
   var indicator = document.querySelector('#host-status-' + host.serverUid);
+
+  // Update the host cell inactive styling class
+  if (hostCell) {
+    // Check if the host is currently online
+    if (host.online) {
+      // If the host is online, show it as active
+      hostCell.classList.remove('host-cell-inactive');
+    } else {
+      // If the host is offline, show it as inactive
+      hostCell.classList.add('host-cell-inactive');
+    }
+  }
+
   // If the indicator element is not found, exit the function early
   if (!indicator) {
     return;
@@ -275,62 +290,14 @@ function beginBackgroundPollingOfHost(host) {
   // poll loops that corrupt the _pollCompletionCallbacks deduplication guard and
   // prevent the host from ever recovering to the online state.
   if (activePolls[host.serverUid]) {
-    window.clearInterval(activePolls[host.serverUid]);
+    window.clearTimeout(activePolls[host.serverUid]);
     delete activePolls[host.serverUid];
   }
 
   // Refresh server info before attempting to start background polling of the host
   host.refreshServerInfo().then(function(ret) {
     console.log('%c[index.js, beginBackgroundPollingOfHost]', 'color: green;', 'Starting background polling of host ' + host.serverUid, host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
-    // Find the desired host cell using the server UUID
-    var hostCell = document.querySelector('#host-' + host.serverUid);
-    // Check if the host is currently online
-    if (host.online) {
-      // If the host is online, show it as active
-      hostCell.classList.remove('host-cell-inactive');
-      updateHostStatusIndicator(host);
-      // The host was already online, so start polling in the background now
-      activePolls[host.serverUid] = window.setInterval(function() {
-        // Every 5 seconds, poll at the address to check for any status changes
-        host.pollServer(function(returnedHost) {
-          // Check if the host is currently online
-          if (returnedHost.online) {
-            hostCell.classList.remove('host-cell-inactive');
-          } else {
-            hostCell.classList.add('host-cell-inactive');
-          }
-          updateHostStatusIndicator(returnedHost);
-        });
-      }, 5000);
-    } else {
-      // If the host is offline, show it as inactive
-      hostCell.classList.add('host-cell-inactive');
-      updateHostStatusIndicator(host);
-      // The host was offline, so poll immediately to check the host's status
-      host.pollServer(function(returnedHost) {
-        // Check if the host is currently online
-        if (returnedHost.online) {
-          hostCell.classList.remove('host-cell-inactive');
-        } else {
-          hostCell.classList.add('host-cell-inactive');
-        }
-        updateHostStatusIndicator(returnedHost);
-        // Now that the initial poll is done, start the background polling
-        activePolls[host.serverUid] = window.setInterval(function() {
-          // Every 5 seconds, poll at the address to check for any status changes
-          host.pollServer(function(returnedHost) {
-            // Check if the host is currently online
-            if (returnedHost.online) {
-              hostCell.classList.remove('host-cell-inactive');
-            } else {
-              hostCell.classList.add('host-cell-inactive');
-            }
-            updateHostStatusIndicator(returnedHost);
-          });
-        }, 5000);
-      });
-    }
-  }, function(failedRefreshInfo) {
+  }).catch(function(failedRefreshInfo) {
     console.error('%c[index.js, beginBackgroundPollingOfHost]', 'color: green;', 'Error: Failed to refresh server info! Returned error was: ' + failedRefreshInfo + '! Failed server was: ' + '\n', host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
 
     // Set host to offline and clear the app list cache
@@ -350,25 +317,39 @@ function beginBackgroundPollingOfHost(host) {
     // interfere with future offline detection either.
     host._consecutivePollFailures = 0;
     host._pollCompletionCallbacks = [];
-
-    // Update the UI to show the host as offline
-    var hostCell = document.querySelector('#host-' + host.serverUid);
-    if (hostCell) {
-      hostCell.classList.add('host-cell-inactive');
-    }
+  }).finally(function() {
+    // Update the UI after the network finishes
     updateHostStatusIndicator(host);
 
-    // Start background polling to detect when the host comes back online
-    activePolls[host.serverUid] = window.setInterval(function() {
-      host.pollServer(function(returnedHost) {
-        if (returnedHost.online) {
-          if (hostCell) hostCell.classList.remove('host-cell-inactive');
-        } else {
-          if (hostCell) hostCell.classList.add('host-cell-inactive');
-        }
-        updateHostStatusIndicator(returnedHost);
-      });
-    }, 5000);
+    var scheduleNextPoll = function(delay) {
+      // Stop if the poll was canceled (ID removed from activePolls)
+      if (!activePolls.hasOwnProperty(host.serverUid)) return;
+
+      activePolls[host.serverUid] = window.setTimeout(function() {
+        // In case it was canceled while waiting
+        if (!activePolls.hasOwnProperty(host.serverUid)) return;
+
+        host.pollServer(function(returnedHost) {
+          // Update the UI after the network finishes
+          updateHostStatusIndicator(returnedHost);
+
+          // In case it was canceled while the network request was running
+          if (!activePolls.hasOwnProperty(host.serverUid)) return;
+
+          // Schedule the next poll for 5 seconds AFTER this one finished
+          scheduleNextPoll(5000);
+        });
+      }, delay);
+    };
+
+    // Check if the host is currently online
+    if (host.online) {
+      // The host was already online, so start polling in the background now
+      scheduleNextPoll(5000);
+    } else {
+      // The host was offline, so poll immediately to check the host's status
+      scheduleNextPoll(0);
+    }
   });
 }
 
@@ -381,7 +362,7 @@ function startPollingHosts() {
 function endBackgroundPollingOfHost(host) {
   console.log('%c[index.js, endBackgroundPollingOfHost]', 'color: green;', 'Stopping background polling of host ' + host.serverUid, host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
   // Clear the host's polling interval and remove it from the activePolls object
-  window.clearInterval(activePolls[host.serverUid]);
+  window.clearTimeout(activePolls[host.serverUid]);
   delete activePolls[host.serverUid];
 }
 
@@ -522,7 +503,7 @@ function restoreUiAfterWasmLoad() {
   setTimeout(() => checkForAppUpdatesAtStartup(), 10000);
 }
 
-function hostChosen(host) {
+function hostChosen(host, onSuccessCallback) {
   if (isPairingInProgress) {
     snackbarLogLong(t('A pairing request is currently in progress. Please wait for it to timeout or finish before trying again.'));
     return;
@@ -530,9 +511,22 @@ function hostChosen(host) {
 
   // If the host is already offline or fails to connect, notify the user.
   if (!host.online) {
-    // Let the user know what to do to bring the host back online and until then, we'll be back to the previous view.
-    console.error('%c[index.js, hostChosen]', 'color: green;', 'Error: Connection to host failed or host is offline!');
-    snackbarLogLong(t('Failed to connect to %1$s. Ensure Sunshine is running on your host PC or GameStream is enabled in GeForce Experience SHIELD settings.', 'the host'));
+    // Only show the Wake PC dialog if the user has explicitly enabled per-host auto-Wake-on-LAN
+    if (host.autoWolEnabled === true) {
+      autoWolDialog(host, function() {
+        // Success callback: The host is now online.
+        if (onSuccessCallback) {
+          onSuccessCallback();
+        } else {
+          // Re-call hostChosen(host) to proceed normally.
+          hostChosen(host);
+        }
+      }, function() {});
+    } else {
+      // Let the user know what to do to bring the host back online and until then, we'll be back to the previous view.
+      console.error('%c[index.js, hostChosen]', 'color: green;', 'Error: Connection to host failed or host is offline!');
+      snackbarLogLong(t('Failed to connect to %1$s. Ensure Sunshine is running on your host PC or GameStream is enabled in GeForce Experience SHIELD settings.', 'the host'));
+    }
     return;
   }
 
@@ -986,6 +980,137 @@ function pairingDialog(nvhttpHost, onSuccess, onFailure) {
   });
 }
 
+function autoWolDialog(host, onSuccess, onCancel) {
+  var overlay = document.querySelector('#autoWolDialogOverlay');
+  var dialog = document.querySelector('#autoWolDialog');
+  var dialogText = $('#autoWolDialogText');
+  var cancelBtn = $('#cancelAutoWol');
+  var autoWolCheckbox = $('#autoWolCheckboxSwitch');
+  var autoWolCheckboxBtn = $('#autoWolCheckboxBtn');
+
+  cancelBtn.html(t('Cancel'));
+  Views.AutoWolDialog.view.reset();
+
+  // Set the checkbox state based on the host's autoWolEnabled property
+  if (host.autoWolEnabled === true) {
+    autoWolCheckboxBtn.parent().addClass('is-checked');
+    autoWolCheckbox.prop('checked', true);
+  } else {
+    autoWolCheckboxBtn.parent().removeClass('is-checked');
+    autoWolCheckbox.prop('checked', false);
+  }
+
+  // Attach onchange event listener to the checkbox
+  autoWolCheckbox.off('change');
+  autoWolCheckbox.on('change', function() {
+    host.autoWolEnabled = $(this).prop('checked');
+    console.log('%c[index.js, autoWolDialog]', 'color: green;', 'Host autoWolEnabled set to: ' + host.autoWolEnabled);
+    saveHosts();
+  });
+
+  overlay.style.display = 'flex';
+  dialog.showModal();
+  isDialogOpen = true;
+  Navigation.push(Views.AutoWolDialog);
+  focusElement('cancelAutoWol');
+
+  var isPolling = true;
+  var pollTimeout = null;
+  var hasFailed = false;
+
+  var stopPollingTasks = function() {
+    isPolling = false;
+    if (pollTimeout) clearTimeout(pollTimeout);
+    if (typeof abortSubnetScan === 'function') abortSubnetScan();
+  };
+
+  var cleanup = function() {
+    stopPollingTasks();
+    overlay.style.display = 'none';
+    dialog.close();
+    isDialogOpen = false;
+    Navigation.pop();
+  };
+
+  var sendWakeRequest = function() {
+    dialogText.html(t('Sending a Wake-on-LAN request to %1$s...', host.hostname));
+
+    host.sendWOL().then(function(msg) {
+      if (msg) console.log('%c[index.js, autoWolDialog]', 'color: green;', msg);
+      dialogText.html(
+        t('Wake-on-LAN request sent to %1$s.', host.hostname) + '<br><br>' +
+        t('Waiting for the host PC to wake up and connect to the network...')
+      );
+
+      var pollLoop = function() {
+        if (!isPolling) return;
+
+        // Continuously sweep the subnet to catch the host if it wakes up with a new DHCP IP
+        var scanPromise = (typeof startSubnetScanner === 'function')
+          ? Promise.resolve(startSubnetScanner()).catch(function(e){
+              console.warn('%c[index.js, autoWolDialog]', 'color: orange;', 'Subnet scan failed during WOL wait, continuing to poll:', e);
+            })
+          : Promise.resolve();
+
+        scanPromise.then(function() {
+          if (!isPolling) return; // In case the dialog was closed during the scan
+          
+          host.pollServer(function(returnedHost) {
+            if (!isPolling) return; // In case the dialog was closed while pollServer was running
+
+            if (returnedHost.online) {
+              cleanup();
+              if (onSuccess) onSuccess();
+
+              // Instantly update the UI to remove the offline styling
+              updateHostStatusIndicator(returnedHost);
+            } else {
+              // Wait 1 second AFTER the previous poll finished before starting the next one.
+              // This prevents rapid CPU spinning if the network drops temporarily and requests 
+              // fail instantly, while still keeping the WOL check feeling responsive.
+              pollTimeout = setTimeout(pollLoop, 1000);
+            }
+          });
+        });
+      };
+
+      // Kick off the sequential polling loop
+      pollLoop();
+
+    }).catch(function(error) {
+      hasFailed = true;
+      stopPollingTasks();
+      
+      // Dummy t() calls so i18n-sync.js extracts these dynamic C++ errors
+      // t('Invalid MAC address format')
+      // t('Failed to create socket')
+      // t('Failed to enable broadcast')
+      // t('Failed to send magic packet')
+      // t('Unknown error')
+      var errorMessage = typeof error === 'string' ? error : (error && error.message ? error.message : 'Unknown error');
+      dialogText.html(
+        t('Failed to send Wake-on-LAN request to %1$s!', host.hostname) + '<br><br>' +
+        t('Error: %1$s', t(errorMessage))
+      );
+      cancelBtn.html(t('OK'));
+    });
+  };
+
+  cancelBtn.off('click');
+  cancelBtn.on('click', function() {
+    if (hasFailed) {
+      console.error('%c[index.js, autoWolDialog]', 'color: green;', 'Wake-on-LAN request failed.');
+    } else {
+      console.log('%c[index.js, autoWolDialog]', 'color: green;', 'Wake-on-LAN request canceled by user.');
+    }
+    cleanup();
+    if (onCancel) onCancel();
+  });
+
+  // Send wake request immediately since user explicitly opened the Wake PC menu
+  sendWakeRequest();
+}
+
 // Add the new NvHTTP Host object inside the host grid
 function addHostToGrid(host, ismDNSDiscovered) {
   // Create the host container with the appropriate attributes for the host card
@@ -1155,8 +1280,7 @@ function hostMenuDialog(host) {
       text: t('Wake PC'),
       action: function() {
         // Send a Wake-on-LAN request to the target host
-        snackbarLogLong(t('Sending a Wake On LAN request to %1$s...', host.hostname));
-        host.sendWOL();
+        setTimeout(() => autoWolDialog(host, function() {}, function() {}), 100);
       }
     },
     {
@@ -4067,6 +4191,7 @@ function loadHTTPCertsCb() {
           revivedHost.externalIP = hosts[hostUID].externalIP;
           revivedHost.hostname = hosts[hostUID].hostname;
           revivedHost.ppkstr = hosts[hostUID].ppkstr;
+          revivedHost.autoWolEnabled = hosts[hostUID].autoWolEnabled || false;
           hosts[hostUID] = revivedHost;
           addHostToGrid(revivedHost);
         }
@@ -4090,7 +4215,7 @@ function loadHTTPCertsCb() {
         setTimeout(() => {
           snackbarLog(t('Scanning the local network to discover new hosts...'));
           if (typeof startSubnetScanner === 'function') {
-            startSubnetScanner().then(startPollingHosts);
+            startSubnetScanner().then(startPollingHosts).catch(startPollingHosts);
           } else {
             startPollingHosts();
           }
@@ -4133,7 +4258,10 @@ function waitForHostAndNavigateToApp(serverUid, appId) {
 
       // Check whether the host is online before trying to connect
       if (!host.online) {
-        hostChosen(host);
+        hostChosen(host, function() {
+          // Success callback: The host is now online. Retry the deep link navigation.
+          waitForHostAndNavigateToApp(serverUid, appId);
+        });
         return;
       }
 

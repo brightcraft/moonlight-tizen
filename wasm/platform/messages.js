@@ -132,7 +132,6 @@ var sendMessage = function(method, params) {
                 console.warn('%c[messages.js, sendMessage]', 'color: gray;', 'Warning: HTTPS request timed out, canceling C++ HTTP request for URL:', params[0]);
                 SyncFunctions['cancelRequest']();
                 reject(-1); // GS_FAILED
-                innerResolve();
               }
             }, timeout_ms);
           }
