@@ -157,9 +157,46 @@ NvHTTP.prototype = {
   },
 
   _openUrlWithTimeout: function(url, ppkstr) {
-    return sendMessage('openUrl', [url, ppkstr, false, 5000]).catch(error => {
-      throw error;
-    });
+    // Pre-flight check using native JS fetch to prevent dead IPs (like unreachable external IPs 
+    // or unresolvable .local addresses) from permanently freezing the single-threaded C++ WASM network stack.
+    var abortCtrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var timeoutId = setTimeout(function() {
+      if (abortCtrl) abortCtrl.abort();
+    }, 3000); // 3s max wait to see if the IP is a black hole
+
+    // Use HTTP /serverinfo for the preflight to guarantee a 200 OK response and eliminate ALL console spam (like 404s).
+    // We only rewrite the URL if it targets the Sunshine HTTPS port, preserving this function for generic use.
+    var preflightUrl = url;
+    var portIndex = url.indexOf(':' + this.httpsPort);
+    if (portIndex !== -1) {
+      // Extract the protocol and IP (e.g. 'https://192.168.1.5') and swap to HTTP
+      var baseUrl = url.substring(0, portIndex).replace('https://', 'http://');
+      preflightUrl = baseUrl + ':' + this.httpPort + '/serverinfo';
+    }
+
+    return fetch(preflightUrl, abortCtrl ? { signal: abortCtrl.signal } : {})
+      .then(function(res) {
+        clearTimeout(timeoutId);
+        // The IP is alive and responded! Hand it over to C++
+        return sendMessage('openUrl', [url, ppkstr, false, 5000]).catch(error => {
+          throw error;
+        });
+      })
+      .catch(function(e) {
+        clearTimeout(timeoutId);
+        // If the fetch was forcefully aborted by our timeout, it means the IP is a black hole (silent drop).
+        // We MUST skip it, otherwise handing it to C++ will irrevocably freeze the WASM thread for 120 seconds!
+        if (e && e.name === 'AbortError') {
+          console.warn('%c[utils.js, _openUrlWithTimeout]', 'color: orange;', 'Skipping dead/hanging URL to prevent C++ WASM freeze: ' + url);
+          return Promise.reject(-1); // Instantly fail (GS_FAILED), don't pass to C++!
+        } else {
+          // Any other error (e.g. Cert Error, Connection Refused, CORS) means the IP actively responded quickly.
+          // C++ will also fail quickly without hanging (or succeed if mTLS), so it's safe to hand it over.
+          return sendMessage('openUrl', [url, ppkstr, false, 5000]).catch(error => {
+            throw error;
+          });
+        }
+      });
   },
 
   // Refreshes the server info using the base URL. This is useful for testing whether we can successfully ping a host at the base URL
@@ -251,6 +288,7 @@ NvHTTP.prototype = {
         completion(this);
       }
     }.bind(this), function() {
+      // Set host to offline and clear the app list cache
       if (++this._consecutivePollFailures >= 2) {
         this.online = false;
         this._memCachedApplist = null;
