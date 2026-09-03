@@ -393,11 +393,51 @@ body {
     text-transform: uppercase;
 }
 #pairingDialogText, #deleteHostDialogText, .host-details-text, #appSupportDialogText,
-#navGuideDialogText, .update-app-text, #restoreDefaultsDialogText, #quitAppDialogText,
+#autoWolDialogText, #navGuideDialogText, .update-app-text, #restoreDefaultsDialogText, #quitAppDialogText,
 #warningDialogText, #restartAppDialogText, #exitAppDialogText {
     font-size: 1.45rem;
     line-height: normal;
     letter-spacing: 0.5px;
+}
+#autoWolCheckboxContainer {
+    margin-top: 36px;
+    margin-bottom: 16px;
+    width: 100%;
+}
+#autoWolCheckboxContainer .mdl-switch {
+    width: 100%;
+    height: 36px;
+    padding-left: 54px;
+    box-sizing: border-box;
+}
+#autoWolCheckboxContainer .mdl-switch__label {
+    color: #ececec;
+    font-size: 1.45rem;
+    line-height: 36px;
+    letter-spacing: 0.5px;
+    left: 8px;
+}
+#autoWolCheckboxContainer .mdl-switch__track {
+    left: 10px;
+    right: auto;
+    top: 11px;
+    margin: 0;
+}
+#autoWolCheckboxContainer .mdl-switch__thumb {
+    left: 10px;
+    right: auto;
+    top: 8px;
+    margin: 0;
+}
+#autoWolCheckboxContainer .mdl-switch.is-checked .mdl-switch__thumb {
+    left: 26px;
+    right: auto;
+}
+#autoWolCheckboxContainer .mdl-switch__ripple-container {
+    left: -4px;
+    right: auto;
+    top: -6px;
+    margin: 0;
 }
 #navGuideDialogText {
     list-style-type: none;
@@ -407,7 +447,7 @@ body {
 #closeHostMenu, #closeHostDetails, #cancelDeleteHost, #closeAppSupport,
 #closeNavGuide, #closeUpdateApp, #continueRestoreDefaults, #cancelRestoreDefaults,
 #continueQuitApp, #cancelQuitApp, #closeWarning, #continueRestartApp,
-#cancelRestartApp, #continueExitApp, #cancelExitApp {
+#cancelRestartApp, #continueExitApp, #cancelExitApp, #cancelAutoWol {
     text-transform: uppercase;
 }
 #continueAddHost, #cancelAddHost, #continueDeleteHost, #cancelDeleteHost,
@@ -420,7 +460,7 @@ body {
 }
 #cancelAddHost, #cancelPairing, #cancelDeleteHost, #closeAppSupport,
 #cancelRestoreDefaults, #cancelQuitApp, #closeWarning, #cancelRestartApp,
-#cancelExitApp {
+#cancelExitApp, #cancelAutoWol {
     height: 40px;
     margin: 0 10px 20px 0;
     font-size: 1.4rem;
@@ -888,7 +928,7 @@ body {
     text-indent: 36px;
 }
 #selectResolution, #selectFramerate, #selectBitrate, #framePacingBtn, #selectLanguage, #ipAddressFieldModeBtn,
-#sortAppsListBtn, #optimizeGamesBtn, #removeAllHostsBtn, #rumbleFeedbackBtn, #mouseEmulationBtn,
+#sortAppsListBtn, #optimizeGamesBtn, #autoWolBtn, #removeAllHostsBtn, #rumbleFeedbackBtn, #mouseEmulationBtn,
 #flipABfaceButtonsBtn, #flipXYfaceButtonsBtn, #selectAudioBackend, #selectAudio, #audioSyncBtn,
 #selectAudioJitter, #playHostAudioBtn,
 #selectCodec, #hdrModeBtn, #fullRangeBtn, #gameModeBtn, #unlockAllFpsBtn, #optimizeBitrateBtn,
@@ -1010,7 +1050,7 @@ body {
 /* =============================
    Interactive Elements
 ============================= */
-#continueAddHost:hover, #continueAddHost:focus, #cancelAddHost:hover, #cancelAddHost:focus, #cancelPairing:hover, #cancelPairing:focus,
+#continueAddHost:hover, #continueAddHost:focus, #cancelAddHost:hover, #cancelAddHost:focus, #cancelPairing:hover, #cancelPairing:focus, #cancelAutoWol:hover, #cancelAutoWol:focus,
 #continueDeleteHost:hover, #continueDeleteHost:focus, #cancelDeleteHost:hover, #cancelDeleteHost:focus, #closeHostMenu:hover, #closeHostMenu:focus,
 #closeHostDetails:hover, #closeHostDetails:focus, #closeAppSupport:hover, #closeAppSupport:focus, #closeNavGuide:hover, #closeNavGuide:focus,
 #closeUpdateApp:hover, #closeUpdateApp:focus, #continueRestoreDefaults:hover, #continueRestoreDefaults:focus, #cancelRestoreDefaults:hover,
@@ -1020,7 +1060,7 @@ body {
 #goBackBtn:hover, #goBackBtn:focus, #restoreDefaultsBtn:hover, #restoreDefaultsBtn:focus, #quitRunningAppBtn:hover, #quitRunningAppBtn:focus,
 #selectResolution:hover, #selectResolution:focus, #selectFramerate:hover, #selectFramerate:focus, #selectBitrate:hover, #selectBitrate:focus,
 #framePacingBtn:hover, #framePacingBtn:focus, #selectLanguage:hover, #selectLanguage:focus, #ipAddressFieldModeBtn:hover, #ipAddressFieldModeBtn:focus, #sortAppsListBtn:hover,
-#sortAppsListBtn:focus, #optimizeGamesBtn:hover, #optimizeGamesBtn:focus, #removeAllHostsBtn:hover, #removeAllHostsBtn:focus, #rumbleFeedbackBtn:hover,
+#sortAppsListBtn:focus, #optimizeGamesBtn:hover, #optimizeGamesBtn:focus, #autoWolBtn:hover, #autoWolBtn:focus, #removeAllHostsBtn:hover, #removeAllHostsBtn:focus, #rumbleFeedbackBtn:hover,
 #rumbleFeedbackBtn:focus, #mouseEmulationBtn:hover, #mouseEmulationBtn:focus, #flipABfaceButtonsBtn:hover, #flipABfaceButtonsBtn:focus,
 #flipXYfaceButtonsBtn:hover, #flipXYfaceButtonsBtn:focus, #selectAudioBackend:hover, #selectAudioBackend:focus, #selectAudio:hover,
 #selectAudio:focus, #audioSyncBtn:hover, #audioSyncBtn:focus, #selectAudioJitter:hover, #selectAudioJitter:focus,

@@ -661,6 +661,46 @@ const Views = {
       setTimeout(() => blurElement(this.view.current()), 100);
     },
   },
+  AutoWolDialog: {
+    view: new ListView(() => [
+      'autoWolCheckboxSwitch',
+      'cancelAutoWol'
+    ]),
+    up: function() {
+      const currentItem = elementId(this.view.current());
+      if (currentItem === 'cancelAutoWol') {
+        this.view.prev();
+        focusElement(this.view.current());
+      }
+    },
+    down: function() {
+      const currentItem = elementId(this.view.current());
+      if (currentItem === 'autoWolCheckboxSwitch') {
+        this.view.next();
+        focusElement(this.view.current());
+      }
+    },
+    left: function() {},
+    right: function() {},
+    accept: function() {
+      clickElement(this.view.current());
+    },
+    back: function() {
+      resolveElement('cancelAutoWol').click();
+    },
+    press: function() {},
+    switch: function() {
+      focusElement(this.view.current());
+    },
+    enter: function() {
+      mark(this.view.current());
+      setTimeout(() => focusElement(this.view.current()), 100);
+    },
+    leave: function() {
+      unmark(this.view.current());
+      setTimeout(() => blurElement(this.view.current()), 100);
+    },
+  },
   HostMenuDialog: {
     view: new ListView(() => {
       const actions = ['refreshApps', 'wakeHost', 'deleteHost', 'viewDetails', 'closeHostMenu'];

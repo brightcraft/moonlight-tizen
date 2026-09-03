@@ -580,6 +580,25 @@
       </div>
     </dialog>
   </div>
+  <div id="autoWolDialogOverlay" class="dialog-overlay">
+    <dialog id="autoWolDialog" class="mdl-dialog">
+      <h3 id="autoWolDialogTitle" class="mdl-dialog__title" data-i18n="Wake PC">Wake PC</h3>
+      <div class="mdl-dialog__content">
+        <p id="autoWolDialogText"></p>
+        <div id="autoWolCheckboxContainer">
+          <label id="autoWolCheckboxBtn" class="mdl-switch mdl-js-switch mdl-js-ripple-effect" for="autoWolCheckboxSwitch">
+            <input type="checkbox" id="autoWolCheckboxSwitch" class="mdl-switch__input">
+            <span class="mdl-switch__label" data-i18n="Always wake this PC automatically">
+              Always wake this PC automatically
+            </span>
+          </label>
+        </div>
+      </div>
+      <div class="mdl-dialog__actions">
+        <button type="button" id="cancelAutoWol" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect" data-i18n="Cancel">Cancel</button>
+      </div>
+    </dialog>
+  </div>
   <div id="deleteHostDialogOverlay" class="dialog-overlay">
     <dialog id="deleteHostDialog" class="mdl-dialog">
       <h3 id="deleteHostDialogTitle" class="mdl-dialog__title" data-i18n="Delete Host">Delete Host</h3>

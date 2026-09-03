@@ -84,6 +84,36 @@ function replaceKnownStatsLabels(text) {
     .replace(/Slow connection to PC\.\nReduce your bitrate!/g, t('Slow connection to PC.\nReduce your bitrate!'));
 }
 
+function replaceKnownWolErrorLabels(text) {
+  const wolErrorLabels = [
+    'Invalid MAC address format',
+    'Invalid MAC address: default zero MAC address not allowed',
+    'Failed to create socket',
+    'Failed to enable broadcast',
+    'Failed to send magic packet to MAC address',
+    'Failed to send IPv6 magic packet to MAC address',
+    'Unknown error'
+  ];
+
+  const translatedWolErrorLabels = [
+    t('Invalid MAC address format'),
+    t('Invalid MAC address: default zero MAC address not allowed'),
+    t('Failed to create socket'),
+    t('Failed to enable broadcast'),
+    t('Failed to send magic packet to MAC address'),
+    t('Failed to send IPv6 magic packet to MAC address'),
+    t('Unknown error')
+  ];
+
+  let translated = text;
+  wolErrorLabels.forEach((label, i) => {
+    const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    translated = translated.replace(new RegExp(escapedLabel, 'gi'), translatedWolErrorLabels[i]);
+  });
+
+  return translated;
+}
+
 function translateBackendMessage(text) {
   const normalized = normalizeBackendMessageText(text);
 

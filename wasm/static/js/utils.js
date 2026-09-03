@@ -122,6 +122,7 @@ function NvHTTP(address, clientUid, userEnteredAddress = '', macAddress) {
   this.isNvidiaServerSoftware = false;
   this.gputype = '';
   this.supportedDisplayModes = {}; // key: y-resolution:x-resolution, value: array of supported frame rates
+  this.autoWolEnabled = false; // Per-host Auto Wake-on-LAN setting
 
   _self = this;
   console.log('%c[utils.js, NvHTTP]', 'color: gray;', 'NvHTTP Object: \n' + this);
