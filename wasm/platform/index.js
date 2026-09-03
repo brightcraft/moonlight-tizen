@@ -1029,13 +1029,18 @@ function autoWolDialog(host, onSuccess, onCancel) {
   Navigation.push(Views.AutoWolDialog);
   focusElement('cancelAutoWol');
 
-  var pollInterval = null;
-  var scanInterval = null;
+  var isPolling = true;
+  var pollTimeout = null;
   var hasFailed = false;
 
+  var stopPollingTasks = function() {
+    isPolling = false;
+    if (pollTimeout) clearTimeout(pollTimeout);
+    if (typeof abortSubnetScan === 'function') abortSubnetScan();
+  };
+
   var cleanup = function() {
-    if (pollInterval) clearInterval(pollInterval);
-    if (scanInterval) clearInterval(scanInterval);
+    stopPollingTasks();
     overlay.style.display = 'none';
     dialog.close();
     isDialogOpen = false;
@@ -1052,27 +1057,45 @@ function autoWolDialog(host, onSuccess, onCancel) {
         t('Waiting for the host PC to wake up and connect to the network...')
       );
 
-      if (typeof startSubnetScanner === 'function') {
-        startSubnetScanner();
-        scanInterval = setInterval(function() {
-          startSubnetScanner();
-        }, 5000);
-      }
+      var pollLoop = function() {
+        if (!isPolling) return;
 
-      pollInterval = setInterval(function() {
-        host.pollServer(function(returnedHost) {
-          if (returnedHost.online) {
-            cleanup();
-            if (onSuccess) onSuccess();
-          }
+        // Continuously sweep the subnet to catch the host if it wakes up with a new DHCP IP
+        var scanPromise = (typeof startSubnetScanner === 'function')
+          ? Promise.resolve(startSubnetScanner()).catch(function(e){
+              console.warn('%c[index.js, autoWolDialog]', 'color: orange;', 'Subnet scan failed during WOL wait, continuing to poll:', e);
+            })
+          : Promise.resolve();
+
+        scanPromise.then(function() {
+          if (!isPolling) return; // In case the dialog was closed during the scan
+          
+          host.pollServer(function(returnedHost) {
+            if (!isPolling) return; // In case the dialog was closed while pollServer was running
+
+            if (returnedHost.online) {
+              cleanup();
+              if (onSuccess) onSuccess();
+
+              // Instantly update the UI to remove the offline styling
+              updateHostStatusIndicator(returnedHost);
+            } else {
+              // Wait 1 second AFTER the previous poll finished before starting the next one.
+              // This prevents rapid CPU spinning if the network drops temporarily and requests 
+              // fail instantly, while still keeping the WOL check feeling responsive.
+              pollTimeout = setTimeout(pollLoop, 1000);
+            }
+          });
         });
-      }, 3000);
+      };
+
+      // Kick off the sequential polling loop
+      pollLoop();
 
     }).catch(function(error) {
       hasFailed = true;
-      if (pollInterval) clearInterval(pollInterval);
-      if (scanInterval) clearInterval(scanInterval);
-      
+      stopPollingTasks();
+
       var errorMessage = typeof error === 'string' ? error : (error && error.message ? error.message : 'Unknown error');
       var translatedError = replaceKnownWolErrorLabels(errorMessage);
       dialogText.html(
