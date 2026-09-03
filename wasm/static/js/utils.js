@@ -166,34 +166,7 @@ NvHTTP.prototype = {
 
   // Refreshes the server info using the base URL. This is useful for testing whether we can successfully ping a host at the base URL
   refreshServerInfo: function() {
-    if (this.ppkstr == null) {
-      // Use HTTP if we have no pinned cert
-      return this._openUrlWithTimeout(this._baseUrlHttp + '/serverinfo?' + this._buildUidStr(), this.ppkstr).then(function(retHttp) {
-        this._parseServerInfo(retHttp);
-      }.bind(this));
-    }
-    // Try HTTPS first
-    return this._openUrlWithTimeout(this._baseUrlHttps + '/serverinfo?' + this._buildUidStr(), this.ppkstr).then(function(ret) {
-      if (!this._parseServerInfo(ret)) { // If that fails
-        console.error('%c[utils.js, refreshServerInfo]', 'color: gray;', 'Error: Failed to parse server info from HTTPS, falling back to HTTP...');
-        // Try HTTP as a failover. Useful to clients who aren't paired yet
-        return this._openUrlWithTimeout(this._baseUrlHttp + '/serverinfo?' + this._buildUidStr(), this.ppkstr).then(function(retHttp) {
-          if (!this._parseServerInfo(retHttp)) {
-            return Promise.reject("Failed to parse server info from HTTP");
-          }
-        }.bind(this));
-      }
-    }.bind(this), function(error) {
-      if (error == -100) { // GS_CERT_MISMATCH
-        console.warn('%c[utils.js, refreshServerInfo]', 'color: gray;', 'Warning: Certificate mismatch. Retrying over HTTP...', this);
-        return this._openUrlWithTimeout(this._baseUrlHttp + '/serverinfo?' + this._buildUidStr(), this.ppkstr).then(function(retHttp) {
-          if (!this._parseServerInfo(retHttp)) {
-            return Promise.reject("Failed to parse server info from HTTP");
-          }
-        }.bind(this));
-      }
-      return Promise.reject(error);
-    }.bind(this));
+    return this.refreshServerInfoAtAddress(this.address);
   },
 
   // Refreshes the server info using a given address. This is useful for testing whether we can successfully ping a host at a given address

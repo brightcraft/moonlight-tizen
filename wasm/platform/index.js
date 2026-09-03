@@ -299,10 +299,6 @@ function beginBackgroundPollingOfHost(host) {
   }).catch(function(failedRefreshInfo) {
     console.error('%c[index.js, beginBackgroundPollingOfHost]', 'color: green;', 'Error: Failed to refresh server info! Returned error was: ' + failedRefreshInfo + '! Failed server was: ' + '\n', host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
 
-    // Set host to offline and clear the app list cache
-    host.online = false;
-    host._memCachedApplist = null;
-
     // Reset poll state so that recovery polls from the interval below start with
     // a clean slate. Without this, stale _pollCompletionCallbacks entries from
     // previous (leaked) intervals can block the deduplication guard and prevent
