@@ -3720,8 +3720,8 @@ function loadUserDataCb() {
     // Update the language field based on the stored value
     $('#selectLanguage').attr('data-value', savedLanguagePreference).data('value', savedLanguagePreference);
     // Apply the stored language preference if the i18n object is available
-    if (window.i18n && typeof window.i18n.applyLanguagePreference === 'function') {
-      window.i18n.applyLanguagePreference(savedLanguagePreference).catch((error) => {
+    if (window.i18n && typeof window.i18n.setLanguage === 'function') {
+      window.i18n.setLanguage(savedLanguagePreference).catch((error) => {
         console.error('%c[index.js, loadUserDataCb]', 'color: green;', 'Error: Failed to apply stored language: ' + error);
       });
     }
