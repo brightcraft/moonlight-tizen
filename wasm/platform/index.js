@@ -289,10 +289,9 @@ function beginBackgroundPollingOfHost(host) {
   // back to the host view) would leak the old setInterval, causing multiple overlapping
   // poll loops that corrupt the _pollCompletionCallbacks deduplication guard and
   // prevent the host from ever recovering to the online state.
-  if (activePolls[host.serverUid]) {
-    window.clearInterval(activePolls[host.serverUid]);
-    delete activePolls[host.serverUid];
-  }
+  endBackgroundPollingOfHost(host);
+  // Ensure the key exists so the hasOwnProperty check in scheduleNextPoll passes
+  activePolls[host.serverUid] = null;
 
   // Refresh server info before attempting to start background polling of the host
   host.refreshServerInfo().then(function(ret) {
@@ -362,8 +361,10 @@ function startPollingHosts() {
 function endBackgroundPollingOfHost(host) {
   console.log('%c[index.js, endBackgroundPollingOfHost]', 'color: green;', 'Stopping background polling of host ' + host.serverUid, host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
   // Clear the host's polling interval and remove it from the activePolls object
-  window.clearInterval(activePolls[host.serverUid]);
-  delete activePolls[host.serverUid];
+  if (activePolls[host.serverUid]) {
+    window.clearTimeout(activePolls[host.serverUid]);
+    delete activePolls[host.serverUid];
+  }
 }
 
 function stopPollingHosts() {
@@ -2259,10 +2260,7 @@ function showApps(host) {
         // the polling /serverinfo request from being queued behind 40+
         // concurrent image downloads, which would cause a 5-second timeout
         // and trigger cancelRequest, killing all in-flight downloads.
-        if (activePolls[host.serverUid]) {
-          window.clearInterval(activePolls[host.serverUid]);
-          delete activePolls[host.serverUid];
-        }
+        endBackgroundPollingOfHost(host);
 
         var boxArtPromises = [];
         
@@ -4063,10 +4061,7 @@ function loadHTTPCertsCb() {
         });
         console.log('%c[index.js, loadHTTPCertsCb]', 'color: green;', 'Loading previously connected hosts...');
         // Ensure that any existing active polls are cleared before resetting
-        Object.keys(activePolls).forEach(function(serverUid) {
-          window.clearInterval(activePolls[serverUid]);
-          delete activePolls[serverUid];
-        });
+        stopPollingHosts();
 
         setTimeout(() => {
           snackbarLog(t('Scanning the local network to discover new hosts...'));
