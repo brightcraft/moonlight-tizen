@@ -126,70 +126,38 @@ var sendMessage = function(method, params) {
           var timeoutId = null;
           var url = params[0];
 
-          var startWasmCall = function() {
-            if (timeout_ms > 0) {
-              timeoutId = setTimeout(function() {
-                if (!isFinished) {
-                  isFinished = true;
-                  console.warn('%c[messages.js, sendMessage]', 'color: gray;', 'Warning: HTTPS request timed out, canceling C++ HTTP request for URL:', url);
-                  SyncFunctions['cancelRequest']();
-                  reject(-1); // GS_FAILED
-                }
-              }, timeout_ms);
-            }
-
-            const id = callbacks_ids++;
-            callbacks[id] = {
-              'resolve': function(msg) {
-                if (!isFinished) {
-                  isFinished = true;
-                  if (timeoutId) clearTimeout(timeoutId);
-                  resolve(msg);
-                }
-                innerResolve(); // Unlock the JS queue
-              },
-              'reject': function(err) {
-                if (!isFinished) {
-                  isFinished = true;
-                  if (timeoutId) clearTimeout(timeoutId);
-                  reject(err);
-                }
-                innerResolve(); // Unlock the JS queue
+          if (timeout_ms > 0) {
+            timeoutId = setTimeout(function() {
+              if (!isFinished) {
+                isFinished = true;
+                console.warn('%c[messages.js, sendMessage]', 'color: gray;', 'Warning: HTTPS request timed out, canceling C++ HTTP request for URL:', url);
+                SyncFunctions['cancelRequest']();
+                reject(-1); // GS_FAILED
               }
-            };
+            }, timeout_ms);
+          }
 
-            AsyncFunctions['openUrl'](id, ...params);
+          const id = callbacks_ids++;
+          callbacks[id] = {
+            'resolve': function(msg) {
+              if (!isFinished) {
+                isFinished = true;
+                if (timeoutId) clearTimeout(timeoutId);
+                resolve(msg);
+              }
+              innerResolve(); // Unlock the JS queue
+            },
+            'reject': function(err) {
+              if (!isFinished) {
+                isFinished = true;
+                if (timeoutId) clearTimeout(timeoutId);
+                reject(err);
+              }
+              innerResolve(); // Unlock the JS queue
+            }
           };
 
-          // Pre-flight check using native JS fetch to prevent dead IPs from permanently freezing the single-threaded C++ WASM network stack.
-          // If an IP silently drops packets, C++ libcurl TCP connect() will hang for 120s!
-          var abortCtrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-          // Use the provided timeout_ms, or fallback to a 5.0s max wait to see if the IP is a black hole.
-          var preflightTimeout = (timeout_ms > 0) ? timeout_ms : 5000;
-          
-          var pingTimeoutId = setTimeout(function() {
-            if (abortCtrl) abortCtrl.abort();
-          }, preflightTimeout);
-
-          fetch(url, abortCtrl ? { signal: abortCtrl.signal } : {})
-            .then(function() {
-              clearTimeout(pingTimeoutId);
-              startWasmCall(); // The IP is alive and responded! Hand it over to C++
-            })
-            .catch(function(e) {
-              clearTimeout(pingTimeoutId);
-              // If the fetch was forcefully aborted by our timeout, it means the IP is a black hole (silent drop).
-              // We MUST skip it, otherwise handing it to C++ will irrevocably freeze the WASM thread for 120 seconds!
-              if (e && e.name === 'AbortError') {
-                console.warn('%c[messages.js, sendMessage]', 'color: orange;', 'Skipping dead/hanging URL to prevent C++ WASM freeze: ' + url);
-                reject(-1); // Instantly fail, don't pass to C++!
-                innerResolve(); // Unlock the JS queue
-              } else {
-                // Any other error (e.g. Cert Error, Connection Refused, CORS) means the IP actively responded quickly.
-                // C++ will also fail quickly without hanging (or succeed if mTLS), so it's safe to hand it over.
-                startWasmCall();
-              }
-            });
+          AsyncFunctions['openUrl'](id, ...params);
         });
       });
     });
@@ -200,6 +168,7 @@ var sendMessage = function(method, params) {
         'resolve': resolve,
         'reject': reject
       };
+
       AsyncFunctions[method](id, ...params);
     });
   }
