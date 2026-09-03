@@ -296,8 +296,15 @@ function beginBackgroundPollingOfHost(host) {
   // Refresh server info before attempting to start background polling of the host
   host.refreshServerInfo().then(function(ret) {
     console.log('%c[index.js, beginBackgroundPollingOfHost]', 'color: green;', 'Starting background polling of host ' + host.serverUid, host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
+    
+    // The fast-path ping succeeded! Mark the host online instantly to prevent the UI from
+    // flashing offline in the .finally block, and to skip the redundant 0-delay poll.
+    host.online = true;
   }).catch(function(failedRefreshInfo) {
     console.error('%c[index.js, beginBackgroundPollingOfHost]', 'color: green;', 'Error: Failed to refresh server info! Returned error was: ' + failedRefreshInfo + '! Failed server was: ' + '\n', host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
+  }).finally(function() {
+    // Update the UI after the network finishes
+    updateHostStatusIndicator(host);
 
     // Reset poll state so that recovery polls from the interval below start with
     // a clean slate. Without this, stale _pollCompletionCallbacks entries from
@@ -312,9 +319,6 @@ function beginBackgroundPollingOfHost(host) {
     // interfere with future offline detection either.
     host._consecutivePollFailures = 0;
     host._pollCompletionCallbacks = [];
-  }).finally(function() {
-    // Update the UI after the network finishes
-    updateHostStatusIndicator(host);
 
     var scheduleNextPoll = function(delay) {
       // Stop if the poll was canceled (ID removed from activePolls)
