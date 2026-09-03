@@ -290,7 +290,7 @@ function beginBackgroundPollingOfHost(host) {
   // poll loops that corrupt the _pollCompletionCallbacks deduplication guard and
   // prevent the host from ever recovering to the online state.
   if (activePolls[host.serverUid]) {
-    window.clearTimeout(activePolls[host.serverUid]);
+    window.clearInterval(activePolls[host.serverUid]);
     delete activePolls[host.serverUid];
   }
 
@@ -362,7 +362,7 @@ function startPollingHosts() {
 function endBackgroundPollingOfHost(host) {
   console.log('%c[index.js, endBackgroundPollingOfHost]', 'color: green;', 'Stopping background polling of host ' + host.serverUid, host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
   // Clear the host's polling interval and remove it from the activePolls object
-  window.clearTimeout(activePolls[host.serverUid]);
+  window.clearInterval(activePolls[host.serverUid]);
   delete activePolls[host.serverUid];
 }
 
@@ -503,7 +503,7 @@ function restoreUiAfterWasmLoad() {
   setTimeout(() => checkForAppUpdatesAtStartup(), 10000);
 }
 
-function hostChosen(host, onSuccessCallback) {
+function hostChosen(host) {
   if (isPairingInProgress) {
     snackbarLogLong(t('A pairing request is currently in progress. Please wait for it to timeout or finish before trying again.'));
     return;
@@ -511,22 +511,9 @@ function hostChosen(host, onSuccessCallback) {
 
   // If the host is already offline or fails to connect, notify the user.
   if (!host.online) {
-    // Only show the Wake PC dialog if the user has explicitly enabled per-host auto-Wake-on-LAN
-    if (host.autoWolEnabled === true) {
-      autoWolDialog(host, function() {
-        // Success callback: The host is now online.
-        if (onSuccessCallback) {
-          onSuccessCallback();
-        } else {
-          // Re-call hostChosen(host) to proceed normally.
-          hostChosen(host);
-        }
-      }, function() {});
-    } else {
-      // Let the user know what to do to bring the host back online and until then, we'll be back to the previous view.
-      console.error('%c[index.js, hostChosen]', 'color: green;', 'Error: Connection to host failed or host is offline!');
-      snackbarLogLong(t('Failed to connect to %1$s. Ensure Sunshine is running on your host PC or GameStream is enabled in GeForce Experience SHIELD settings.', 'the host'));
-    }
+    // Let the user know what to do to bring the host back online and until then, we'll be back to the previous view.
+    console.error('%c[index.js, hostChosen]', 'color: green;', 'Error: Connection to host failed or host is offline!');
+    snackbarLogLong(t('Failed to connect to %1$s. Ensure Sunshine is running on your host PC or GameStream is enabled in GeForce Experience SHIELD settings.', 'the host'));
     return;
   }
 
@@ -980,137 +967,6 @@ function pairingDialog(nvhttpHost, onSuccess, onFailure) {
   });
 }
 
-function autoWolDialog(host, onSuccess, onCancel) {
-  var overlay = document.querySelector('#autoWolDialogOverlay');
-  var dialog = document.querySelector('#autoWolDialog');
-  var dialogText = $('#autoWolDialogText');
-  var cancelBtn = $('#cancelAutoWol');
-  var autoWolCheckbox = $('#autoWolCheckboxSwitch');
-  var autoWolCheckboxBtn = $('#autoWolCheckboxBtn');
-
-  cancelBtn.html(t('Cancel'));
-  Views.AutoWolDialog.view.reset();
-
-  // Set the checkbox state based on the host's autoWolEnabled property
-  if (host.autoWolEnabled === true) {
-    autoWolCheckboxBtn.parent().addClass('is-checked');
-    autoWolCheckbox.prop('checked', true);
-  } else {
-    autoWolCheckboxBtn.parent().removeClass('is-checked');
-    autoWolCheckbox.prop('checked', false);
-  }
-
-  // Attach onchange event listener to the checkbox
-  autoWolCheckbox.off('change');
-  autoWolCheckbox.on('change', function() {
-    host.autoWolEnabled = $(this).prop('checked');
-    console.log('%c[index.js, autoWolDialog]', 'color: green;', 'Host autoWolEnabled set to: ' + host.autoWolEnabled);
-    saveHosts();
-  });
-
-  overlay.style.display = 'flex';
-  dialog.showModal();
-  isDialogOpen = true;
-  Navigation.push(Views.AutoWolDialog);
-  focusElement('cancelAutoWol');
-
-  var isPolling = true;
-  var pollTimeout = null;
-  var hasFailed = false;
-
-  var stopPollingTasks = function() {
-    isPolling = false;
-    if (pollTimeout) clearTimeout(pollTimeout);
-    if (typeof abortSubnetScan === 'function') abortSubnetScan();
-  };
-
-  var cleanup = function() {
-    stopPollingTasks();
-    overlay.style.display = 'none';
-    dialog.close();
-    isDialogOpen = false;
-    Navigation.pop();
-  };
-
-  var sendWakeRequest = function() {
-    dialogText.html(t('Sending a Wake-on-LAN request to %1$s...', host.hostname));
-
-    host.sendWOL().then(function(msg) {
-      if (msg) console.log('%c[index.js, autoWolDialog]', 'color: green;', msg);
-      dialogText.html(
-        t('Wake-on-LAN request sent to %1$s.', host.hostname) + '<br><br>' +
-        t('Waiting for the host PC to wake up and connect to the network...')
-      );
-
-      var pollLoop = function() {
-        if (!isPolling) return;
-
-        // Continuously sweep the subnet to catch the host if it wakes up with a new DHCP IP
-        var scanPromise = (typeof startSubnetScanner === 'function')
-          ? Promise.resolve(startSubnetScanner()).catch(function(e){
-              console.warn('%c[index.js, autoWolDialog]', 'color: orange;', 'Subnet scan failed during WOL wait, continuing to poll:', e);
-            })
-          : Promise.resolve();
-
-        scanPromise.then(function() {
-          if (!isPolling) return; // In case the dialog was closed during the scan
-          
-          host.pollServer(function(returnedHost) {
-            if (!isPolling) return; // In case the dialog was closed while pollServer was running
-
-            if (returnedHost.online) {
-              cleanup();
-              if (onSuccess) onSuccess();
-
-              // Instantly update the UI to remove the offline styling
-              updateHostStatusIndicator(returnedHost);
-            } else {
-              // Wait 1 second AFTER the previous poll finished before starting the next one.
-              // This prevents rapid CPU spinning if the network drops temporarily and requests 
-              // fail instantly, while still keeping the WOL check feeling responsive.
-              pollTimeout = setTimeout(pollLoop, 1000);
-            }
-          });
-        });
-      };
-
-      // Kick off the sequential polling loop
-      pollLoop();
-
-    }).catch(function(error) {
-      hasFailed = true;
-      stopPollingTasks();
-      
-      // Dummy t() calls so i18n-sync.js extracts these dynamic C++ errors
-      // t('Invalid MAC address format')
-      // t('Failed to create socket')
-      // t('Failed to enable broadcast')
-      // t('Failed to send magic packet')
-      // t('Unknown error')
-      var errorMessage = typeof error === 'string' ? error : (error && error.message ? error.message : 'Unknown error');
-      dialogText.html(
-        t('Failed to send Wake-on-LAN request to %1$s!', host.hostname) + '<br><br>' +
-        t('Error: %1$s', t(errorMessage))
-      );
-      cancelBtn.html(t('OK'));
-    });
-  };
-
-  cancelBtn.off('click');
-  cancelBtn.on('click', function() {
-    if (hasFailed) {
-      console.error('%c[index.js, autoWolDialog]', 'color: green;', 'Wake-on-LAN request failed.');
-    } else {
-      console.log('%c[index.js, autoWolDialog]', 'color: green;', 'Wake-on-LAN request canceled by user.');
-    }
-    cleanup();
-    if (onCancel) onCancel();
-  });
-
-  // Send wake request immediately since user explicitly opened the Wake PC menu
-  sendWakeRequest();
-}
-
 // Add the new NvHTTP Host object inside the host grid
 function addHostToGrid(host, ismDNSDiscovered) {
   // Create the host container with the appropriate attributes for the host card
@@ -1280,7 +1136,8 @@ function hostMenuDialog(host) {
       text: t('Wake PC'),
       action: function() {
         // Send a Wake-on-LAN request to the target host
-        setTimeout(() => autoWolDialog(host, function() {}, function() {}), 100);
+        snackbarLogLong(t('Sending a Wake On LAN request to %1$s...', host.hostname));
+        host.sendWOL();
       }
     },
     {
@@ -4191,7 +4048,6 @@ function loadHTTPCertsCb() {
           revivedHost.externalIP = hosts[hostUID].externalIP;
           revivedHost.hostname = hosts[hostUID].hostname;
           revivedHost.ppkstr = hosts[hostUID].ppkstr;
-          revivedHost.autoWolEnabled = hosts[hostUID].autoWolEnabled || false;
           hosts[hostUID] = revivedHost;
           addHostToGrid(revivedHost);
         }
@@ -4258,10 +4114,7 @@ function waitForHostAndNavigateToApp(serverUid, appId) {
 
       // Check whether the host is online before trying to connect
       if (!host.online) {
-        hostChosen(host, function() {
-          // Success callback: The host is now online. Retry the deep link navigation.
-          waitForHostAndNavigateToApp(serverUid, appId);
-        });
+        hostChosen(host);
         return;
       }
 
