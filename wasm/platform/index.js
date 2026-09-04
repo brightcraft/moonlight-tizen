@@ -28,6 +28,8 @@ try {
 }
 var isHdrCapable = webapis.avinfo.isHdrTvSupport(); // Check if the device supports HDR
 var hosts = {}; // Hosts is an associative array of NvHTTP objects, keyed by server UID
+var isHostsLoaded = false; // Indicates if IndexedDB has finished loading hosts
+var isSubnetScanFinished = false; // Indicates if the initial subnet scan has completed
 var activePolls = {}; // Hosts currently being polled. An associated array of polling IDs, keyed by server UID
 var pairingCert; // Loads the generated certificate
 var myUniqueid;
@@ -294,7 +296,7 @@ function beginBackgroundPollingOfHost(host) {
   activePolls[host.serverUid] = null;
 
   // Refresh server info before attempting to start background polling of the host
-  host.refreshServerInfo().then(function(ret) {
+  return host.refreshServerInfo().then(function(ret) {
     console.log('%c[index.js, beginBackgroundPollingOfHost]', 'color: green;', 'Starting background polling of host ' + host.serverUid, host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
     
     // The fast-path ping succeeded! Mark the host online instantly to prevent the UI from
@@ -302,6 +304,10 @@ function beginBackgroundPollingOfHost(host) {
     host.online = true;
   }).catch(function(failedRefreshInfo) {
     console.error('%c[index.js, beginBackgroundPollingOfHost]', 'color: green;', 'Error: Failed to refresh server info! Returned error was: ' + failedRefreshInfo + '! Failed server was: ' + '\n', host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
+
+    // Set host to offline and clear the app list cache
+    host.online = false;
+    host._memCachedApplist = null;
   }).finally(function() {
     // Update the UI after the network finishes
     updateHostStatusIndicator(host);
@@ -353,9 +359,11 @@ function beginBackgroundPollingOfHost(host) {
 }
 
 function startPollingHosts() {
+  var pollPromises = [];
   for (var hostUID in hosts) {
-    beginBackgroundPollingOfHost(hosts[hostUID]);
+    pollPromises.push(beginBackgroundPollingOfHost(hosts[hostUID]));
   }
+  return Promise.all(pollPromises);
 }
 
 function endBackgroundPollingOfHost(host) {
@@ -4049,6 +4057,7 @@ function loadHTTPCertsCb() {
           hosts[hostUID] = revivedHost;
           addHostToGrid(revivedHost);
         }
+        isHostsLoaded = true;
         // Register loadSystemInfo to re-run every time the language changes
         if (window.i18n && typeof window.i18n.onRefresh === 'function') {
           window.i18n.onRefresh(loadSystemInfo);
@@ -4060,17 +4069,26 @@ function loadHTTPCertsCb() {
           updatePreviewData();
         });
         console.log('%c[index.js, loadHTTPCertsCb]', 'color: green;', 'Loading previously connected hosts...');
-        // Ensure that any existing active polls are cleared before resetting
-        stopPollingHosts();
-
-        setTimeout(() => {
-          snackbarLog(t('Scanning the local network to discover new hosts...'));
+        
+        // Immediately start polling known hosts so they are ready for Smart Hub or instant clicks.
+        // We wait for all known hosts to finish their initial ping before launching the subnet scanner
+        // to guarantee that the 254 scanner requests don't choke the network stack and cause known hosts to timeout.
+        startPollingHosts().then(() => {
           if (typeof startSubnetScanner === 'function') {
-            startSubnetScanner().then(startPollingHosts).catch(startPollingHosts);
+            snackbarLog(t('Scanning the local network to discover new hosts...'));
+            // Stop background polling while sweeping the subnet to prevent network exhaustion
+            stopPollingHosts();
+            startSubnetScanner().then(() => {
+              isSubnetScanFinished = true;
+              startPollingHosts();
+            }).catch(() => {
+              isSubnetScanFinished = true;
+              startPollingHosts();
+            });
           } else {
-            startPollingHosts();
+            isSubnetScanFinished = true;
           }
-        }, 1000);
+        });
       });
     });
   });
@@ -4082,13 +4100,21 @@ function waitForHostAndNavigate(serverUid) {
   var attempts = 0;
   var interval = setInterval(function() {
     attempts++;
-    if (hosts[serverUid]) {
+    var host = hosts[serverUid];
+    
+    if (host && (host.online || isSubnetScanFinished)) {
       clearInterval(interval);
       console.log('%c[index.js, waitForHostAndNavigate]', 'color: green;', 'Host found for deep link, navigating: ' + serverUid);
-      hostChosen(hosts[serverUid]);
+      hostChosen(host);
+    } else if (!host && isHostsLoaded) {
+      clearInterval(interval);
+      console.warn('%c[index.js, waitForHostAndNavigate]', 'color: orange;', 'Host ' + serverUid + ' no longer exists in Moonlight.');
+      snackbarLogLong(t('The selected host is no longer available on Moonlight.'));
+      if (typeof updatePreviewData === 'function') updatePreviewData();
     } else if (attempts > 30) {
       clearInterval(interval);
       console.warn('%c[index.js, waitForHostAndNavigate]', 'color: orange;', 'Warning: Timed out waiting for host ' + serverUid + ' to load.');
+      if (host) hostChosen(host); // Fallback to trigger offline error or Auto WOL
     }
   }, 1000);
 }
@@ -4102,9 +4128,10 @@ function waitForHostAndNavigateToApp(serverUid, appId) {
   var attempts = 0;
   var interval = setInterval(function() {
     attempts++;
-    if (hosts[serverUid]) {
+    var host = hosts[serverUid];
+
+    if (host && (host.online || isSubnetScanFinished)) {
       clearInterval(interval);
-      var host = hosts[serverUid];
       console.log('%c[index.js, waitForHostAndNavigateToApp]', 'color: green;', 'Host found for deep link, checking availability: ' + serverUid);
 
       // Check whether the host is online before trying to connect
@@ -4185,9 +4212,15 @@ function waitForHostAndNavigateToApp(serverUid, appId) {
         // Could not fetch app list (host may have gone offline during the check)
         hostChosen(host);
       });
-    } else if (attempts > 30) {
+    } else if (!host && isHostsLoaded) {
+      clearInterval(interval);
+      console.warn('%c[index.js, waitForHostAndNavigateToApp]', 'color: orange;', 'Host ' + serverUid + ' no longer exists in Moonlight.');
+      snackbarLogLong(t('The selected host is no longer available on Moonlight.'));
+      if (typeof updatePreviewData === 'function') updatePreviewData();
+    } else if (attempts > 30) { // 30s timeout
       clearInterval(interval);
       console.warn('%c[index.js, waitForHostAndNavigateToApp]', 'color: orange;', 'Warning: Timed out waiting for host ' + serverUid + ' to load.');
+      if (host) hostChosen(host); // Fallback to trigger offline error or Auto WOL
     }
   }, 1000);
 }

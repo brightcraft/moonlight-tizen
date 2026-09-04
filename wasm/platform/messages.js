@@ -133,6 +133,7 @@ var sendMessage = function(method, params) {
                 console.warn('%c[messages.js, sendMessage]', 'color: gray;', 'Warning: HTTPS request timed out, canceling C++ HTTP request for URL:', url);
                 SyncFunctions['cancelRequest']();
                 reject(-1); // GS_FAILED
+                innerResolve(); // Unlock the JS queue!
               }
             }, timeout_ms);
           }
@@ -144,16 +145,16 @@ var sendMessage = function(method, params) {
                 isFinished = true;
                 if (timeoutId) clearTimeout(timeoutId);
                 resolve(msg);
+                innerResolve(); // Unlock the JS queue
               }
-              innerResolve(); // Unlock the JS queue
             },
             'reject': function(err) {
               if (!isFinished) {
                 isFinished = true;
                 if (timeoutId) clearTimeout(timeoutId);
                 reject(err);
+                innerResolve(); // Unlock the JS queue
               }
-              innerResolve(); // Unlock the JS queue
             }
           };
 
