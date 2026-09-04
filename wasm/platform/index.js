@@ -28,6 +28,7 @@ try {
 }
 var isHdrCapable = webapis.avinfo.isHdrTvSupport(); // Check if the device supports HDR
 var hosts = {}; // Hosts is an associative array of NvHTTP objects, keyed by server UID
+var isHostOpening = false; // Prevents concurrent hostChosen executions
 var activePolls = {}; // Hosts currently being polled. An associated array of polling IDs, keyed by server UID
 var pairingCert; // Loads the generated certificate
 var myUniqueid;
@@ -523,13 +524,18 @@ function restoreUiAfterWasmLoad() {
 }
 
 function hostChosen(host) {
+  if (isHostOpening) return;
+  isHostOpening = true;
+
   if (isPairingInProgress) {
+    isHostOpening = false;
     snackbarLogLong(t('A pairing request is currently in progress. Please wait for it to timeout or finish before trying again.'));
     return;
   }
 
   // If the host is already offline or fails to connect, notify the user.
   if (!host.online) {
+    isHostOpening = false;
     // Let the user know what to do to bring the host back online and until then, we'll be back to the previous view.
     console.error('%c[index.js, hostChosen]', 'color: green;', 'Error: Connection to host failed or host is offline!');
     snackbarLogLong(t('Failed to connect to %1$s. Ensure Sunshine is running on your host PC or GameStream is enabled in GeForce Experience SHIELD settings.', 'the host'));
@@ -552,9 +558,12 @@ function hostChosen(host) {
         Navigation.switch();
         // Switch to Apps view
         Navigation.change(Views.Apps);
-      }).catch(console.error);
+      }).catch(console.error).finally(() => {
+        isHostOpening = false;
+      });
     }, function() {
       // Start polling the host after pairing flow
+      isHostOpening = false;
       startPollingHosts();
     });
   } else {
@@ -565,7 +574,9 @@ function hostChosen(host) {
       Navigation.switch();
       // Switch to Apps view
       Navigation.change(Views.Apps);
-    }).catch(console.error);
+    }).catch(console.error).finally(() => {
+      isHostOpening = false;
+    });
   }
 }
 
