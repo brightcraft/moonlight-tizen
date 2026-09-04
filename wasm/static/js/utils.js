@@ -157,48 +157,51 @@ NvHTTP.prototype = {
   },
 
   _openUrlWithTimeout: function(url, ppkstr) {
-    return Promise.race([
-      sendMessage('openUrl', [url, ppkstr, false]),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout retrieving server info')), 5000))
-    ]).catch(error => {
-      if (error && error.message === 'Timeout retrieving server info') {
-        sendMessage('cancelRequest', []);
-        throw -1;
-      }
-      throw error;
-    });
+    // Pre-flight check using native JS fetch to prevent dead IPs (like unreachable external IPs 
+    // or unresolvable .local addresses) from permanently freezing the single-threaded C++ WASM network stack.
+    var abortCtrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var timeoutId = setTimeout(function() {
+      if (abortCtrl) abortCtrl.abort();
+    }, 3000); // 3s max wait to see if the IP is a black hole
+
+    // Use HTTP /serverinfo for the preflight to guarantee a 200 OK response and eliminate ALL console spam (like 404s).
+    // We only rewrite the URL if it targets the Sunshine HTTPS port, preserving this function for generic use.
+    var preflightUrl = url;
+    var portIndex = url.indexOf(':' + this.httpsPort);
+    if (portIndex !== -1) {
+      // Extract the protocol and IP (e.g. 'https://192.168.1.5') and swap to HTTP
+      var baseUrl = url.substring(0, portIndex).replace('https://', 'http://');
+      preflightUrl = baseUrl + ':' + this.httpPort + '/serverinfo';
+    }
+
+    return fetch(preflightUrl, abortCtrl ? { signal: abortCtrl.signal } : {})
+      .then(function(res) {
+        clearTimeout(timeoutId);
+        // The IP is alive and responded! Hand it over to C++
+        return sendMessage('openUrl', [url, ppkstr, false, 5000]).catch(error => {
+          throw error;
+        });
+      })
+      .catch(function(e) {
+        clearTimeout(timeoutId);
+        // If the fetch was forcefully aborted by our timeout, it means the IP is a black hole (silent drop).
+        // We MUST skip it, otherwise handing it to C++ will irrevocably freeze the WASM thread for 120 seconds!
+        if (e && e.name === 'AbortError') {
+          console.warn('%c[utils.js, _openUrlWithTimeout]', 'color: orange;', 'Skipping dead/hanging URL to prevent C++ WASM freeze: ' + url);
+          return Promise.reject(-1); // Instantly fail (GS_FAILED), don't pass to C++!
+        } else {
+          // Any other error (e.g. Cert Error, Connection Refused, CORS) means the IP actively responded quickly.
+          // C++ will also fail quickly without hanging (or succeed if mTLS), so it's safe to hand it over.
+          return sendMessage('openUrl', [url, ppkstr, false, 5000]).catch(error => {
+            throw error;
+          });
+        }
+      });
   },
 
   // Refreshes the server info using the base URL. This is useful for testing whether we can successfully ping a host at the base URL
   refreshServerInfo: function() {
-    if (this.ppkstr == null) {
-      // Use HTTP if we have no pinned cert
-      return this._openUrlWithTimeout(this._baseUrlHttp + '/serverinfo?' + this._buildUidStr(), this.ppkstr).then(function(retHttp) {
-        this._parseServerInfo(retHttp);
-      }.bind(this));
-    }
-    // Try HTTPS first
-    return this._openUrlWithTimeout(this._baseUrlHttps + '/serverinfo?' + this._buildUidStr(), this.ppkstr).then(function(ret) {
-      if (!this._parseServerInfo(ret)) { // If that fails
-        console.error('%c[utils.js, refreshServerInfo]', 'color: gray;', 'Error: Failed to parse server info from HTTPS, falling back to HTTP...');
-        // Try HTTP as a failover. Useful to clients who aren't paired yet
-        return this._openUrlWithTimeout(this._baseUrlHttp + '/serverinfo?' + this._buildUidStr(), this.ppkstr).then(function(retHttp) {
-          if (!this._parseServerInfo(retHttp)) {
-            return Promise.reject("Failed to parse server info from HTTP");
-          }
-        }.bind(this));
-      }
-    }.bind(this), function(error) {
-      if (error == -100) { // GS_CERT_MISMATCH
-        console.warn('%c[utils.js, refreshServerInfo]', 'color: gray;', 'Warning: Certificate mismatch. Retrying over HTTP...', this);
-        return this._openUrlWithTimeout(this._baseUrlHttp + '/serverinfo?' + this._buildUidStr(), this.ppkstr).then(function(retHttp) {
-          if (!this._parseServerInfo(retHttp)) {
-            return Promise.reject("Failed to parse server info from HTTP");
-          }
-        }.bind(this));
-      }
-      return Promise.reject(error);
-    }.bind(this));
+    return this.refreshServerInfoAtAddress(this.address);
   },
 
   // Refreshes the server info using a given address. This is useful for testing whether we can successfully ping a host at a given address
@@ -285,6 +288,7 @@ NvHTTP.prototype = {
         completion(this);
       }
     }.bind(this), function() {
+      // Set host to offline and clear the app list cache
       if (++this._consecutivePollFailures >= 2) {
         this.online = false;
         this._memCachedApplist = null;
@@ -490,16 +494,9 @@ NvHTTP.prototype = {
   },
 
   getAppListWithCacheFlush: function() {
-    return Promise.race([
-      sendMessage('openUrl', [
-        this._baseUrlHttps + '/applist?' + this._buildUidStr(), this.ppkstr, false
-      ]),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout retrieving app list')), 10000))
+    return sendMessage('openUrl', [
+      this._baseUrlHttps + '/applist?' + this._buildUidStr(), this.ppkstr, false, 10000
     ]).catch(error => {
-      // If it's our timeout error, instruct the C++ layer to abort the hung network request
-      if (error.message === 'Timeout retrieving app list') {
-        sendMessage('cancelRequest', []);
-      }
       throw error;
     }).then(function(ret) {
       $xml = this._parseXML(ret);
@@ -933,16 +930,9 @@ NvHTTP.prototype = {
         this.serverMajorVersion.toString(), this.address, this.httpPort, randomNumber, this.getUid()
       ]).then(function(ppkstr) {
         this.ppkstr = ppkstr;
-        return Promise.race([
-          sendMessage('openUrl', [
-            this._baseUrlHttps + '/pair?uniqueid=' + this.getUid() + '&devicename=roth&updateState=1&phrase=pairchallenge', this.ppkstr, false
-          ]),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout during pairchallenge')), 5000))
+        return sendMessage('openUrl', [
+          this._baseUrlHttps + '/pair?uniqueid=' + this.getUid() + '&devicename=roth&updateState=1&phrase=pairchallenge', this.ppkstr, false, 5000
         ]).catch(function(error) {
-          if (error.message === 'Timeout during pairchallenge') {
-            console.warn('%c[utils.js, pair]', 'color: gray;', 'Warning: HTTPS request timed out, canceling C++ HTTP request');
-            sendMessage('cancelRequest', []);
-          }
           throw error;
         }.bind(this)).then(function(ret) {
           $xml = this._parseXML(ret);
