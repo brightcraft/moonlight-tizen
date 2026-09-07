@@ -64,6 +64,14 @@ const UPDATE_INTERVAL = 24 * 60 * 60 * 1000; // Automatic check for updates inte
 
 // Called by the common.js module
 function attachListeners() {
+  // Register loadSystemInfo to run when language is initialized, and every time it changes
+  if (window.i18n && typeof window.i18n.onRefresh === 'function') {
+    window.i18n.onRefresh(loadSystemInfo);
+  } else {
+    // Fallback if i18n is not present
+    loadSystemInfo();
+  }
+
   const i18nInitPromise = (window.i18n && typeof window.i18n.init === 'function')
     ? window.i18n.init().catch((error) => {
       console.warn('%c[index.js, attachListeners]', 'color: green;', 'Warning: i18n initialization failed: ' + error);
@@ -3704,19 +3712,6 @@ function loadUserData() {
 }
 
 function loadUserDataCb() {
-  console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored language preferences.');
-  getData('languagePreference', function(previousValue) {
-    const savedLanguagePreference = (previousValue && previousValue['languagePreference']) || 'auto';
-    // Update the language field based on the stored value
-    $('#selectLanguage').attr('data-value', savedLanguagePreference).data('value', savedLanguagePreference);
-    // Apply the stored language preference if the i18n object is available
-    if (window.i18n && typeof window.i18n.setLanguage === 'function') {
-      window.i18n.setLanguage(savedLanguagePreference).catch((error) => {
-        console.error('%c[index.js, loadUserDataCb]', 'color: green;', 'Error: Failed to apply stored language: ' + error);
-      });
-    }
-  });
-
   console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored resolution preferences.');
   getData('resolution', function(previousValue) {
     if (previousValue.resolution != null) {
@@ -4058,10 +4053,6 @@ function loadHTTPCertsCb() {
           addHostToGrid(revivedHost);
         }
         isHostsLoaded = true;
-        // Register loadSystemInfo to re-run every time the language changes
-        if (window.i18n && typeof window.i18n.onRefresh === 'function') {
-          window.i18n.onRefresh(loadSystemInfo);
-        }
         // Load stored preview app lists and update Smart Hub Preview tiles.
         // Using the persisted list avoids requiring live host connections at startup.
         getData('previewApps', function(storedPreview) {
@@ -4445,7 +4436,6 @@ function onWindowLoad() {
 
   initSamsungKeys();
   initSpecialKeys();
-  loadSystemInfo();
   loadUserData();
 
   probeSmartHubSupport().then(function() {
