@@ -28,6 +28,8 @@ try {
 }
 var isHdrCapable = webapis.avinfo.isHdrTvSupport(); // Check if the device supports HDR
 var hosts = {}; // Hosts is an associative array of NvHTTP objects, keyed by server UID
+var isHostsLoaded = false; // Indicates if IndexedDB has finished loading hosts
+var isSubnetScanFinished = false; // Indicates if the initial subnet scan has completed
 var activePolls = {}; // Hosts currently being polled. An associated array of polling IDs, keyed by server UID
 var pairingCert; // Loads the generated certificate
 var myUniqueid;
@@ -248,7 +250,22 @@ function delayedNavigation(callback) {
 
 // Updates the host status indicator based on the host's online and paired status
 function updateHostStatusIndicator(host) {
+  // Find the desired host cell using the server UUID
+  var hostCell = document.querySelector('#host-' + host.serverUid);
   var indicator = document.querySelector('#host-status-' + host.serverUid);
+
+  // Update the host cell inactive styling class
+  if (hostCell) {
+    // Check if the host is currently online
+    if (host.online) {
+      // If the host is online, show it as active
+      hostCell.classList.remove('host-cell-inactive');
+    } else {
+      // If the host is offline, show it as inactive
+      hostCell.classList.add('host-cell-inactive');
+    }
+  }
+
   // If the indicator element is not found, exit the function early
   if (!indicator) {
     return;
@@ -274,68 +291,26 @@ function beginBackgroundPollingOfHost(host) {
   // back to the host view) would leak the old setInterval, causing multiple overlapping
   // poll loops that corrupt the _pollCompletionCallbacks deduplication guard and
   // prevent the host from ever recovering to the online state.
-  if (activePolls[host.serverUid]) {
-    window.clearInterval(activePolls[host.serverUid]);
-    delete activePolls[host.serverUid];
-  }
+  endBackgroundPollingOfHost(host);
+  // Ensure the key exists so the hasOwnProperty check in scheduleNextPoll passes
+  activePolls[host.serverUid] = null;
 
   // Refresh server info before attempting to start background polling of the host
-  host.refreshServerInfo().then(function(ret) {
+  return host.refreshServerInfo().then(function(ret) {
     console.log('%c[index.js, beginBackgroundPollingOfHost]', 'color: green;', 'Starting background polling of host ' + host.serverUid, host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
-    // Find the desired host cell using the server UUID
-    var hostCell = document.querySelector('#host-' + host.serverUid);
-    // Check if the host is currently online
-    if (host.online) {
-      // If the host is online, show it as active
-      hostCell.classList.remove('host-cell-inactive');
-      updateHostStatusIndicator(host);
-      // The host was already online, so start polling in the background now
-      activePolls[host.serverUid] = window.setInterval(function() {
-        // Every 5 seconds, poll at the address to check for any status changes
-        host.pollServer(function(returnedHost) {
-          // Check if the host is currently online
-          if (returnedHost.online) {
-            hostCell.classList.remove('host-cell-inactive');
-          } else {
-            hostCell.classList.add('host-cell-inactive');
-          }
-          updateHostStatusIndicator(returnedHost);
-        });
-      }, 5000);
-    } else {
-      // If the host is offline, show it as inactive
-      hostCell.classList.add('host-cell-inactive');
-      updateHostStatusIndicator(host);
-      // The host was offline, so poll immediately to check the host's status
-      host.pollServer(function(returnedHost) {
-        // Check if the host is currently online
-        if (returnedHost.online) {
-          hostCell.classList.remove('host-cell-inactive');
-        } else {
-          hostCell.classList.add('host-cell-inactive');
-        }
-        updateHostStatusIndicator(returnedHost);
-        // Now that the initial poll is done, start the background polling
-        activePolls[host.serverUid] = window.setInterval(function() {
-          // Every 5 seconds, poll at the address to check for any status changes
-          host.pollServer(function(returnedHost) {
-            // Check if the host is currently online
-            if (returnedHost.online) {
-              hostCell.classList.remove('host-cell-inactive');
-            } else {
-              hostCell.classList.add('host-cell-inactive');
-            }
-            updateHostStatusIndicator(returnedHost);
-          });
-        }, 5000);
-      });
-    }
-  }, function(failedRefreshInfo) {
+    
+    // The fast-path ping succeeded! Mark the host online instantly to prevent the UI from
+    // flashing offline in the .finally block, and to skip the redundant 0-delay poll.
+    host.online = true;
+  }).catch(function(failedRefreshInfo) {
     console.error('%c[index.js, beginBackgroundPollingOfHost]', 'color: green;', 'Error: Failed to refresh server info! Returned error was: ' + failedRefreshInfo + '! Failed server was: ' + '\n', host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
 
     // Set host to offline and clear the app list cache
     host.online = false;
     host._memCachedApplist = null;
+  }).finally(function() {
+    // Update the UI after the network finishes
+    updateHostStatusIndicator(host);
 
     // Reset poll state so that recovery polls from the interval below start with
     // a clean slate. Without this, stale _pollCompletionCallbacks entries from
@@ -351,38 +326,53 @@ function beginBackgroundPollingOfHost(host) {
     host._consecutivePollFailures = 0;
     host._pollCompletionCallbacks = [];
 
-    // Update the UI to show the host as offline
-    var hostCell = document.querySelector('#host-' + host.serverUid);
-    if (hostCell) {
-      hostCell.classList.add('host-cell-inactive');
-    }
-    updateHostStatusIndicator(host);
+    var scheduleNextPoll = function(delay) {
+      // Stop if the poll was canceled (ID removed from activePolls)
+      if (!activePolls.hasOwnProperty(host.serverUid)) return;
 
-    // Start background polling to detect when the host comes back online
-    activePolls[host.serverUid] = window.setInterval(function() {
-      host.pollServer(function(returnedHost) {
-        if (returnedHost.online) {
-          if (hostCell) hostCell.classList.remove('host-cell-inactive');
-        } else {
-          if (hostCell) hostCell.classList.add('host-cell-inactive');
-        }
-        updateHostStatusIndicator(returnedHost);
-      });
-    }, 5000);
+      activePolls[host.serverUid] = window.setTimeout(function() {
+        // In case it was canceled while waiting
+        if (!activePolls.hasOwnProperty(host.serverUid)) return;
+
+        host.pollServer(function(returnedHost) {
+          // Update the UI after the network finishes
+          updateHostStatusIndicator(returnedHost);
+
+          // In case it was canceled while the network request was running
+          if (!activePolls.hasOwnProperty(host.serverUid)) return;
+
+          // Schedule the next poll for 5 seconds AFTER this one finished
+          scheduleNextPoll(5000);
+        });
+      }, delay);
+    };
+
+    // Check if the host is currently online
+    if (host.online) {
+      // The host was already online, so start polling in the background now
+      scheduleNextPoll(5000);
+    } else {
+      // The host was offline, so poll immediately to check the host's status
+      scheduleNextPoll(0);
+    }
   });
 }
 
 function startPollingHosts() {
+  var pollPromises = [];
   for (var hostUID in hosts) {
-    beginBackgroundPollingOfHost(hosts[hostUID]);
+    pollPromises.push(beginBackgroundPollingOfHost(hosts[hostUID]));
   }
+  return Promise.all(pollPromises);
 }
 
 function endBackgroundPollingOfHost(host) {
   console.log('%c[index.js, endBackgroundPollingOfHost]', 'color: green;', 'Stopping background polling of host ' + host.serverUid, host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
   // Clear the host's polling interval and remove it from the activePolls object
-  window.clearInterval(activePolls[host.serverUid]);
-  delete activePolls[host.serverUid];
+  if (activePolls[host.serverUid]) {
+    window.clearTimeout(activePolls[host.serverUid]);
+    delete activePolls[host.serverUid];
+  }
 }
 
 function stopPollingHosts() {
@@ -763,6 +753,7 @@ function parseHostAndPortInput(rawInput) {
 // If the `Add Host +` is selected on the host grid, then show the 
 // Add Host dialog to enter the connection details for the host PC
 function addHostDialog() {
+  if (typeof window.abortSubnetScan === 'function') window.abortSubnetScan();
   // Find the existing overlay and dialog elements
   var addHostOverlay = document.querySelector('#addHostDialogOverlay');
   var addHostDialog = document.querySelector('#addHostDialog');
@@ -883,6 +874,7 @@ function addHostDialog() {
 
 // Show the Pairing dialog before pairing with the given NvHTTP host object. Returns whether the pairing was successful or failed.
 function pairingDialog(nvhttpHost, onSuccess, onFailure) {
+  if (typeof window.abortSubnetScan === 'function') window.abortSubnetScan();
   if (!onFailure) {
     onFailure = function() {}
   }
@@ -2199,6 +2191,7 @@ function showApps(host) {
 
     // Stop navigation before showing the loading screen
     Navigation.stop();
+    if (typeof window.abortSubnetScan === 'function') window.abortSubnetScan();
 
     // Hide the main header before showing a loading screen
     $('#main-header').children().hide();
@@ -2275,10 +2268,7 @@ function showApps(host) {
         // the polling /serverinfo request from being queued behind 40+
         // concurrent image downloads, which would cause a 5-second timeout
         // and trigger cancelRequest, killing all in-flight downloads.
-        if (activePolls[host.serverUid]) {
-          window.clearInterval(activePolls[host.serverUid]);
-          delete activePolls[host.serverUid];
-        }
+        endBackgroundPollingOfHost(host);
 
         var boxArtPromises = [];
         
@@ -4067,7 +4057,7 @@ function loadHTTPCertsCb() {
           hosts[hostUID] = revivedHost;
           addHostToGrid(revivedHost);
         }
-        startPollingHosts();
+        isHostsLoaded = true;
         // Register loadSystemInfo to re-run every time the language changes
         if (window.i18n && typeof window.i18n.onRefresh === 'function') {
           window.i18n.onRefresh(loadSystemInfo);
@@ -4079,11 +4069,26 @@ function loadHTTPCertsCb() {
           updatePreviewData();
         });
         console.log('%c[index.js, loadHTTPCertsCb]', 'color: green;', 'Loading previously connected hosts...');
-        // Start subnet scanning silently in the background after hosts are fully loaded
-        setTimeout(() => {
-          snackbarLog(t('Scanning the local network to discover new hosts...'));
-          startSubnetScanner();
-        }, 1000);
+        
+        // Immediately start polling known hosts so they are ready for Smart Hub or instant clicks.
+        // We wait for all known hosts to finish their initial ping before launching the subnet scanner
+        // to guarantee that the 254 scanner requests don't choke the network stack and cause known hosts to timeout.
+        startPollingHosts().then(() => {
+          if (typeof startSubnetScanner === 'function') {
+            snackbarLog(t('Scanning the local network to discover new hosts...'));
+            // Stop background polling while sweeping the subnet to prevent network exhaustion
+            stopPollingHosts();
+            startSubnetScanner().then(() => {
+              isSubnetScanFinished = true;
+              startPollingHosts();
+            }).catch(() => {
+              isSubnetScanFinished = true;
+              startPollingHosts();
+            });
+          } else {
+            isSubnetScanFinished = true;
+          }
+        });
       });
     });
   });
@@ -4095,13 +4100,21 @@ function waitForHostAndNavigate(serverUid) {
   var attempts = 0;
   var interval = setInterval(function() {
     attempts++;
-    if (hosts[serverUid]) {
+    var host = hosts[serverUid];
+    
+    if (host && (host.online || isSubnetScanFinished)) {
       clearInterval(interval);
       console.log('%c[index.js, waitForHostAndNavigate]', 'color: green;', 'Host found for deep link, navigating: ' + serverUid);
-      hostChosen(hosts[serverUid]);
+      hostChosen(host);
+    } else if (!host && isHostsLoaded) {
+      clearInterval(interval);
+      console.warn('%c[index.js, waitForHostAndNavigate]', 'color: orange;', 'Host ' + serverUid + ' no longer exists in Moonlight.');
+      snackbarLogLong(t('The selected host is no longer available on Moonlight.'));
+      if (typeof updatePreviewData === 'function') updatePreviewData();
     } else if (attempts > 30) {
       clearInterval(interval);
       console.warn('%c[index.js, waitForHostAndNavigate]', 'color: orange;', 'Warning: Timed out waiting for host ' + serverUid + ' to load.');
+      if (host) hostChosen(host); // Fallback to trigger offline error or Auto WOL
     }
   }, 1000);
 }
@@ -4115,9 +4128,10 @@ function waitForHostAndNavigateToApp(serverUid, appId) {
   var attempts = 0;
   var interval = setInterval(function() {
     attempts++;
-    if (hosts[serverUid]) {
+    var host = hosts[serverUid];
+
+    if (host && (host.online || isSubnetScanFinished)) {
       clearInterval(interval);
-      var host = hosts[serverUid];
       console.log('%c[index.js, waitForHostAndNavigateToApp]', 'color: green;', 'Host found for deep link, checking availability: ' + serverUid);
 
       // Check whether the host is online before trying to connect
@@ -4198,9 +4212,15 @@ function waitForHostAndNavigateToApp(serverUid, appId) {
         // Could not fetch app list (host may have gone offline during the check)
         hostChosen(host);
       });
-    } else if (attempts > 30) {
+    } else if (!host && isHostsLoaded) {
+      clearInterval(interval);
+      console.warn('%c[index.js, waitForHostAndNavigateToApp]', 'color: orange;', 'Host ' + serverUid + ' no longer exists in Moonlight.');
+      snackbarLogLong(t('The selected host is no longer available on Moonlight.'));
+      if (typeof updatePreviewData === 'function') updatePreviewData();
+    } else if (attempts > 30) { // 30s timeout
       clearInterval(interval);
       console.warn('%c[index.js, waitForHostAndNavigateToApp]', 'color: orange;', 'Warning: Timed out waiting for host ' + serverUid + ' to load.');
+      if (host) hostChosen(host); // Fallback to trigger offline error or Auto WOL
     }
   }, 1000);
 }
