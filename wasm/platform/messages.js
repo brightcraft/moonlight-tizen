@@ -6,8 +6,9 @@ const SyncFunctions = {
   // cert, privateKey, myUniqueid
   'httpInit': (...args) => Module.httpInit(...args),
   /* host, httpPort, width, height, fps, bitrate, rikey, rikeyid, appversion, gfeversion, rtspurl, serverCodecModeSupport,
-  framePacing, optimizeGames, rumbleFeedback, mouseEmulation, flipABfaceButtons, flipXYfaceButtons, audioConfig,
-  audioSync, playHostAudio, videoCodec, hdrMode, fullRange, gameMode, disableWarnings, performanceStats */
+  framePacing, optimizeGames, rumbleFeedback, mouseEmulation, flipABfaceButtons, flipXYfaceButtons, audioBackend,
+  audioConfig, audioSync, audioJitter, playHostAudio, videoCodec, hdrMode, fullRange, gameMode, disableWarnings,
+  performanceStats */
   'startRequest': (...args) => Module.startStream(...args),
   // no parameters
   'stopRequest': (...args) => Module.stopStream(...args),
@@ -19,7 +20,7 @@ const SyncFunctions = {
 
 const AsyncFunctions = {
   // url, ppk, binaryResponse
-  'openUrl': (...args) => Module.openUrl(...args),
+  'openUrl': (id, url, ppk, binary) => Module.openUrl(id, url, ppk, binary),
   // no parameters
   'STUN': (...args) => Module.stun(...args),
   // serverMajorVersion, address, httpPort, randomNumber
@@ -54,10 +55,25 @@ function replaceKnownStageLabels(text) {
     'input stream establishment',
   ];
 
+  const translatedStageLabels = [
+    t('none'),
+    t('platform initialization'),
+    t('name resolution'),
+    t('audio stream initialization'),
+    t('RTSP handshake'),
+    t('control stream initialization'),
+    t('video stream initialization'),
+    t('input stream initialization'),
+    t('control stream establishment'),
+    t('video stream establishment'),
+    t('audio stream establishment'),
+    t('input stream establishment'),
+  ];
+
   let translated = text.replace(/\bStarting\b/g, t('Starting'));
-  stageLabels.forEach((label) => {
+  stageLabels.forEach((label, i) => {
     const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    translated = translated.replace(new RegExp(escapedLabel, 'gi'), t(label));
+    translated = translated.replace(new RegExp(escapedLabel, 'gi'), translatedStageLabels[i]);
   });
 
   return translated;
@@ -100,6 +116,8 @@ function translateBackendMessage(text) {
  * @param  {(String|Array)} params An array of options or a single string
  * @return {void}        The Wasm module calls back through the handleMessage method
  */
+var _httpLock = Promise.resolve();
+
 var sendMessage = function(method, params) {
   if (SyncFunctions[method]) {
     return new Promise(function(resolve, reject) {
@@ -109,6 +127,55 @@ var sendMessage = function(method, params) {
       } else {
         reject(ret.ret);
       }
+    });
+  } else if (method === 'openUrl') {
+    // We MUST enforce the timeout in JavaScript because Emscripten's libcurl wrapper
+    // completely ignores native timeouts (e.g., CURLOPT_CONNECTTIMEOUT) and relies on
+    // the browser's native XHR timeout, which can take up to 1 minute.
+    var timeout_ms = params[3] || 0;
+
+    return new Promise(function(resolve, reject) {
+      _httpLock = _httpLock.catch(function() {}).then(function() {
+        return new Promise(function(innerResolve, innerReject) {
+          var isFinished = false;
+          var timeoutId = null;
+          var url = params[0];
+
+          if (timeout_ms > 0) {
+            timeoutId = setTimeout(function() {
+              if (!isFinished) {
+                isFinished = true;
+                console.warn('%c[messages.js, sendMessage]', 'color: gray;', 'Warning: HTTPS request timed out, canceling C++ HTTP request for URL:', url);
+                SyncFunctions['cancelRequest']();
+                reject(-1); // GS_FAILED
+                innerResolve(); // Unlock the JS queue!
+              }
+            }, timeout_ms);
+          }
+
+          const id = callbacks_ids++;
+          callbacks[id] = {
+            'resolve': function(msg) {
+              if (!isFinished) {
+                isFinished = true;
+                if (timeoutId) clearTimeout(timeoutId);
+                resolve(msg);
+                innerResolve(); // Unlock the JS queue
+              }
+            },
+            'reject': function(err) {
+              if (!isFinished) {
+                isFinished = true;
+                if (timeoutId) clearTimeout(timeoutId);
+                reject(err);
+                innerResolve(); // Unlock the JS queue
+              }
+            }
+          };
+
+          AsyncFunctions['openUrl'](id, ...params);
+        });
+      });
     });
   } else {
     return new Promise(function(resolve, reject) {
@@ -138,6 +205,8 @@ function handleMessage(msg) {
   console.log('%c[messages.js, handleMessage]', 'color: gray;', 'Message data: ', msg);
   // If it's a recognized event, notify the appropriate function
   if (msg.indexOf('streamTerminated: ') === 0) {
+    // Release the audio scheduler of the Web Audio backend, which is a no-op for the EMSS backend
+    stopAudioScheduler();
     // Remove the on-screen overlays
     $('#connection-warnings, #performance-stats').css('display', 'none');
     // Remove the video stream now
@@ -169,16 +238,29 @@ function handleMessage(msg) {
         snackbarLogLong('Connection terminated');
         break;
     }
-    // Return to the app list with new current game
-    showApps(api);
-    setTimeout(() => {
-      // Scroll to the current game row
-      Navigation.switch();
-      // Switch to Apps view
-      if (!window.isDialogOpen) {
-        Navigation.change(Views.Apps);
-      }
-    }, 1500);
+    // Refresh the server info to update the current game and app list
+    api.refreshServerInfo().then(function(ret) {
+      // Return to the app list with new current game
+      showApps(api).then(() => {
+        // Scroll to the current game row
+        Navigation.switch();
+        // Switch to Apps view
+        if (!window.isDialogOpen) {
+          Navigation.change(Views.Apps);
+        }
+      });
+    }, function(failedRefreshInfo) {
+      console.error('%c[messages.js, handleMessage]', 'color: gray;', 'Error: Failed to refresh server info! Returned error was: ' + failedRefreshInfo + '!');
+      // Return to the app list anyway
+      showApps(api).then(() => {
+        // Scroll to the current game row
+        Navigation.switch();
+        // Switch to Apps view
+        if (!window.isDialogOpen) {
+          Navigation.change(Views.Apps);
+        }
+      });
+    });
   } else if (msg === 'Connection Established') {
     // Prepare the screen for video stream
     $('#loadingSpinner').css('display', 'none');

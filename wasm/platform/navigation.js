@@ -78,19 +78,17 @@ function clickElement(target) {
   }
   // Search for common toggle switch child elements within the target element
   const toggleSwitch = element.querySelector('input[type="checkbox"], .mdl-switch__input, [role="switch"], [aria-pressed]');
-  // If a clickable child element is found, use it instead of the container
+  // If a clickable child element is found, use it to trigger animations
   if (toggleSwitch && typeof toggleSwitch.click === 'function') {
-    // Dispatching events
+    // Dispatching events for MDL ripple animations
     const eventOptions = { view: window, bubbles: true, cancelable: true };
     toggleSwitch.dispatchEvent(new MouseEvent('mousedown', eventOptions));
     toggleSwitch.dispatchEvent(new MouseEvent('mouseup', eventOptions));
-    toggleSwitch.dispatchEvent(new MouseEvent('click', eventOptions));
     setTimeout(() => focusElement(toggleSwitch), 250);
-    return;
   }
   // Click the resolved element itself if it supports click event
   if (typeof element.click === 'function') {
-    isGamepadActive ? element.click() : target.click();
+    element.click();
   }
 }
 
@@ -1176,8 +1174,10 @@ const Views = {
   },
   AudioSettings: {
     view: new ListView(() => [
+      'selectAudioBackend',
       'selectAudio',
-      'audioSyncBtn',
+      // Only one of these settings is shown at a time, as each one belongs to a single backend
+      isWebAudioBackendSelected() ? 'selectAudioJitter' : 'audioSyncBtn',
       'playHostAudioBtn'
     ]),
     up: function() {
@@ -1214,6 +1214,38 @@ const Views = {
       unmark(this.view.current());
     },
   },
+  SelectAudioBackendMenu: {
+    isActive: () => isPopupMenuActive('audioBackendMenu'),
+    view: new ListView(() =>
+      document.getElementById('audioBackendMenu')
+      .parentNode.children[3].children[1].children),
+    up: function() {
+      this.view.prevOption();
+    },
+    down: function() {
+      this.view.nextOption();
+    },
+    left: function() {},
+    right: function() {},
+    accept: function() {
+      clickElement(this.view.current());
+      closeActiveVisibleMenu();
+      setTimeout(() => focusElement('selectAudioBackend'), 250);
+    },
+    back: function() {
+      closePopupMenu('selectAudioBackend');
+      closeActiveVisibleMenu();
+      focusElement('selectAudioBackend');
+    },
+    press: function() {},
+    switch: function() {},
+    enter: function() {
+      mark(this.view.current());
+    },
+    leave: function() {
+      unmark(this.view.current());
+    },
+  },
   SelectAudioMenu: {
     isActive: () => isPopupMenuActive('audioConfigMenu'),
     view: new ListView(() => 
@@ -1236,6 +1268,40 @@ const Views = {
       closePopupMenu('selectAudio');
       closeActiveVisibleMenu();
       focusElement('selectAudio');
+    },
+    press: function() {},
+    switch: function() {},
+    enter: function() {
+      mark(this.view.current());
+    },
+    leave: function() {
+      unmark(this.view.current());
+    },
+  },
+  SelectAudioJitterMenu: {
+    isActive: () => isPopupMenuActive('audioJitterMenu'),
+    view: new ListView(() =>
+      document.getElementById('audioJitterMenu')
+      .parentNode.children[3].children[1].children),
+    up: function() {},
+    down: function() {},
+    left: function() {
+      jitterSlider.stepDown();
+      jitterSlider.dispatchEvent(new Event('input'));
+    },
+    right: function() {
+      jitterSlider.stepUp();
+      jitterSlider.dispatchEvent(new Event('input'));
+    },
+    accept: function() {
+      clickElement(this.view.current());
+      closeActiveVisibleMenu();
+      setTimeout(() => focusElement('selectAudioJitter'), 250);
+    },
+    back: function() {
+      closePopupMenu('selectAudioJitter');
+      closeActiveVisibleMenu();
+      focusElement('selectAudioJitter');
     },
     press: function() {},
     switch: function() {},
