@@ -615,7 +615,9 @@ NvHTTP.prototype = {
       try {
         // Open the cached original PNG box art for reading
         var fileHandleRead = tizen.filesystem.openFile(boxArtDir + '/' + boxArtFileName, 'r');
+        // Read the binary PNG data from the file (returns Blob)
         var fileContentInBlob = fileHandleRead.readBlob();
+        // Close the file after the binary data has been read
         fileHandleRead.close();
         
         // Guard against empty/corrupt cached files
@@ -655,6 +657,7 @@ NvHTTP.prototype = {
             }
 
             // Generate and save the optimized JPEG preview box art asynchronously from storage.
+            // The original PNG box art can be returned immediately without waiting for preview generation.
             var previewPromise = self.generatePreviewImage(dataUrl, appId).then(function(previewDataUrl) {
               if (previewDataUrl) {
                 self.savePreviewImage(appId, previewDataUrl);
