@@ -64,6 +64,8 @@ const UPDATE_INTERVAL = 24 * 60 * 60 * 1000; // Automatic check for updates inte
 
 // Called by the common.js module
 function attachListeners() {
+  changeUiModeForWasmLoad();
+
   // Register loadSystemInfo to run when language is initialized, and every time it changes
   if (window.i18n && typeof window.i18n.onRefresh === 'function') {
     window.i18n.onRefresh(loadSystemInfo);
@@ -79,11 +81,11 @@ function attachListeners() {
     : Promise.resolve();
 
   i18nInitPromise.finally(() => {
-    changeUiModeForWasmLoad();
     if (window.i18n && typeof window.i18n.populateLanguageMenu === 'function') {
       window.i18n.populateLanguageMenu(saveLanguagePreference);
     }
   });
+
   initIpAddressFields();
   filterUnsupportedResolutions();
 
