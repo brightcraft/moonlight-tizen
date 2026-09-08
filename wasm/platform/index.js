@@ -1000,14 +1000,11 @@ function pairingDialog(nvhttpHost, onSuccess, onFailure) {
 }
 
 function autoWolDialog(host, onSuccess, onCancel) {
-  var overlay = document.querySelector('#autoWolDialogOverlay');
-  var dialog = document.querySelector('#autoWolDialog');
-  var dialogText = $('#autoWolDialogText');
-  var cancelBtn = $('#cancelAutoWol');
-  var autoWolCheckbox = $('#autoWolCheckboxSwitch');
-  var autoWolCheckboxBtn = $('#autoWolCheckboxBtn');
+  var autoWolOverlay = document.querySelector('#autoWolDialogOverlay');
+  var autoWolDialog = document.querySelector('#autoWolDialog');
 
-  cancelBtn.html(t('Cancel'));
+  // Reset the button text to their default state
+  $('#cancelAutoWol').html(t('Cancel'));
   Views.AutoWolDialog.view.reset();
 
   // Set the checkbox state based on the host's autoWolEnabled property
@@ -1017,16 +1014,16 @@ function autoWolDialog(host, onSuccess, onCancel) {
     document.querySelector('#autoWolCheckboxBtn').MaterialSwitch.off();
   }
 
-  // Attach onchange event listener to the checkbox
-  autoWolCheckbox.off('change');
-  autoWolCheckbox.on('change', function() {
+  // Attach onchange event listener to the Auto WOL checkbox
+  $('#autoWolCheckboxSwitch').off('change');
+  $('#autoWolCheckboxSwitch').on('change', function() {
     host.autoWolEnabled = $(this).prop('checked');
     console.log('%c[index.js, autoWolDialog]', 'color: green;', 'Host autoWolEnabled set to: ' + host.autoWolEnabled);
     saveHosts();
   });
 
-  overlay.style.display = 'flex';
-  dialog.showModal();
+  autoWolOverlay.style.display = 'flex';
+  autoWolDialog.showModal();
   isDialogOpen = true;
   Navigation.push(Views.AutoWolDialog);
   focusElement('cancelAutoWol');
@@ -1043,18 +1040,18 @@ function autoWolDialog(host, onSuccess, onCancel) {
 
   var cleanup = function() {
     stopPollingTasks();
-    overlay.style.display = 'none';
-    dialog.close();
+    autoWolOverlay.style.display = 'none';
+    autoWolDialog.close();
     isDialogOpen = false;
     Navigation.pop();
   };
 
   var sendWakeRequest = function() {
-    dialogText.html(t('Sending a Wake-on-LAN request to %1$s...', host.hostname));
+    $('#autoWolDialogText').html(t('Sending a Wake-on-LAN request to %1$s...', host.hostname));
 
     host.sendWOL().then(function(msg) {
       if (msg) console.log('%c[index.js, autoWolDialog]', 'color: green;', msg);
-      dialogText.html(
+      $('#autoWolDialogText').html(
         t('Wake-on-LAN request sent to %1$s.', host.hostname) + '<br><br>' +
         t('Waiting for the host PC to wake up and connect to the network...')
       );
@@ -1100,16 +1097,17 @@ function autoWolDialog(host, onSuccess, onCancel) {
 
       var errorMessage = typeof error === 'string' ? error : (error && error.message ? error.message : 'Unknown error');
       var translatedError = replaceKnownWolErrorLabels(errorMessage);
-      dialogText.html(
+      $('#autoWolDialogText').html(
         t('Failed to send Wake-on-LAN request to %1$s!', host.hostname) + '<br><br>' +
         t('Error: %1$s', translatedError)
       );
-      cancelBtn.html(t('OK'));
+      // Change the button text to "OK" to indicate that the user can acknowledge the failure
+      $('#cancelAutoWol').html(t('OK'));
     });
   };
 
-  cancelBtn.off('click');
-  cancelBtn.on('click', function() {
+  $('#cancelAutoWol').off('click');
+  $('#cancelAutoWol').on('click', function() {
     if (hasFailed) {
       console.error('%c[index.js, autoWolDialog]', 'color: green;', 'Wake-on-LAN request failed: ' + errorMessage);
     } else {
