@@ -20,7 +20,7 @@ const SyncFunctions = {
 
 const AsyncFunctions = {
   // url, ppk, binaryResponse
-  'openUrl': (...args) => Module.openUrl(...args),
+  'openUrl': (id, url, ppk, binary) => Module.openUrl(id, url, ppk, binary),
   // no parameters
   'STUN': (...args) => Module.stun(...args),
   // serverMajorVersion, address, httpPort, randomNumber
@@ -55,10 +55,25 @@ function replaceKnownStageLabels(text) {
     'input stream establishment',
   ];
 
+  const translatedStageLabels = [
+    t('none'),
+    t('platform initialization'),
+    t('name resolution'),
+    t('audio stream initialization'),
+    t('RTSP handshake'),
+    t('control stream initialization'),
+    t('video stream initialization'),
+    t('input stream initialization'),
+    t('control stream establishment'),
+    t('video stream establishment'),
+    t('audio stream establishment'),
+    t('input stream establishment'),
+  ];
+
   let translated = text.replace(/\bStarting\b/g, t('Starting'));
-  stageLabels.forEach((label) => {
+  stageLabels.forEach((label, i) => {
     const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    translated = translated.replace(new RegExp(escapedLabel, 'gi'), t(label));
+    translated = translated.replace(new RegExp(escapedLabel, 'gi'), translatedStageLabels[i]);
   });
 
   return translated;
@@ -131,6 +146,8 @@ function translateBackendMessage(text) {
  * @param  {(String|Array)} params An array of options or a single string
  * @return {void}        The Wasm module calls back through the handleMessage method
  */
+var _httpLock = Promise.resolve();
+
 var sendMessage = function(method, params) {
   if (SyncFunctions[method]) {
     return new Promise(function(resolve, reject) {
@@ -140,6 +157,55 @@ var sendMessage = function(method, params) {
       } else {
         reject(ret.ret);
       }
+    });
+  } else if (method === 'openUrl') {
+    // We MUST enforce the timeout in JavaScript because Emscripten's libcurl wrapper
+    // completely ignores native timeouts (e.g., CURLOPT_CONNECTTIMEOUT) and relies on
+    // the browser's native XHR timeout, which can take up to 1 minute.
+    var timeout_ms = params[3] || 0;
+
+    return new Promise(function(resolve, reject) {
+      _httpLock = _httpLock.catch(function() {}).then(function() {
+        return new Promise(function(innerResolve, innerReject) {
+          var isFinished = false;
+          var timeoutId = null;
+          var url = params[0];
+
+          if (timeout_ms > 0) {
+            timeoutId = setTimeout(function() {
+              if (!isFinished) {
+                isFinished = true;
+                console.warn('%c[messages.js, sendMessage]', 'color: gray;', 'Warning: HTTPS request timed out, canceling C++ HTTP request for URL:', url);
+                SyncFunctions['cancelRequest']();
+                reject(-1); // GS_FAILED
+                innerResolve(); // Unlock the JS queue!
+              }
+            }, timeout_ms);
+          }
+
+          const id = callbacks_ids++;
+          callbacks[id] = {
+            'resolve': function(msg) {
+              if (!isFinished) {
+                isFinished = true;
+                if (timeoutId) clearTimeout(timeoutId);
+                resolve(msg);
+                innerResolve(); // Unlock the JS queue
+              }
+            },
+            'reject': function(err) {
+              if (!isFinished) {
+                isFinished = true;
+                if (timeoutId) clearTimeout(timeoutId);
+                reject(err);
+                innerResolve(); // Unlock the JS queue
+              }
+            }
+          };
+
+          AsyncFunctions['openUrl'](id, ...params);
+        });
+      });
     });
   } else {
     return new Promise(function(resolve, reject) {
@@ -184,22 +250,22 @@ function handleMessage(msg) {
       case 0: // ML_ERROR_GRACEFUL_TERMINATION
         break;
       case -100: // ML_ERROR_NO_VIDEO_TRAFFIC
-        snackbarLogLong(t('No video received from host. Check the host PC\'s firewall and port forwarding rules.'));
+        snackbarLogLong('No video received from host. Check the host PC\'s firewall and port forwarding rules.');
         break;
       case -101: // ML_ERROR_NO_VIDEO_FRAME
-        snackbarLogLong(t('Your network connection isn\'t performing well. Reduce your video bitrate setting or try a faster connection.'));
+        snackbarLogLong('Your network connection isn\'t performing well. Reduce your video bitrate setting or try a faster connection.');
         break;
       case -102: // ML_ERROR_UNEXPECTED_EARLY_TERMINATION
-        snackbarLogLong(t('Something went wrong on your host PC when starting the stream. Restart your host PC and try again.'));
+        snackbarLogLong('Something went wrong on your host PC when starting the stream. Restart your host PC and try again.');
         break;
       case -103: // ML_ERROR_PROTECTED_CONTENT
-        snackbarLogLong(t('An issue occurred on your host PC while starting the stream. Make sure you don\'t have any DRM-protected content open on your host PC.'));
+        snackbarLogLong('An issue occurred on your host PC while starting the stream. Make sure you don\'t have any DRM-protected content open on your host PC.');
         break;
       case -104: // ML_ERROR_FRAME_CONVERSION
-        snackbarLogLong(t('The host PC reported a fatal video encoding error. Try disabling HDR mode, changing the streaming resolution, or changing your host PC\'s display resolution.'));
+        snackbarLogLong('The host PC reported a fatal video encoding error. Try disabling HDR mode, changing the streaming resolution, or changing your host PC\'s display resolution.');
         break;
       default:
-        snackbarLogLong(t('Connection terminated'));
+        snackbarLogLong('Connection terminated');
         break;
     }
     // Refresh the server info to update the current game and app list
@@ -292,9 +358,9 @@ function handleMessage(msg) {
     }
   } else if (msg.indexOf('mouseEmulationOn') === 0) {
     // Show mouse emulation enable status as a notification
-    snackbarLogLong(t('Mouse emulation is activated'));
+    snackbarLogLong('Mouse emulation is activated');
   } else if (msg.indexOf('mouseEmulationOff') === 0) {
     // Show mouse emulation disable status as notification
-    snackbarLogLong(t('Mouse emulation is deactivated'));
+    snackbarLogLong('Mouse emulation is deactivated');
   }
 }

@@ -41,8 +41,7 @@ function decodeString(value) {
     .replace(/\\`/g, '`')
     .replace(/\\n/g, '\n')
     .replace(/\\r/g, '\r')
-    .replace(/\\t/g, '\t')
-    .trim();
+    .replace(/\\t/g, '\t');
 }
 
 function extractFromContent(content, keys) {
@@ -151,6 +150,7 @@ function main() {
 
   const files = [];
   walk(WASM_ROOT, files);
+  files.sort();
 
   const keys = new Set();
   for (const file of files) {
@@ -158,7 +158,7 @@ function main() {
     extractFromContent(content, keys);
   }
 
-  const sortedKeys = Array.from(keys).sort((a, b) => a.localeCompare(b));
+  const sortedKeys = Array.from(keys);
   const sourceDict = {};
   for (const key of sortedKeys) {
     sourceDict[key] = key;
