@@ -289,7 +289,7 @@
               </ul>
             </div>
             <div class="setting-option">
-              <label data-i18n="Audio configuration">Audio configuration
+              <label><span data-i18n="Audio configuration">Audio configuration</span>
                 <span class="badge badge-experimental" data-i18n="Experimental">Experimental</span>
               </label>
               <span class="mdl-list__item-text-body" data-i18n="- Choose 5.1 or 7.1 surround sound for home-theater systems or use Stereo for general audio compatibility.">
@@ -405,7 +405,7 @@
           </div>
           <div id="advancedSettings" class="settings-options">
             <div class="setting-option">
-              <label data-i18n="Unlock all frame rates">Unlock all frame rates
+              <label><span data-i18n="Unlock all frame rates">Unlock all frame rates</span>
                 <span class="badge badge-experimental" data-i18n="Experimental">Experimental</span>
               </label>
               <span class="mdl-list__item-text-body" data-i18n="- Higher FPS can reduce latency on high-end devices, but may cause lag or instability on unsupported devices.">
@@ -577,6 +577,25 @@
       </div>
       <div class="mdl-dialog__actions">
         <button type="button" id="cancelPairing" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect" data-i18n="Cancel">Cancel</button>
+      </div>
+    </dialog>
+  </div>
+  <div id="autoWolDialogOverlay" class="dialog-overlay">
+    <dialog id="autoWolDialog" class="mdl-dialog">
+      <h3 id="autoWolDialogTitle" class="mdl-dialog__title" data-i18n="Wake PC">Wake PC</h3>
+      <div class="mdl-dialog__content">
+        <p id="autoWolDialogText"></p>
+        <div id="autoWolCheckboxContainer">
+          <label id="autoWolCheckboxBtn" class="mdl-switch mdl-js-switch mdl-js-ripple-effect" for="autoWolCheckboxSwitch">
+            <input type="checkbox" id="autoWolCheckboxSwitch" class="mdl-switch__input">
+            <span class="mdl-switch__label" data-i18n="Always wake this PC automatically">
+              Always wake this PC automatically
+            </span>
+          </label>
+        </div>
+      </div>
+      <div class="mdl-dialog__actions">
+        <button type="button" id="cancelAutoWol" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect" data-i18n="Cancel">Cancel</button>
       </div>
     </dialog>
   </div>

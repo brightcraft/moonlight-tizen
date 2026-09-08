@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## v1.16.1
+
+### Changed
+- Improved host polling and subnet scanning reliability and performance
+- Improved Smart Hub deep link handling during host discovery at app startup
+- Improved translation extraction and synchronization for more reliable string handling
+- Prevented i18n initialization from delaying the initial loading screen at app launch
+
+### Fixed
+- Fixed an unnecessary database write for the language preference on startup
+- Fixed corrupted PNG box art affecting the Apps list and Smart Hub Previews
+- Fixed experimental badges disappearing from settings labels after translation
+- Fixed UI freezes and hosts incorrectly appearing offline due to network timeouts
+- Fixed system info translation when Auto is set and prevented duplicate language initialization
+- Fixed toast messages being translated twice and translated strings appearing in browser console
+
 ## v1.16.0
 
 ### Added
