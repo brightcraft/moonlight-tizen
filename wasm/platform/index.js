@@ -522,7 +522,7 @@ function restoreUiAfterWasmLoad() {
   setTimeout(() => checkForAppUpdatesAtStartup(), 10000);
 }
 
-function hostChosen(host) {
+function hostChosen(host, onSuccessCallback) {
   if (isPairingInProgress) {
     snackbarLogLong('A pairing request is currently in progress. Please wait for it to timeout or finish before trying again.');
     return;
@@ -530,6 +530,19 @@ function hostChosen(host) {
 
   // If the host is already offline or fails to connect, notify the user.
   if (!host.online) {
+    // Only show the Wake PC dialog if the user has explicitly enabled per-host auto-Wake-on-LAN
+    if (host.autoWolEnabled === true) {
+      autoWolDialog(host, function() {
+        // Success callback: The host is now online.
+        if (onSuccessCallback) {
+          onSuccessCallback();
+        } else {
+          // Re-call hostChosen(host) to proceed normally.
+          hostChosen(host);
+        }
+      });
+    }
+
     // Let the user know what to do to bring the host back online and until then, we'll be back to the previous view.
     console.error('%c[index.js, hostChosen]', 'color: green;', 'Error: Connection to host failed or host is offline!');
     snackbarLogLong('Failed to connect to %1$s. Ensure Sunshine is running on your host PC or GameStream is enabled in GeForce Experience SHIELD settings.', 'the host');
@@ -986,6 +999,128 @@ function pairingDialog(nvhttpHost, onSuccess, onFailure) {
   });
 }
 
+function autoWolDialog(host, onSuccess, onCancel) {
+  var autoWolOverlay = document.querySelector('#autoWolDialogOverlay');
+  var autoWolDialog = document.querySelector('#autoWolDialog');
+
+  // Reset the button text to their default state
+  $('#cancelAutoWol').html(t('Cancel'));
+  Views.AutoWolDialog.view.reset();
+
+  // Set the checkbox state based on the host's autoWolEnabled property
+  if (host.autoWolEnabled === true) {
+    document.querySelector('#autoWolCheckboxBtn').MaterialSwitch.on();
+  } else {
+    document.querySelector('#autoWolCheckboxBtn').MaterialSwitch.off();
+  }
+
+  // Attach onchange event listener to the Auto WOL checkbox
+  $('#autoWolCheckboxSwitch').off('change');
+  $('#autoWolCheckboxSwitch').on('change', function() {
+    host.autoWolEnabled = $(this).prop('checked');
+    console.log('%c[index.js, autoWolDialog]', 'color: green;', 'Host autoWolEnabled set to: ' + host.autoWolEnabled);
+    saveHosts();
+  });
+
+  autoWolOverlay.style.display = 'flex';
+  autoWolDialog.showModal();
+  isDialogOpen = true;
+  Navigation.push(Views.AutoWolDialog);
+  focusElement('cancelAutoWol');
+
+  var isPolling = true;
+  var pollTimeout = null;
+  var hasFailed = false;
+
+  var stopPollingTasks = function() {
+    isPolling = false;
+    if (pollTimeout) clearTimeout(pollTimeout);
+    if (typeof abortSubnetScan === 'function') abortSubnetScan();
+  };
+
+  var cleanup = function() {
+    stopPollingTasks();
+    autoWolOverlay.style.display = 'none';
+    autoWolDialog.close();
+    isDialogOpen = false;
+    Navigation.pop();
+  };
+
+  var sendWakeRequest = function() {
+    $('#autoWolDialogText').html(t('Sending a Wake-on-LAN request to %1$s...', host.hostname));
+
+    host.sendWOL().then(function(msg) {
+      if (msg) console.log('%c[index.js, autoWolDialog]', 'color: green;', msg);
+      $('#autoWolDialogText').html(
+        t('Wake-on-LAN request sent to %1$s.', host.hostname) + '<br><br>' +
+        t('Waiting for the host PC to wake up and connect to the network...')
+      );
+
+      var pollLoop = function() {
+        if (!isPolling) return;
+
+        // Continuously sweep the subnet to catch the host if it wakes up with a new DHCP IP
+        var scanPromise = (typeof startSubnetScanner === 'function')
+          ? Promise.resolve(startSubnetScanner()).catch(function(e){
+              console.warn('%c[index.js, autoWolDialog]', 'color: orange;', 'Subnet scan failed during WOL wait, continuing to poll:', e);
+            })
+          : Promise.resolve();
+
+        scanPromise.then(function() {
+          if (!isPolling) return; // In case the dialog was closed during the scan
+          
+          host.pollServer(function(returnedHost) {
+            if (!isPolling) return; // In case the dialog was closed while pollServer was running
+
+            if (returnedHost.online) {
+              cleanup();
+              if (onSuccess) onSuccess();
+
+              // Instantly update the UI to remove the offline styling
+              updateHostStatusIndicator(returnedHost);
+            } else {
+              // Wait 1 second AFTER the previous poll finished before starting the next one.
+              // This prevents rapid CPU spinning if the network drops temporarily and requests 
+              // fail instantly, while still keeping the WOL check feeling responsive.
+              pollTimeout = setTimeout(pollLoop, 1000);
+            }
+          });
+        });
+      };
+
+      // Kick off the sequential polling loop
+      pollLoop();
+
+    }).catch(function(error) {
+      hasFailed = true;
+      stopPollingTasks();
+
+      var errorMessage = typeof error === 'string' ? error : (error && error.message ? error.message : 'Unknown error');
+      var translatedError = replaceKnownWolErrorLabels(errorMessage);
+      $('#autoWolDialogText').html(
+        t('Failed to send Wake-on-LAN request to %1$s!', host.hostname) + '<br><br>' +
+        t('Error: %1$s', translatedError)
+      );
+      // Change the button text to "OK" to indicate that the user can acknowledge the failure
+      $('#cancelAutoWol').html(t('OK'));
+    });
+  };
+
+  $('#cancelAutoWol').off('click');
+  $('#cancelAutoWol').on('click', function() {
+    if (hasFailed) {
+      console.error('%c[index.js, autoWolDialog]', 'color: green;', 'Wake-on-LAN request failed: ' + errorMessage);
+    } else {
+      console.log('%c[index.js, autoWolDialog]', 'color: green;', 'Wake-on-LAN request canceled by user.');
+    }
+    cleanup();
+    if (onCancel) onCancel();
+  });
+
+  // Send wake request immediately since user explicitly opened the Wake PC menu
+  sendWakeRequest();
+}
+
 // Add the new NvHTTP Host object inside the host grid
 function addHostToGrid(host, ismDNSDiscovered) {
   // Create the host container with the appropriate attributes for the host card
@@ -1155,8 +1290,7 @@ function hostMenuDialog(host) {
       text: t('Wake PC'),
       action: function() {
         // Send a Wake-on-LAN request to the target host
-        snackbarLogLong('Sending a Wake On LAN request to %1$s...', host.hostname);
-        host.sendWOL();
+        setTimeout(() => autoWolDialog(host, function() {}, function() {}), 100);
       }
     },
     {
@@ -4051,6 +4185,7 @@ function loadHTTPCertsCb() {
           revivedHost.externalIP = hosts[hostUID].externalIP;
           revivedHost.hostname = hosts[hostUID].hostname;
           revivedHost.ppkstr = hosts[hostUID].ppkstr;
+          revivedHost.autoWolEnabled = hosts[hostUID].autoWolEnabled || false;
           hosts[hostUID] = revivedHost;
           addHostToGrid(revivedHost);
         }
@@ -4102,7 +4237,7 @@ function waitForHostAndNavigate(serverUid) {
     } else if (!host && isHostsLoaded) {
       clearInterval(interval);
       console.warn('%c[index.js, waitForHostAndNavigate]', 'color: orange;', 'Host ' + serverUid + ' no longer exists in Moonlight.');
-      snackbarLogLong(t('The selected host is no longer available on Moonlight.'));
+      snackbarLogLong('The selected host is no longer available on Moonlight.');
       if (typeof updatePreviewData === 'function') updatePreviewData();
     } else if (attempts > 30) {
       clearInterval(interval);
@@ -4129,7 +4264,10 @@ function waitForHostAndNavigateToApp(serverUid, appId) {
 
       // Check whether the host is online before trying to connect
       if (!host.online) {
-        hostChosen(host);
+        hostChosen(host, function() {
+          // Success callback: The host is now online. Retry the deep link navigation.
+          waitForHostAndNavigateToApp(serverUid, appId);
+        });
         return;
       }
 
@@ -4208,7 +4346,7 @@ function waitForHostAndNavigateToApp(serverUid, appId) {
     } else if (!host && isHostsLoaded) {
       clearInterval(interval);
       console.warn('%c[index.js, waitForHostAndNavigateToApp]', 'color: orange;', 'Host ' + serverUid + ' no longer exists in Moonlight.');
-      snackbarLogLong(t('The selected host is no longer available on Moonlight.'));
+      snackbarLogLong('The selected host is no longer available on Moonlight.');
       if (typeof updatePreviewData === 'function') updatePreviewData();
     } else if (attempts > 30) { // 30s timeout
       clearInterval(interval);
