@@ -4239,7 +4239,7 @@ function waitForHostAndNavigate(serverUid) {
     } else if (!host && isHostsLoaded) {
       clearInterval(interval);
       console.warn('%c[index.js, waitForHostAndNavigate]', 'color: orange;', 'Host ' + serverUid + ' no longer exists in Moonlight.');
-      snackbarLogLong(t('The selected host is no longer available on Moonlight.'));
+      snackbarLogLong('The selected host is no longer available on Moonlight.');
       if (typeof updatePreviewData === 'function') updatePreviewData();
     } else if (attempts > 30) {
       clearInterval(interval);
@@ -4348,7 +4348,7 @@ function waitForHostAndNavigateToApp(serverUid, appId) {
     } else if (!host && isHostsLoaded) {
       clearInterval(interval);
       console.warn('%c[index.js, waitForHostAndNavigateToApp]', 'color: orange;', 'Host ' + serverUid + ' no longer exists in Moonlight.');
-      snackbarLogLong(t('The selected host is no longer available on Moonlight.'));
+      snackbarLogLong('The selected host is no longer available on Moonlight.');
       if (typeof updatePreviewData === 'function') updatePreviewData();
     } else if (attempts > 30) { // 30s timeout
       clearInterval(interval);
