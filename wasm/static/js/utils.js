@@ -311,6 +311,10 @@ NvHTTP.prototype = {
 
     var addCandidate = function(addr) {
       if (addr && !seen[addr]) { // skip empty strings AND duplicates
+        // Skip localhost addresses (127.0.0.1, ::1, etc.) as they're not routable from the client
+        if (addr === '127.0.0.1' || addr === '::1' || addr.startsWith('127.') || addr === 'localhost') {
+          return;
+        }
         seen[addr] = true;
         candidates.push(addr);
       }
@@ -400,7 +404,12 @@ NvHTTP.prototype = {
 
     // Retrieve the local IP address and MAC address of the host
     this.localAddress = $root.find('LocalIP').text().trim();
-    this.macAddress = $root.find('mac').text().trim();
+
+    // Retrieve the MAC address of the host (required for Wake-on-LAN)
+    var macAddr = $root.find('mac').text().trim();
+    if (macAddr) {
+      this.macAddress = macAddr;
+    }
 
     // This is an extension which is not present in GFE. It is present for Sunshine to be able
     // to support dynamic HTTP WAN ports without requiring the user to manually enter the port.
