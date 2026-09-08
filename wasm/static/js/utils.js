@@ -549,72 +549,7 @@ NvHTTP.prototype = {
 
       var self = this;
       
-      // Try to load the cached original box art from private storage
-      try {
-        // Open the cached original PNG box art for reading
-        var fileHandleRead = tizen.filesystem.openFile(boxArtDir + "/" + boxArtFileName, "r");
-        var fileContentInBlob = fileHandleRead.readBlob();
-        fileHandleRead.close();
-        
-        // Guard against empty/corrupt cached files
-        if (!fileContentInBlob || fileContentInBlob.size === 0) {
-          throw new Error("Cached original box art file is empty.");
-        }
-
-        var reader = new FileReader();
-        reader.onloadend = function() {
-          var dataUrl = reader.result;
-          console.log("%c[utils.js, getBoxArt]", "color: gray;", "Returning storage-cached box art: ", appId);
-
-          // Return the cached original box art directly when Smart Hub Preview is not supported
-          if (!isSmartHubSupported) {
-            resolve(dataUrl);
-            return;
-          }
-
-          // Check whether an optimized Smart Hub Preview has already been cached
-          var previewFileName = "preview-" + appId + ".jpg";
-          var previewFilePath = "documents/" + previewFileName;
-
-          // Try to open the cached preview box art to determine whether it already exists
-          try {
-            // Open the cached preview file to check whether it already exists
-            var previewFileHandle = tizen.filesystem.openFile(previewFilePath, "r");
-            previewFileHandle.close();
-
-            console.log("%c[utils.js, getBoxArt]", "color: gray;", "Smart Hub Preview box art file already cached: " + previewFileName);
-            // The preview already exists, so no additional processing is required
-            resolve(dataUrl);
-            return;
-          } catch (previewReadError) {
-            // The preview box art file does not exist, so generate it from the original box art
-            console.log("%c[utils.js, getBoxArt]", "color: gray;", "Smart Hub Preview box art file not found, generating: " + previewFileName);
-          }
-
-          // Generate and save the optimized JPEG preview box art asynchronously from storage.
-          var previewPromise = self.generatePreviewImage(dataUrl, appId).then(function(previewDataUrl) {
-            if (previewDataUrl) {
-              self.savePreviewImage(appId, previewDataUrl);
-            }
-          }, function(error) {
-            console.warn("%c[utils.js, getBoxArt]", "color: gray;", "Warning: Failed to generate Smart Hub Preview box art from storage for app ID " + appId + ": " + error);
-          });
-
-          if (!window.previewPromises) {
-            window.previewPromises = [];
-          }
-          window.previewPromises.push(previewPromise);
-
-          resolve(dataUrl);
-        };
-        // Ensure proper MIME type so the data URL is recognized as an image
-        var typedBlob = new Blob([fileContentInBlob], { type: "image/png" });
-        reader.readAsDataURL(typedBlob);
-        return; // Let onloadend resolve the promise
-      } catch (readError) {
-        // The original PNG box art is not available locally, so fetch it from the host
-        console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Could not read cached box art from internal storage!', readError.message);
-
+      var fetchBoxArt = function() {
         // Fetch the new box art from the network
         sendMessage('openUrl', [
           self._baseUrlHttps + '/appasset?' + self._buildUidStr() + '&appid=' + appId + '&AssetType=2&AssetIdx=0', self.ppkstr, true
@@ -674,6 +609,122 @@ NvHTTP.prototype = {
           console.error('%c[utils.js, getBoxArt]', 'color: gray;', 'Error: Failed to retrieve original box art from network: ', error);
           reject(error);
         });
+      };
+
+      // Try to load the cached original box art from private storage
+      try {
+        // Open the cached original PNG box art for reading
+        var fileHandleRead = tizen.filesystem.openFile(boxArtDir + '/' + boxArtFileName, 'r');
+        // Read the binary PNG data from the file (returns Blob)
+        var fileContentInBlob = fileHandleRead.readBlob();
+        // Close the file after the binary data has been read
+        fileHandleRead.close();
+        
+        // Guard against empty/corrupt cached files
+        if (!fileContentInBlob || fileContentInBlob.size === 0) {
+          throw new Error('Cached original box art file is empty.');
+        }
+
+        var processBoxArt = function() {
+          var reader = new FileReader();
+          reader.onloadend = function() {
+            var dataUrl = reader.result;
+            console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Returning storage-cached box art: ', appId);
+
+            // Return the cached original box art directly when Smart Hub Preview is not supported
+            if (!isSmartHubSupported) {
+              resolve(dataUrl);
+              return;
+            }
+
+            // Check whether an optimized Smart Hub Preview has already been cached
+            var previewFileName = 'preview-' + appId + '.jpg';
+            var previewFilePath = 'documents/' + previewFileName;
+
+            // Try to open the cached preview box art to determine whether it already exists
+            try {
+              // Open the cached preview file to check whether it already exists
+              var previewFileHandle = tizen.filesystem.openFile(previewFilePath, 'r');
+              previewFileHandle.close();
+
+              console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Smart Hub Preview box art file already cached: ' + previewFileName);
+              // The preview already exists, so no additional processing is required
+              resolve(dataUrl);
+              return;
+            } catch (previewReadError) {
+              // The preview box art file does not exist, so generate it from the original box art
+              console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Smart Hub Preview box art file not found, generating: ' + previewFileName);
+            }
+
+            // Generate and save the optimized JPEG preview box art asynchronously from storage.
+            // The original PNG box art can be returned immediately without waiting for preview generation.
+            var previewPromise = self.generatePreviewImage(dataUrl, appId).then(function(previewDataUrl) {
+              if (previewDataUrl) {
+                self.savePreviewImage(appId, previewDataUrl);
+              }
+            }, function(error) {
+              console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Failed to generate Smart Hub Preview box art from storage for app ID ' + appId + ': ' + error);
+            });
+
+            if (!window.previewPromises) {
+              window.previewPromises = [];
+            }
+            window.previewPromises.push(previewPromise);
+
+            resolve(dataUrl);
+          };
+          
+          // Ensure proper MIME type so the data URL is recognized as an image
+          var typedBlob = new Blob([fileContentInBlob], { type: 'image/png' });
+          reader.readAsDataURL(typedBlob);
+        };
+
+        // Sunshine's default box.png hash
+        var sunshineDefaultBoxArtHash = 'd9164ebd069b5f735eb8efc557801778498da37f572ef70e3d35604739e6c613';
+        
+        if (window.crypto && window.crypto.subtle && window.crypto.subtle.digest) {
+          var hashReader = new FileReader();
+          hashReader.onloadend = function() {
+            var buffer = hashReader.result;
+            window.crypto.subtle.digest('SHA-256', buffer).then(function(hashBuffer) {
+              var hashArray = Array.from(new Uint8Array(hashBuffer));
+              var hashHex = hashArray.map(function(b) { 
+                var hex = b.toString(16);
+                return hex.length === 1 ? '0' + hex : hex;
+              }).join('');
+              
+              if (hashHex === sunshineDefaultBoxArtHash) {
+                console.log('%c[utils.js, getBoxArt]', 'color: gray;', 'Detected Sunshine default box art. Forcing redownload for app ID ' + appId);
+                try {
+                  tizen.filesystem.deleteFile(boxArtDir + '/' + boxArtFileName);
+                } catch(error) {
+                  console.error('%c[utils.js, getBoxArt]', 'color: gray;', 'Error: Failed to delete original box art file ' + boxArtFileName + ': ' + error.message);
+                }
+                var previewFileName = 'preview-' + appId + '.jpg';
+                try {
+                  tizen.filesystem.deleteFile('documents/' + previewFileName);
+                } catch(error) {
+                  console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Failed to delete cached preview box art file ' + previewFileName + ': ' + error.message);
+                }
+                fetchBoxArt();
+              } else {
+                processBoxArt();
+              }
+            }).catch(function(err) {
+              console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Hash computation failed, proceeding with cached file', err);
+              processBoxArt();
+            });
+          };
+          hashReader.readAsArrayBuffer(fileContentInBlob);
+        } else {
+          // If crypto.subtle is not available, just process the cached file
+          processBoxArt();
+        }
+
+      } catch (readError) {
+        // The original PNG box art is not available locally, so fetch it from the host
+        console.warn('%c[utils.js, getBoxArt]', 'color: gray;', 'Warning: Could not read cached box art from internal storage!', readError.message);
+        fetchBoxArt();
       }
     }.bind(this));
   },
