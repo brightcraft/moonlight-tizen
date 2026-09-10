@@ -696,16 +696,30 @@ void MoonlightInstance::FormatVideoStats(VIDEO_STATS& stats, char* output, int l
     }
 
     // Print detailed drop rates and timing statistics
+    float total_gap_percentage = (float)stats.networkDroppedFrames / stats.totalFrames * 100.0f;
+    float network_loss_percentage = LiGetEstimatedNetworkLossPercentage();
+    
+    // If the server doesn't support FEC (e.g. NVIDIA GFE), we cannot differentiate 
+    // between network drops and host skips, so we attribute all gaps to the network.
+    if (network_loss_percentage < 0.0f) {
+        network_loss_percentage = total_gap_percentage;
+    }
+    
+    float host_drop_percentage = total_gap_percentage - network_loss_percentage;
+    if (host_drop_percentage < 0.0f) host_drop_percentage = 0.0f;
+    
     ret = snprintf(
       &output[offset], length - offset,
+      "Frames dropped by your host: %.2f%%\n"
       "Frames dropped by your network connection: %.2f%%\n"
       "Frames dropped due to network jitter: %.2f%%\n"
       "Average network latency: %s\n"
       "Average decoding time: %.2f ms\n"
       "Average frame queue delay: %.2f ms\n"
       "Average rendering time: %.2f ms\n",
-      (float)stats.networkDroppedFrames / stats.totalFrames * 100,
-      (float)stats.pacerDroppedFrames / stats.decodedFrames * 100,
+      host_drop_percentage,
+      network_loss_percentage,
+      (float)stats.pacerDroppedFrames / stats.decodedFrames * 100.0f,
       rttString,
       (float)stats.totalDecodeTime / stats.decodedFrames,
       (float)stats.totalPacerTime / stats.renderedFrames,

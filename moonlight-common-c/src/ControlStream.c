@@ -93,6 +93,16 @@ static int lastConnectionStatusUpdate;
 static uint32_t currentEnetSequenceNumber;
 static uint64_t firstFrameTimeMs;
 
+static int intervalSeenFrameCount;      // Frames where >=1 packet arrived
+static int intervalFecTotalPackets;     // Total data packets expected (from FEC)
+static int intervalFecReceivedPackets;  // Total data packets received intact
+static int intervalFecRecoveredPackets; // Packets recovered via FEC parity
+
+static uint64_t sessionSeenFrameCount;     // Lifetime frames where >=1 packet arrived
+static uint64_t sessionGoodFrameCount;     // Lifetime frames fully reassembled and decoded
+static uint64_t sessionFecTotalPackets;    // Lifetime total data packets expected (from FEC)
+static uint64_t sessionFecReceivedPackets; // Lifetime total data packets received intact
+
 static LINKED_BLOCKING_QUEUE invalidReferenceFrameTuples;
 static LINKED_BLOCKING_QUEUE frameFecStatusQueue;
 static LINKED_BLOCKING_QUEUE asyncCallbackQueue;
@@ -327,6 +337,16 @@ int initializeControlStream(void) {
     lastIntervalLossPercentage = 0;
     lastConnectionStatusUpdate = CONN_STATUS_OKAY;
     firstFrameTimeMs = 0;
+    intervalSeenFrameCount = 0;
+    intervalFecTotalPackets = 0;
+    intervalFecReceivedPackets = 0;
+    intervalFecRecoveredPackets = 0;
+    
+    sessionSeenFrameCount = 0;
+    sessionGoodFrameCount = 0;
+    sessionFecTotalPackets = 0;
+    sessionFecReceivedPackets = 0;
+    
     currentEnetSequenceNumber = 0;
     usePeriodicPing = APP_VERSION_AT_LEAST(7, 1, 415);
     encryptionCtx = PltCreateCryptoContext();
@@ -404,6 +424,22 @@ void connectionDetectedFrameLoss(uint32_t startFrame, uint32_t endFrame) {
 void connectionReceivedCompleteFrame(uint32_t frameIndex) {
     lastGoodFrame = frameIndex;
     intervalGoodFrameCount++;
+    sessionGoodFrameCount++;
+}
+
+// Called from RtpVideoQueue.c after each frame is fully processed
+void connectionReceivedFrameFecStats(int totalDataPackets, int receivedDataPackets, int receivedParityPackets) {
+    intervalFecTotalPackets += totalDataPackets;
+    intervalFecReceivedPackets += receivedDataPackets;
+    
+    sessionFecTotalPackets += totalDataPackets;
+    sessionFecReceivedPackets += receivedDataPackets;
+    
+    // Packets recovered = parity packets that were actually needed for reconstruction
+    int missingDataPackets = totalDataPackets - receivedDataPackets;
+    if (missingDataPackets > 0 && missingDataPackets <= receivedParityPackets) {
+        intervalFecRecoveredPackets += missingDataPackets;
+    }
 }
 
 void connectionSendFrameFecStatus(PSS_FRAME_FEC_STATUS fecStatus) {
@@ -422,6 +458,47 @@ void connectionSendFrameFecStatus(PSS_FRAME_FEC_STATUS fecStatus) {
     }
 }
 
+/*
+ * Centralized logic for estimating network connection health.
+ * 
+ * Instead of simply counting missing frame sequence numbers (which falsely flags intentional
+ * server-side skips as network drops), this function uses actual packet loss data from the FEC layer
+ * when available (e.g. from Sunshine).
+ * 
+ * @param fecTotalPackets    The total number of data packets the FEC layer expected to receive.
+ * @param fecReceivedPackets The total number of data packets the FEC layer actually received.
+ * @param seenFrameCount     The number of frames where AT LEAST ONE packet arrived.
+ * @param goodFrameCount     The number of fully reassembled and decoded frames.
+ * @param totalFrameCount    The total number of frame sequence numbers that elapsed.
+ * 
+ * @return The estimated loss percentage (0.0 to 100.0).
+ */
+static float calculateNetworkLossPercentage(int fecTotalPackets, int fecReceivedPackets, int seenFrameCount, int goodFrameCount, int totalFrameCount) {
+    if (IS_SUNSHINE() && fecTotalPackets > 0) {
+        // This accurately detects partial packet drops within frames. It perfectly ignores
+        // server-side skips, since skipped frames produce zero packets and don't affect FEC totals.
+        float packetLossPercent = (float)(fecTotalPackets - fecReceivedPackets) * 100.0f / (float)fecTotalPackets;
+        
+        // If the network drops 100% of packets for several consecutive frames (e.g. Wi-Fi blackout),
+        // the FEC layer won't see them at all, and packetLossPercent would falsely report 0%.
+        // To catch this, we compare fully decoded frames against frames where AT LEAST ONE
+        // packet arrived (seenFrameCount). Server skips produce zero packets, so they are naturally
+        // excluded from seenFrameCount.
+        float frameLevelLossPercent = 0.0f;
+        if (seenFrameCount > 0) {
+            frameLevelLossPercent = 100.0f - (float)(goodFrameCount * 100.0f) / (float)seenFrameCount;
+        }
+        
+        // Use the HIGHER of the two metrics to catch BOTH partial packet loss and full frame blackouts.
+        return packetLossPercent > frameLevelLossPercent ? packetLossPercent : frameLevelLossPercent;
+    } else {
+        // Original Moonlight logic for non-Sunshine servers (e.g. NVIDIA GFE)
+        // or when no FEC data is available yet. This attributes all frame gaps directly to the network.
+        if (totalFrameCount == 0) return 0.0f;
+        return 100.0f - (float)(goodFrameCount * 100.0f) / (float)totalFrameCount;
+    }
+}
+
 void connectionSawFrame(uint32_t frameIndex) {
     LC_ASSERT_VT(!isBefore16(frameIndex, lastSeenFrame));
 
@@ -432,17 +509,26 @@ void connectionSawFrame(uint32_t frameIndex) {
     if (lastSeenFrame == 0) {
         lastSeenFrame = frameIndex;
         firstFrameTimeMs = now;
+        intervalSeenFrameCount = 1;
+        sessionSeenFrameCount = 1;
         return;
     }
     else if (now - firstFrameTimeMs < CONN_STATUS_SAMPLE_PERIOD) {
         lastSeenFrame = frameIndex;
+        intervalSeenFrameCount++;
+        sessionSeenFrameCount++;
         return;
     }
 
+    intervalSeenFrameCount++;
+    sessionSeenFrameCount++;
+
     if (now - intervalStartTimeMs >= CONN_STATUS_SAMPLE_PERIOD) {
         if (intervalTotalFrameCount != 0) {
-            // Notify the client of connection status changes based on frame loss rate
-            int frameLossPercent = 100 - (intervalGoodFrameCount * 100) / intervalTotalFrameCount;
+            float frameLossPercent = calculateNetworkLossPercentage(intervalFecTotalPackets, intervalFecReceivedPackets, intervalSeenFrameCount, intervalGoodFrameCount, intervalTotalFrameCount);
+            
+            if (frameLossPercent < 0.0f) frameLossPercent = 0.0f;
+
             if (lastConnectionStatusUpdate != CONN_STATUS_POOR &&
                     (frameLossPercent >= CONN_IMMEDIATE_POOR_LOSS_RATE ||
                      (frameLossPercent >= CONN_CONSECUTIVE_POOR_LOSS_RATE && lastIntervalLossPercentage >= CONN_CONSECUTIVE_POOR_LOSS_RATE))) {
@@ -456,12 +542,16 @@ void connectionSawFrame(uint32_t frameIndex) {
                 lastConnectionStatusUpdate = CONN_STATUS_OKAY;
             }
 
-            lastIntervalLossPercentage = frameLossPercent;
+            lastIntervalLossPercentage = (int)frameLossPercent;
         }
 
         // Reset interval
         intervalStartTimeMs = now;
         intervalGoodFrameCount = intervalTotalFrameCount = 0;
+        intervalSeenFrameCount = 0;
+        intervalFecTotalPackets = 0;
+        intervalFecReceivedPackets = 0;
+        intervalFecRecoveredPackets = 0;
     }
 
     intervalTotalFrameCount += frameIndex - lastSeenFrame;
@@ -1969,4 +2059,11 @@ bool LiGetHdrMetadata(PSS_HDR_METADATA metadata) {
 
     *metadata = hdrMetadata;
     return true;
+}
+
+float LiGetEstimatedNetworkLossPercentage(void) {
+    if (!IS_SUNSHINE() || sessionFecTotalPackets == 0) {
+        return -1.0f;
+    }
+    return calculateNetworkLossPercentage(sessionFecTotalPackets, sessionFecReceivedPackets, sessionSeenFrameCount, sessionGoodFrameCount, sessionSeenFrameCount);
 }
