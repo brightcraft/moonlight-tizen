@@ -103,7 +103,6 @@ function attachListeners() {
   $('#ipAddressTextInput').on('input', updateIpAddressInputValidationState);
   $('#sortAppsListSwitch').on('click', saveSortAppsList);
   $('#optimizeGamesSwitch').on('click', saveOptimizeGames);
-  $('#disableMacWarningSwitch').on('click', saveDisableMacWarning);
   $('#removeAllHostsBtn').on('click', deleteAllHostsDialog);
   $('#rumbleFeedbackSwitch').on('click', saveRumbleFeedback);
   $('#mouseEmulationSwitch').on('click', saveMouseEmulation);
@@ -1290,9 +1289,8 @@ function hostMenuDialog(host) {
       'data-i18n': 'Wake PC',
       text: t('Wake PC'),
       action: function() {
-        // Check if MAC is randomized and warning is not disabled
-        var warningDisabled = $('#disableMacWarningSwitch').parent().hasClass('is-checked');
-        if (!warningDisabled && isRandomMacAddress(host.macAddress)) {
+        // Check if MAC is randomized
+        if (isRandomMacAddress(host.macAddress)) {
           // Show warning dialog for randomized MAC addresses
           setTimeout(() => wakeOnLanWarningDialog(host), 100);
         } else {
@@ -3408,14 +3406,6 @@ function saveOptimizeGames() {
   }, 100);
 }
 
-function saveDisableMacWarning() {
-  setTimeout(() => {
-    const chosenDisableMacWarning = $('#disableMacWarningSwitch').parent().hasClass('is-checked');
-    console.log('%c[index.js, saveDisableMacWarning]', 'color: green;', 'Saving disable MAC warning state: ' + chosenDisableMacWarning);
-    storeData('disableMacWarning', chosenDisableMacWarning, null);
-  }, 100);
-}
-
 function saveRumbleFeedback() {
   setTimeout(() => {
     const chosenRumbleFeedback = $('#rumbleFeedbackSwitch').parent().hasClass('is-checked');
@@ -3754,10 +3744,6 @@ function restoreDefaultsSettingsValues() {
   document.querySelector('#optimizeGamesBtn').MaterialSwitch.off();
   storeData('optimizeGames', defaultOptimizeGames, null);
 
-  const defaultDisableMacWarning = false;
-  document.querySelector('#disableMacWarningBtn').MaterialSwitch.off();
-  storeData('disableMacWarning', defaultDisableMacWarning, null);
-
   const defaultRumbleFeedback = false;
   document.querySelector('#rumbleFeedbackBtn').MaterialSwitch.off();
   storeData('rumbleFeedback', defaultRumbleFeedback, null);
@@ -4013,17 +3999,6 @@ function loadUserDataCb() {
       document.querySelector('#optimizeGamesBtn').MaterialSwitch.off();
     } else {
       document.querySelector('#optimizeGamesBtn').MaterialSwitch.on();
-    }
-  });
-
-  console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored disableMacWarning preferences.');
-  getData('disableMacWarning', function(previousValue) {
-    if (previousValue.disableMacWarning == null) {
-      document.querySelector('#disableMacWarningBtn').MaterialSwitch.off(); // Set the default state (off = warning enabled)
-    } else if (previousValue.disableMacWarning == false) {
-      document.querySelector('#disableMacWarningBtn').MaterialSwitch.off();
-    } else {
-      document.querySelector('#disableMacWarningBtn').MaterialSwitch.on();
     }
   });
 

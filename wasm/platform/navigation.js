@@ -1135,7 +1135,6 @@ const Views = {
     view: new ListView(() => [
       'sortAppsListBtn',
       'optimizeGamesBtn',
-      'disableMacWarningBtn',
       'removeAllHostsBtn'
     ]),
     up: function() {
