@@ -2183,8 +2183,7 @@ function wakeOnLanWarningDialog(host) {
     Navigation.pop();
     Navigation.switch();
     // Proceed with sending the WoL packet
-    snackbarLogLong(t('Sending a Wake On LAN request to %1$s...', host.hostname));
-    host.sendWOL();
+    setTimeout(() => autoWolDialog(host, function() {}, function() {}), 100);
   });
 }
 
