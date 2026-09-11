@@ -497,6 +497,9 @@ body {
     font-size: 1.4rem;
     letter-spacing: 0.5px;
 }
+#continueWarning {
+    display: none;
+}
 #closeNavGuide {
     width: 58%;
     height: 40px;
