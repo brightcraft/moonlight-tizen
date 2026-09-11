@@ -1721,13 +1721,12 @@ const Views = {
   WarningDialog: {
     view: new ListView(() => {
       // Dynamically return the visible buttons
-      // Order: Close first (index 0), Continue second (index 1) - matches HTML order
       var buttons = [];
-      if ($('#closeWarning').is(':visible')) {
-        buttons.push('closeWarning');
-      }
       if ($('#continueWarning').is(':visible')) {
         buttons.push('continueWarning');
+      }
+      if ($('#closeWarning').is(':visible')) {
+        buttons.push('closeWarning');
       }
       return buttons;
     }),
@@ -1735,13 +1734,13 @@ const Views = {
     down: function() {},
     left: function() {
       if ($('#continueWarning').is(':visible') && $('#closeWarning').is(':visible')) {
-        this.view.next();
+        this.view.prev();
         focusElement(this.view.current());
       }
     },
     right: function() {
       if ($('#continueWarning').is(':visible') && $('#closeWarning').is(':visible')) {
-        this.view.prev();
+        this.view.next();
         focusElement(this.view.current());
       }
     },
@@ -1756,13 +1755,9 @@ const Views = {
       focusElement(this.view.current());
     },
     enter: function() {
-      // Default to Close button (index 0) when both buttons are visible
-      // Otherwise default to the only visible button (index 0)
-      if ($('#continueWarning').is(':visible') && $('#closeWarning').is(':visible')) {
-        this.view.index = 0; // Close button
-      } else {
-        this.view.index = 0; // Only visible button (Close for standard warnings)
-      }
+      // Default to Continue button (index 0) when both buttons are visible
+      // Otherwise default to the only visible Close button (index 0)
+      this.view.index = 0;
       mark(this.view.current());
       setTimeout(() => focusElement(this.view.current()), 100);
     },

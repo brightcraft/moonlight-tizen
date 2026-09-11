@@ -2142,21 +2142,25 @@ function warningDialog(title, message) {
 function wakeOnLanWarningDialog(host) {
   var warningDialogOverlay = document.querySelector('#warningDialogOverlay');
   var warningDialog = document.querySelector('#warningDialog');
+
   // Set the title and message
   document.getElementById('warningDialogTitle').innerHTML = t('Wake-on-LAN Warning');
   document.getElementById('warningDialogText').innerHTML = t(
     'The MAC address of %1$s (%2$s) appears to be randomly generated.', host.hostname, host.macAddress) + '<br><br>' +
     t('The Operating System may be using a random MAC address instead of the physical network card address.') + ' ' +
     t('Wake-on-LAN may be unable to wake up the machine since the MAC address does not match the one from the network card.');
+
   // Show the dialog and push the view
   warningDialogOverlay.style.display = 'flex';
   warningDialog.showModal();
   isDialogOpen = true;
   Navigation.push(Views.WarningDialog);
+
   // Dynamically swap buttons: show "Continue" and change "Close" to act as Cancel
   $('#continueWarning').show();
   // Remove single-button class since both buttons are now visible
   warningDialog.classList.remove('single-button');
+
   // Cancel — close dialog without sending WoL (using Close button)
   $('#closeWarning').off('click');
   $('#closeWarning').on('click', function() {
@@ -2169,6 +2173,7 @@ function wakeOnLanWarningDialog(host) {
     Navigation.pop();
     Navigation.switch();
   });
+
   // Continue — send WoL despite randomized MAC
   $('#continueWarning').off('click');
   $('#continueWarning').on('click', function() {
