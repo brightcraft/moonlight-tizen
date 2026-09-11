@@ -888,6 +888,15 @@ body {
     background-color: #404354 !important;
     box-shadow: 0 0 2px 3px rgba(0, 163, 198, 1);
 }
+.mdl-button--raised.mdl-button--colored[disabled] {
+	color: #dedede !important;
+    opacity: 0.5 !important;
+	pointer-events: none;
+}
+.mdl-button--raised.mdl-button--colored[disabled].hovered, .mdl-button--raised.mdl-button--colored[disabled]:hover,
+.mdl-button--raised.mdl-button--colored[disabled]:focus, .mdl-button--raised.mdl-button--colored[disabled]:active {
+    box-shadow: 0 0 2px 3px rgba(170, 170, 170, 1) !important;
+}
 .mdl-badge {
     margin-right: 30px !important;
 }

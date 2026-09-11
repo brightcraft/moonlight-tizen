@@ -1276,6 +1276,7 @@ function hostMenuDialog(host) {
       class: 'host-menu-button',
       'data-i18n': 'Refresh apps',
       text: t('Refresh apps'),
+      disabled: !host.online,
       action: function() {
         // Refresh the list of apps for the target host
         snackbarLogLong('Refreshing the list of %1$s applications...', host.hostname);
@@ -1288,6 +1289,7 @@ function hostMenuDialog(host) {
       class: 'host-menu-button',
       'data-i18n': 'Wake PC',
       text: t('Wake PC'),
+      disabled: host.online,
       action: function() {
         // Check if MAC is randomized
         if (isRandomMacAddress(host.macAddress)) {
@@ -1327,7 +1329,8 @@ function hostMenuDialog(host) {
       type: 'button',
       id: menuOption.id,
       class: 'mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect',
-      text: menuOption.text
+      text: menuOption.text,
+      disabled: menuOption.disabled || false
     });
     // Trigger the action if the Option button is pressed
     hostMenuDialogOption.off('click');
