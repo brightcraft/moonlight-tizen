@@ -664,12 +664,7 @@ const Views = {
   HostMenuDialog: {
     view: new ListView(() => {
       const actions = ['refreshApps', 'wakeHost', 'deleteHost', 'viewDetails', 'closeHostMenu'];
-      const elements = actions.map(action => action === 'closeHostMenu' ? action : action + '-' + Views.HostMenuDialog.hostname);
-      // Filter out disabled elements
-      return elements.filter(id => {
-        const element = document.getElementById(id);
-        return element && !element.disabled;
-      });
+      return actions.map(action => action === 'closeHostMenu' ? action : action + '-' + Views.HostMenuDialog.hostname);
     }),
     up: function() {
       this.view.prevOption();
