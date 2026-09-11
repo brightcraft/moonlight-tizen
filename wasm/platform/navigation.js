@@ -1719,17 +1719,31 @@ const Views = {
     },
   },
   WarningDialog: {
-    view: new ListView(() => [
-      'closeWarning'
-    ]),
-    up: function() {
-      blurElement('closeWarning');
+    view: new ListView(() => {
+      // Dynamically return the visible buttons
+      var buttons = [];
+      if ($('#continueWarning').is(':visible')) {
+        buttons.push('continueWarning');
+      }
+      if ($('#closeWarning').is(':visible')) {
+        buttons.push('closeWarning');
+      }
+      return buttons;
+    }),
+    up: function() {},
+    down: function() {},
+    left: function() {
+      if ($('#continueWarning').is(':visible') && $('#closeWarning').is(':visible')) {
+        this.view.prev();
+        focusElement(this.view.current());
+      }
     },
-    down: function() {
-      focusElement('closeWarning');
+    right: function() {
+      if ($('#continueWarning').is(':visible') && $('#closeWarning').is(':visible')) {
+        this.view.next();
+        focusElement(this.view.current());
+      }
     },
-    left: function() {},
-    right: function() {},
     accept: function() {
       clickElement(this.view.current());
     },
@@ -1741,6 +1755,9 @@ const Views = {
       focusElement(this.view.current());
     },
     enter: function() {
+      // Default to Continue button (index 0) when both buttons are visible
+      // Otherwise default to the only visible Close button (index 0)
+      this.view.index = 0;
       mark(this.view.current());
       setTimeout(() => focusElement(this.view.current()), 100);
     },

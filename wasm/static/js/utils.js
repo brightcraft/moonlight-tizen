@@ -7,6 +7,26 @@ function formatAddressForUrl(address) {
   return address;
 }
 
+/**
+ * Checks if a MAC address is locally administered (likely randomized).
+ * Per IEEE 802, the second-least-significant bit (U/L bit) of the first octet
+ * indicates a locally administered address when set to 1.
+ * This means the second hex character of the MAC is one of: 2, 6, A, E.
+ */
+function isRandomMacAddress(macAddress) {
+  if (!macAddress || macAddress === '00:00:00:00:00:00') {
+    console.error('%c[utils.js, refreshServerInfo]', 'color: gray;', 'Error: Invalid MAC address: empty or all zeros');
+    return false;
+  }
+  var firstOctet = parseInt(macAddress.split(':')[0], 16);
+  if (isNaN(firstOctet)) {
+    console.error('%c[utils.js, refreshServerInfo]', 'color: gray;', 'Error: Invalid MAC address format: ' + macAddress);
+    return false;
+  }
+  // Check the U/L bit (bit 1) — if set, address is locally administered
+  return (firstOctet & 0x02) !== 0;
+}
+
 function guuid() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
     var r = Math.random() * 16 | 0,

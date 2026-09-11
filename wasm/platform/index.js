@@ -1289,8 +1289,14 @@ function hostMenuDialog(host) {
       'data-i18n': 'Wake PC',
       text: t('Wake PC'),
       action: function() {
-        // Send a Wake-on-LAN request to the target host
-        setTimeout(() => autoWolDialog(host, function() {}, function() {}), 100);
+        // Check if MAC is randomized
+        if (isRandomMacAddress(host.macAddress)) {
+          // Show warning dialog for randomized MAC addresses
+          setTimeout(() => wakeOnLanWarningDialog(host), 100);
+        } else {
+          // Send a Wake-on-LAN request to the target host
+          setTimeout(() => autoWolDialog(host, function() {}, function() {}), 100);
+        }
       }
     },
     {
@@ -2114,6 +2120,11 @@ function warningDialog(title, message) {
   isDialogOpen = true;
   Navigation.push(Views.WarningDialog);
 
+  // Ensure the continueWarning button is hidden for standard warnings
+  $('#continueWarning').hide();
+  // Add single-button class for CSS styling when only Close button is visible
+  warningDialog.classList.add('single-button');
+
   // Cancel the operation if the Close button is pressed
   $('#closeWarning').off('click');
   $('#closeWarning').on('click', function() {
@@ -2121,8 +2132,61 @@ function warningDialog(title, message) {
     warningDialogOverlay.style.display = 'none';
     warningDialog.close();
     isDialogOpen = false;
+    warningDialog.classList.remove('single-button');
     Navigation.pop();
     Navigation.switch();
+  });
+}
+
+// Show a WoL warning dialog for randomized (locally administered) MAC addresses
+function wakeOnLanWarningDialog(host) {
+  var warningDialogOverlay = document.querySelector('#warningDialogOverlay');
+  var warningDialog = document.querySelector('#warningDialog');
+
+  // Set the title and message
+  document.getElementById('warningDialogTitle').innerHTML = t('Wake-on-LAN Warning');
+  document.getElementById('warningDialogText').innerHTML = t(
+    'The MAC address of %1$s (%2$s) appears to be randomly generated.', host.hostname, host.macAddress) + '<br><br>' +
+    t('The Operating System may be using a random MAC address instead of the physical network card address.') + ' ' +
+    t('Wake-on-LAN may be unable to wake up the machine since the MAC address does not match the one from the network card.');
+
+  // Show the dialog and push the view
+  warningDialogOverlay.style.display = 'flex';
+  warningDialog.showModal();
+  isDialogOpen = true;
+  Navigation.push(Views.WarningDialog);
+
+  // Dynamically swap buttons: show "Continue" and change "Close" to act as Cancel
+  $('#continueWarning').show();
+  // Remove single-button class since both buttons are now visible
+  warningDialog.classList.remove('single-button');
+
+  // Cancel — close dialog without sending WoL (using Close button)
+  $('#closeWarning').off('click');
+  $('#closeWarning').on('click', function() {
+    console.log('%c[index.js, wakeOnLanWarningDialog]', 'color: green;', 'Closing WoL warning dialog and returning.');
+    warningDialogOverlay.style.display = 'none';
+    warningDialog.close();
+    isDialogOpen = false;
+    // Restore the default state for future non-WoL warnings
+    $('#continueWarning').hide();
+    Navigation.pop();
+    Navigation.switch();
+  });
+
+  // Continue — send WoL despite randomized MAC
+  $('#continueWarning').off('click');
+  $('#continueWarning').on('click', function() {
+    console.log('%c[index.js, wakeOnLanWarningDialog]', 'color: green;', 'User accepted WoL warning. Sending WoL to ' + host.hostname);
+    warningDialogOverlay.style.display = 'none';
+    warningDialog.close();
+    isDialogOpen = false;
+    // Restore the default state for future non-WoL warnings
+    $('#continueWarning').hide();
+    Navigation.pop();
+    Navigation.switch();
+    // Proceed with sending the WoL packet
+    setTimeout(() => autoWolDialog(host, function() {}, function() {}), 100);
   });
 }
 
