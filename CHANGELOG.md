@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## v1.17.0
+
+### Added
+- Added an intermediate hamburger menu highlight when navigating up from a host card
+- Added automatic Wake-on-LAN support to wake offline hosts with a per-host toggle
+- Added host availability polling to the wake-up process to detect when a host becomes reachable
+- Added a warning when Wake-on-LAN is used with hosts configured with randomized MAC addresses
+
+### Changed
+- Improved the manual Wake PC action with an interactive wake-up dialog and visual feedback
+- Handled enabling/disabling of 'Wake PC' and 'Refresh Apps' options based on the host's online status
+
+### Fixed
+- Fixed default Sunshine box art remaining cached after custom app box art was added
+- Fixed localhost addresses being used as connection candidates causing failed connections
+- Fixed zero MAC addresses being stored for unpaired hosts causing invalid Wake-on-LAN requests
+- Fixed Wake-on-LAN failing to send magic packets in some cases due to a socket initialization error
+
 ## v1.16.1
 
 ### Changed
