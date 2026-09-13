@@ -2,6 +2,55 @@
 
 All notable changes to this project will be documented in this file.
 
+## v1.17.0
+
+### Added
+- Added an intermediate hamburger menu highlight when navigating up from a host card
+- Added automatic Wake-on-LAN support to wake offline hosts with a per-host toggle
+- Added host availability polling to the wake-up process to detect when a host becomes reachable
+- Added a warning when Wake-on-LAN is used with hosts configured with randomized MAC addresses
+
+### Changed
+- Improved the manual Wake PC action with an interactive wake-up dialog and visual feedback
+- Handled enabling/disabling of 'Wake PC' and 'Refresh Apps' options based on the host's online status
+
+### Fixed
+- Fixed default Sunshine box art remaining cached after custom app box art was added
+- Fixed localhost addresses being used as connection candidates causing failed connections
+- Fixed zero MAC addresses being stored for unpaired hosts causing invalid Wake-on-LAN requests
+- Fixed Wake-on-LAN failing to send magic packets in some cases due to a socket initialization error
+
+## v1.16.1
+
+### Changed
+- Improved host polling and subnet scanning reliability and performance
+- Improved Smart Hub deep link handling during host discovery at app startup
+- Improved translation extraction and synchronization for more reliable string handling
+- Prevented i18n initialization from delaying the initial loading screen at app launch
+
+### Fixed
+- Fixed an unnecessary database write for the language preference on startup
+- Fixed corrupted PNG box art affecting the Apps list and Smart Hub Previews
+- Fixed experimental badges disappearing from settings labels after translation
+- Fixed UI freezes and hosts incorrectly appearing offline due to network timeouts
+- Fixed system info translation when Auto is set and prevented duplicate language initialization
+- Fixed toast messages being translated twice and translated strings appearing in browser console
+
+## v1.16.0
+
+### Added
+- Introduced a new 'Audio backend' setting for switching between EMSS and Web Audio
+- Added Web Audio as an alternative audio backend alongside the existing EMSS implementation
+- Introduced a new 'Audio jitter buffer' setting for tuning Web Audio playback buffering
+- Retained the existing 'Audio synchronization' setting for the default EMSS backend
+- Handled backend-specific audio settings dynamically based on the selected audio backend
+
+### Fixed
+- Fixed selection menu settings not being preserved after restoring defaults
+- Fixed a race condition causing missing Smart Hub Preview box art for newly added apps
+- Fixed an issue causing toggle switches to revert to their previous state after being selected
+- Fixed background polling failures caused by stale host addresses and missing local IP fallback
+
 ## v1.15.0
 
 ### Added

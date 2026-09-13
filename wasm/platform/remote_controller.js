@@ -21,6 +21,7 @@ function remoteControllerHandler(e) {
       break;
     case tvKey.KEY_ENTER:
     case tvKey.KEY_REMOTE_ENTER:
+      e.preventDefault(); // Prevent native asynchronous click
       // Select the current item
       Navigation.accept();
       break;

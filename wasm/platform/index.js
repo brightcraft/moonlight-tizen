@@ -28,6 +28,8 @@ try {
 }
 var isHdrCapable = webapis.avinfo.isHdrTvSupport(); // Check if the device supports HDR
 var hosts = {}; // Hosts is an associative array of NvHTTP objects, keyed by server UID
+var isHostsLoaded = false; // Indicates if IndexedDB has finished loading hosts
+var isSubnetScanFinished = false; // Indicates if the initial subnet scan has completed
 var activePolls = {}; // Hosts currently being polled. An associated array of polling IDs, keyed by server UID
 var pairingCert; // Loads the generated certificate
 var myUniqueid;
@@ -62,6 +64,16 @@ const UPDATE_INTERVAL = 24 * 60 * 60 * 1000; // Automatic check for updates inte
 
 // Called by the common.js module
 function attachListeners() {
+  changeUiModeForWasmLoad();
+
+  // Register loadSystemInfo to run when language is initialized, and every time it changes
+  if (window.i18n && typeof window.i18n.onRefresh === 'function') {
+    window.i18n.onRefresh(loadSystemInfo);
+  } else {
+    // Fallback if i18n is not present
+    loadSystemInfo();
+  }
+
   const i18nInitPromise = (window.i18n && typeof window.i18n.init === 'function')
     ? window.i18n.init().catch((error) => {
       console.warn('%c[index.js, attachListeners]', 'color: green;', 'Warning: i18n initialization failed: ' + error);
@@ -69,11 +81,11 @@ function attachListeners() {
     : Promise.resolve();
 
   i18nInitPromise.finally(() => {
-    changeUiModeForWasmLoad();
     if (window.i18n && typeof window.i18n.populateLanguageMenu === 'function') {
       window.i18n.populateLanguageMenu(saveLanguagePreference);
     }
   });
+
   initIpAddressFields();
   filterUnsupportedResolutions();
 
@@ -96,8 +108,10 @@ function attachListeners() {
   $('#mouseEmulationSwitch').on('click', saveMouseEmulation);
   $('#flipABfaceButtonsSwitch').on('click', saveFlipABfaceButtons);
   $('#flipXYfaceButtonsSwitch').on('click', saveFlipXYfaceButtons);
+  $('.audioBackendMenu li').on('click', saveAudioBackend);
   $('.audioConfigMenu li').on('click', saveAudioConfiguration);
   $('#audioSyncSwitch').on('click', saveAudioSync);
+  $('#jitterSlider').on('input', saveAudioJitter);
   $('#playHostAudioSwitch').on('click', savePlayHostAudio);
   $('.videoCodecMenu li').on('click', saveVideoCodec);
   $('#hdrModeSwitch').on('click', saveHdrMode);
@@ -125,7 +139,9 @@ function attachListeners() {
   registerMenu('selectFramerate', Views.SelectFramerateMenu);
   registerMenu('selectBitrate', Views.SelectBitrateMenu);
   registerMenu('selectLanguage', Views.SelectLanguageMenu);
+  registerMenu('selectAudioBackend', Views.SelectAudioBackendMenu);
   registerMenu('selectAudio', Views.SelectAudioMenu);
+  registerMenu('selectAudioJitter', Views.SelectAudioJitterMenu);
   registerMenu('selectCodec', Views.SelectCodecMenu);
 
   $(window).resize(fullscreenWasmModule);
@@ -244,7 +260,22 @@ function delayedNavigation(callback) {
 
 // Updates the host status indicator based on the host's online and paired status
 function updateHostStatusIndicator(host) {
+  // Find the desired host cell using the server UUID
+  var hostCell = document.querySelector('#host-' + host.serverUid);
   var indicator = document.querySelector('#host-status-' + host.serverUid);
+
+  // Update the host cell inactive styling class
+  if (hostCell) {
+    // Check if the host is currently online
+    if (host.online) {
+      // If the host is online, show it as active
+      hostCell.classList.remove('host-cell-inactive');
+    } else {
+      // If the host is offline, show it as inactive
+      hostCell.classList.add('host-cell-inactive');
+    }
+  }
+
   // If the indicator element is not found, exit the function early
   if (!indicator) {
     return;
@@ -270,68 +301,26 @@ function beginBackgroundPollingOfHost(host) {
   // back to the host view) would leak the old setInterval, causing multiple overlapping
   // poll loops that corrupt the _pollCompletionCallbacks deduplication guard and
   // prevent the host from ever recovering to the online state.
-  if (activePolls[host.serverUid]) {
-    window.clearInterval(activePolls[host.serverUid]);
-    delete activePolls[host.serverUid];
-  }
+  endBackgroundPollingOfHost(host);
+  // Ensure the key exists so the hasOwnProperty check in scheduleNextPoll passes
+  activePolls[host.serverUid] = null;
 
   // Refresh server info before attempting to start background polling of the host
-  host.refreshServerInfo().then(function(ret) {
+  return host.refreshServerInfo().then(function(ret) {
     console.log('%c[index.js, beginBackgroundPollingOfHost]', 'color: green;', 'Starting background polling of host ' + host.serverUid, host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
-    // Find the desired host cell using the server UUID
-    var hostCell = document.querySelector('#host-' + host.serverUid);
-    // Check if the host is currently online
-    if (host.online) {
-      // If the host is online, show it as active
-      hostCell.classList.remove('host-cell-inactive');
-      updateHostStatusIndicator(host);
-      // The host was already online, so start polling in the background now
-      activePolls[host.serverUid] = window.setInterval(function() {
-        // Every 5 seconds, poll at the address to check for any status changes
-        host.pollServer(function(returnedHost) {
-          // Check if the host is currently online
-          if (returnedHost.online) {
-            hostCell.classList.remove('host-cell-inactive');
-          } else {
-            hostCell.classList.add('host-cell-inactive');
-          }
-          updateHostStatusIndicator(returnedHost);
-        });
-      }, 5000);
-    } else {
-      // If the host is offline, show it as inactive
-      hostCell.classList.add('host-cell-inactive');
-      updateHostStatusIndicator(host);
-      // The host was offline, so poll immediately to check the host's status
-      host.pollServer(function(returnedHost) {
-        // Check if the host is currently online
-        if (returnedHost.online) {
-          hostCell.classList.remove('host-cell-inactive');
-        } else {
-          hostCell.classList.add('host-cell-inactive');
-        }
-        updateHostStatusIndicator(returnedHost);
-        // Now that the initial poll is done, start the background polling
-        activePolls[host.serverUid] = window.setInterval(function() {
-          // Every 5 seconds, poll at the address to check for any status changes
-          host.pollServer(function(returnedHost) {
-            // Check if the host is currently online
-            if (returnedHost.online) {
-              hostCell.classList.remove('host-cell-inactive');
-            } else {
-              hostCell.classList.add('host-cell-inactive');
-            }
-            updateHostStatusIndicator(returnedHost);
-          });
-        }, 5000);
-      });
-    }
-  }, function(failedRefreshInfo) {
+    
+    // The fast-path ping succeeded! Mark the host online instantly to prevent the UI from
+    // flashing offline in the .finally block, and to skip the redundant 0-delay poll.
+    host.online = true;
+  }).catch(function(failedRefreshInfo) {
     console.error('%c[index.js, beginBackgroundPollingOfHost]', 'color: green;', 'Error: Failed to refresh server info! Returned error was: ' + failedRefreshInfo + '! Failed server was: ' + '\n', host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
 
     // Set host to offline and clear the app list cache
     host.online = false;
     host._memCachedApplist = null;
+  }).finally(function() {
+    // Update the UI after the network finishes
+    updateHostStatusIndicator(host);
 
     // Reset poll state so that recovery polls from the interval below start with
     // a clean slate. Without this, stale _pollCompletionCallbacks entries from
@@ -347,38 +336,53 @@ function beginBackgroundPollingOfHost(host) {
     host._consecutivePollFailures = 0;
     host._pollCompletionCallbacks = [];
 
-    // Update the UI to show the host as offline
-    var hostCell = document.querySelector('#host-' + host.serverUid);
-    if (hostCell) {
-      hostCell.classList.add('host-cell-inactive');
-    }
-    updateHostStatusIndicator(host);
+    var scheduleNextPoll = function(delay) {
+      // Stop if the poll was canceled (ID removed from activePolls)
+      if (!activePolls.hasOwnProperty(host.serverUid)) return;
 
-    // Start background polling to detect when the host comes back online
-    activePolls[host.serverUid] = window.setInterval(function() {
-      host.pollServer(function(returnedHost) {
-        if (returnedHost.online) {
-          if (hostCell) hostCell.classList.remove('host-cell-inactive');
-        } else {
-          if (hostCell) hostCell.classList.add('host-cell-inactive');
-        }
-        updateHostStatusIndicator(returnedHost);
-      });
-    }, 5000);
+      activePolls[host.serverUid] = window.setTimeout(function() {
+        // In case it was canceled while waiting
+        if (!activePolls.hasOwnProperty(host.serverUid)) return;
+
+        host.pollServer(function(returnedHost) {
+          // Update the UI after the network finishes
+          updateHostStatusIndicator(returnedHost);
+
+          // In case it was canceled while the network request was running
+          if (!activePolls.hasOwnProperty(host.serverUid)) return;
+
+          // Schedule the next poll for 5 seconds AFTER this one finished
+          scheduleNextPoll(5000);
+        });
+      }, delay);
+    };
+
+    // Check if the host is currently online
+    if (host.online) {
+      // The host was already online, so start polling in the background now
+      scheduleNextPoll(5000);
+    } else {
+      // The host was offline, so poll immediately to check the host's status
+      scheduleNextPoll(0);
+    }
   });
 }
 
 function startPollingHosts() {
+  var pollPromises = [];
   for (var hostUID in hosts) {
-    beginBackgroundPollingOfHost(hosts[hostUID]);
+    pollPromises.push(beginBackgroundPollingOfHost(hosts[hostUID]));
   }
+  return Promise.all(pollPromises);
 }
 
 function endBackgroundPollingOfHost(host) {
   console.log('%c[index.js, endBackgroundPollingOfHost]', 'color: green;', 'Stopping background polling of host ' + host.serverUid, host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
   // Clear the host's polling interval and remove it from the activePolls object
-  window.clearInterval(activePolls[host.serverUid]);
-  delete activePolls[host.serverUid];
+  if (activePolls[host.serverUid]) {
+    window.clearTimeout(activePolls[host.serverUid]);
+    delete activePolls[host.serverUid];
+  }
 }
 
 function stopPollingHosts() {
@@ -387,9 +391,9 @@ function stopPollingHosts() {
   }
 }
 
-function snackbarLog(givenMessage) {
-  const translatedMessage = t(givenMessage);
-  console.log('%c[index.js, snackbarLog]', 'color: green;', givenMessage);
+function snackbarLog(...args) {
+  const translatedMessage = t(...args);
+  console.log('%c[index.js, snackbarLog]', 'color: green;', ...args);
   var data = {
     message: translatedMessage,
     timeout: 2500
@@ -397,9 +401,9 @@ function snackbarLog(givenMessage) {
   document.querySelector('#snackbar').MaterialSnackbar.showSnackbar(data);
 }
 
-function snackbarLogLong(givenMessage) {
-  const translatedMessage = t(givenMessage);
-  console.log('%c[index.js, snackbarLogLong]', 'color: green;', givenMessage);
+function snackbarLogLong(...args) {
+  const translatedMessage = t(...args);
+  console.log('%c[index.js, snackbarLogLong]', 'color: green;', ...args);
   var data = {
     message: translatedMessage,
     timeout: 5000
@@ -518,17 +522,30 @@ function restoreUiAfterWasmLoad() {
   setTimeout(() => checkForAppUpdatesAtStartup(), 10000);
 }
 
-function hostChosen(host) {
+function hostChosen(host, onSuccessCallback) {
   if (isPairingInProgress) {
-    snackbarLogLong(t('A pairing request is currently in progress. Please wait for it to timeout or finish before trying again.'));
+    snackbarLogLong('A pairing request is currently in progress. Please wait for it to timeout or finish before trying again.');
     return;
   }
 
   // If the host is already offline or fails to connect, notify the user.
   if (!host.online) {
+    // Only show the Wake PC dialog if the user has explicitly enabled per-host auto-Wake-on-LAN
+    if (host.autoWolEnabled === true) {
+      autoWolDialog(host, function() {
+        // Success callback: The host is now online.
+        if (onSuccessCallback) {
+          onSuccessCallback();
+        } else {
+          // Re-call hostChosen(host) to proceed normally.
+          hostChosen(host);
+        }
+      });
+    }
+
     // Let the user know what to do to bring the host back online and until then, we'll be back to the previous view.
     console.error('%c[index.js, hostChosen]', 'color: green;', 'Error: Connection to host failed or host is offline!');
-    snackbarLogLong(t('Failed to connect to %1$s. Ensure Sunshine is running on your host PC or GameStream is enabled in GeForce Experience SHIELD settings.', 'the host'));
+    snackbarLogLong('Failed to connect to %1$s. Ensure Sunshine is running on your host PC or GameStream is enabled in GeForce Experience SHIELD settings.', 'the host');
     return;
   }
 
@@ -759,6 +776,7 @@ function parseHostAndPortInput(rawInput) {
 // If the `Add Host +` is selected on the host grid, then show the 
 // Add Host dialog to enter the connection details for the host PC
 function addHostDialog() {
+  if (typeof window.abortSubnetScan === 'function') window.abortSubnetScan();
   // Find the existing overlay and dialog elements
   var addHostOverlay = document.querySelector('#addHostDialogOverlay');
   var addHostDialog = document.querySelector('#addHostDialog');
@@ -832,7 +850,7 @@ function addHostDialog() {
     _nvhttpHost.httpPort = parsedHostInput.port;
     console.log('%c[index.js, addHostDialog]', 'color: green;', 'Sending connection request to host address ' + _nvhttpHost.hostname);
     _nvhttpHost.refreshServerInfoAtAddress(parsedHostInput.addr).then(function(success) {
-      snackbarLog(t('Connecting to %1$s...', _nvhttpHost.hostname));
+      snackbarLog('Connecting to %1$s...', _nvhttpHost.hostname);
       // Close the dialog if the user has provided the IP address
       console.log('%c[index.js, addHostDialog]', 'color: green;', 'Closing app dialog and returning.');
       addHostOverlay.style.display = 'none';
@@ -866,7 +884,7 @@ function addHostDialog() {
       initIpAddressFields();
     }.bind(this), function(failure) {
       console.error('%c[index.js, addHostDialog]', 'color: green;', 'Error: Failed API object:\n', _nvhttpHost, '\n' + _nvhttpHost.toString()); // Logging both object (for console) and toString-ed object (for text logs)
-      snackbarLogLong(t('Failed to connect to %1$s. Ensure Sunshine is running on your host PC or GameStream is enabled in GeForce Experience SHIELD settings.', _nvhttpHost.hostname || t('the host')));
+      snackbarLogLong('Failed to connect to %1$s. Ensure Sunshine is running on your host PC or GameStream is enabled in GeForce Experience SHIELD settings.', _nvhttpHost.hostname || t('the host'));
       // Re-enable the Continue button after failure processing
       $('#continueAddHost').removeClass('mdl-button--disabled').prop('disabled', false);
       // Clear the input field after failure processing
@@ -879,13 +897,14 @@ function addHostDialog() {
 
 // Show the Pairing dialog before pairing with the given NvHTTP host object. Returns whether the pairing was successful or failed.
 function pairingDialog(nvhttpHost, onSuccess, onFailure) {
+  if (typeof window.abortSubnetScan === 'function') window.abortSubnetScan();
   if (!onFailure) {
     onFailure = function() {}
   }
 
   if (!pairingCert) {
     console.warn('%c[index.js, pairingDialog]', 'color: green;', 'Warning: Pairing certificate is not generated yet. Please ensure Wasm is initialized properly!');
-    snackbarLogLong(t('Something went wrong with the pairing certificate. Please try pairing with the host PC again.'));
+    snackbarLogLong('Something went wrong with the pairing certificate. Please try pairing with the host PC again.');
     onFailure();
     return;
   }
@@ -893,7 +912,7 @@ function pairingDialog(nvhttpHost, onSuccess, onFailure) {
   nvhttpHost.pollServer(function(returnedNvHTTPHost) {
     if (!returnedNvHTTPHost.online) {
       console.error('%c[index.js, pairingDialog]', 'color: green;', 'Error: Failed to connect to ' + nvhttpHost.hostname + '. Ensure your host PC is online!', nvhttpHost, '\n' + nvhttpHost.toString()); // Logging both object (for console) and toString-ed object (for text logs)
-      snackbarLogLong(t('Failed to connect to %1$s. Ensure Sunshine is running on your host PC or GameStream is enabled in GeForce Experience SHIELD settings.', nvhttpHost.hostname || t('the host')));
+      snackbarLogLong('Failed to connect to %1$s. Ensure Sunshine is running on your host PC or GameStream is enabled in GeForce Experience SHIELD settings.', nvhttpHost.hostname || t('the host'));
       onFailure();
       return;
     }
@@ -904,7 +923,7 @@ function pairingDialog(nvhttpHost, onSuccess, onFailure) {
     }
 
     if (nvhttpHost.currentGame != 0) {
-      snackbarLogLong(t('%1$s is currently in a game session. Please quit the running app or restart the computer, then try again.', nvhttpHost.hostname));
+      snackbarLogLong('%1$s is currently in a game session. Please quit the running app or restart the computer, then try again.', nvhttpHost.hostname);
       onFailure();
       return;
     }
@@ -949,7 +968,7 @@ function pairingDialog(nvhttpHost, onSuccess, onFailure) {
     console.log('%c[index.js, pairingDialog]', 'color: green;', 'Sending pairing request to ' + nvhttpHost.hostname + ' with PIN ' + randomNumber);
     nvhttpHost.pair(randomNumber).then(function() {
       isPairingInProgress = false;
-      snackbarLog(t('Successfully paired with %1$s', nvhttpHost.hostname));
+      snackbarLog('Successfully paired with %1$s', nvhttpHost.hostname);
       // Close the dialog if the pairing was successful
       console.log('%c[index.js, pairingDialog]', 'color: green;', 'Closing app dialog and returning.');
       pairingOverlay.style.display = 'none';
@@ -964,7 +983,7 @@ function pairingDialog(nvhttpHost, onSuccess, onFailure) {
         return;
       }
       console.error('%c[index.js, pairingDialog]', 'color: green;', 'Error: Failed API object:\n', nvhttpHost, '\n' + nvhttpHost.toString()); // Logging both object (for console) and toString-ed object (for text logs)
-      snackbarLog(t('Failed to pair with %1$s', nvhttpHost.hostname));
+      snackbarLog('Failed to pair with %1$s', nvhttpHost.hostname);
       // Keep the modal opened, but change the button for "Close"
       $('#cancelPairing').text('Close');
 
@@ -978,6 +997,128 @@ function pairingDialog(nvhttpHost, onSuccess, onFailure) {
       onFailure();
     });
   });
+}
+
+function autoWolDialog(host, onSuccess, onCancel) {
+  var autoWolOverlay = document.querySelector('#autoWolDialogOverlay');
+  var autoWolDialog = document.querySelector('#autoWolDialog');
+
+  // Reset the button text to their default state
+  $('#cancelAutoWol').html(t('Cancel'));
+  Views.AutoWolDialog.view.reset();
+
+  // Set the checkbox state based on the host's autoWolEnabled property
+  if (host.autoWolEnabled === true) {
+    document.querySelector('#autoWolCheckboxBtn').MaterialSwitch.on();
+  } else {
+    document.querySelector('#autoWolCheckboxBtn').MaterialSwitch.off();
+  }
+
+  // Attach onchange event listener to the Auto WOL checkbox
+  $('#autoWolCheckboxSwitch').off('change');
+  $('#autoWolCheckboxSwitch').on('change', function() {
+    host.autoWolEnabled = $(this).prop('checked');
+    console.log('%c[index.js, autoWolDialog]', 'color: green;', 'Host autoWolEnabled set to: ' + host.autoWolEnabled);
+    saveHosts();
+  });
+
+  autoWolOverlay.style.display = 'flex';
+  autoWolDialog.showModal();
+  isDialogOpen = true;
+  Navigation.push(Views.AutoWolDialog);
+  focusElement('cancelAutoWol');
+
+  var isPolling = true;
+  var pollTimeout = null;
+  var hasFailed = false;
+
+  var stopPollingTasks = function() {
+    isPolling = false;
+    if (pollTimeout) clearTimeout(pollTimeout);
+    if (typeof abortSubnetScan === 'function') abortSubnetScan();
+  };
+
+  var cleanup = function() {
+    stopPollingTasks();
+    autoWolOverlay.style.display = 'none';
+    autoWolDialog.close();
+    isDialogOpen = false;
+    Navigation.pop();
+  };
+
+  var sendWakeRequest = function() {
+    $('#autoWolDialogText').html(t('Sending a Wake-on-LAN request to %1$s...', host.hostname));
+
+    host.sendWOL().then(function(msg) {
+      if (msg) console.log('%c[index.js, autoWolDialog]', 'color: green;', msg);
+      $('#autoWolDialogText').html(
+        t('Wake-on-LAN request sent to %1$s.', host.hostname) + '<br><br>' +
+        t('Waiting for the host PC to wake up and connect to the network...')
+      );
+
+      var pollLoop = function() {
+        if (!isPolling) return;
+
+        // Continuously sweep the subnet to catch the host if it wakes up with a new DHCP IP
+        var scanPromise = (typeof startSubnetScanner === 'function')
+          ? Promise.resolve(startSubnetScanner()).catch(function(e){
+              console.warn('%c[index.js, autoWolDialog]', 'color: orange;', 'Subnet scan failed during WOL wait, continuing to poll:', e);
+            })
+          : Promise.resolve();
+
+        scanPromise.then(function() {
+          if (!isPolling) return; // In case the dialog was closed during the scan
+          
+          host.pollServer(function(returnedHost) {
+            if (!isPolling) return; // In case the dialog was closed while pollServer was running
+
+            if (returnedHost.online) {
+              cleanup();
+              if (onSuccess) onSuccess();
+
+              // Instantly update the UI to remove the offline styling
+              updateHostStatusIndicator(returnedHost);
+            } else {
+              // Wait 1 second AFTER the previous poll finished before starting the next one.
+              // This prevents rapid CPU spinning if the network drops temporarily and requests 
+              // fail instantly, while still keeping the WOL check feeling responsive.
+              pollTimeout = setTimeout(pollLoop, 1000);
+            }
+          });
+        });
+      };
+
+      // Kick off the sequential polling loop
+      pollLoop();
+
+    }).catch(function(error) {
+      hasFailed = true;
+      stopPollingTasks();
+
+      var errorMessage = typeof error === 'string' ? error : (error && error.message ? error.message : 'Unknown error');
+      var translatedError = replaceKnownWolErrorLabels(errorMessage);
+      $('#autoWolDialogText').html(
+        t('Failed to send Wake-on-LAN request to %1$s!', host.hostname) + '<br><br>' +
+        t('Error: %1$s', translatedError)
+      );
+      // Change the button text to "OK" to indicate that the user can acknowledge the failure
+      $('#cancelAutoWol').html(t('OK'));
+    });
+  };
+
+  $('#cancelAutoWol').off('click');
+  $('#cancelAutoWol').on('click', function() {
+    if (hasFailed) {
+      console.error('%c[index.js, autoWolDialog]', 'color: green;', 'Wake-on-LAN request failed: ' + errorMessage);
+    } else {
+      console.log('%c[index.js, autoWolDialog]', 'color: green;', 'Wake-on-LAN request canceled by user.');
+    }
+    cleanup();
+    if (onCancel) onCancel();
+  });
+
+  // Send wake request immediately since user explicitly opened the Wake PC menu
+  sendWakeRequest();
 }
 
 // Add the new NvHTTP Host object inside the host grid
@@ -1135,9 +1276,10 @@ function hostMenuDialog(host) {
       class: 'host-menu-button',
       'data-i18n': 'Refresh apps',
       text: t('Refresh apps'),
+      disabled: !host.online,
       action: function() {
         // Refresh the list of apps for the target host
-        snackbarLogLong(t('Refreshing the list of %1$s applications...', host.hostname));
+        snackbarLogLong('Refreshing the list of %1$s applications...', host.hostname);
         host.clearBoxArt();
         host.getAppListWithCacheFlush();
       }
@@ -1147,10 +1289,16 @@ function hostMenuDialog(host) {
       class: 'host-menu-button',
       'data-i18n': 'Wake PC',
       text: t('Wake PC'),
+      disabled: host.online,
       action: function() {
-        // Send a Wake-on-LAN request to the target host
-        snackbarLogLong(t('Sending a Wake On LAN request to %1$s...', host.hostname));
-        host.sendWOL();
+        // Check if MAC is randomized
+        if (isRandomMacAddress(host.macAddress)) {
+          // Show warning dialog for randomized MAC addresses
+          setTimeout(() => wakeOnLanWarningDialog(host), 100);
+        } else {
+          // Send a Wake-on-LAN request to the target host
+          setTimeout(() => autoWolDialog(host, function() {}, function() {}), 100);
+        }
       }
     },
     {
@@ -1181,7 +1329,8 @@ function hostMenuDialog(host) {
       type: 'button',
       id: menuOption.id,
       class: 'mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect',
-      text: menuOption.text
+      text: menuOption.text,
+      disabled: menuOption.disabled || false
     });
     // Trigger the action if the Option button is pressed
     hostMenuDialogOption.off('click');
@@ -1281,7 +1430,7 @@ function deleteHostDialog(host) {
     savePreviewApps();
     updatePreviewData();
     // If host removed, show snackbar message
-    snackbarLog(t('%1$s has been deleted successfully.', host.hostname));
+    snackbarLog('%1$s has been deleted successfully.', host.hostname);
     deleteHostOverlay.style.display = 'none';
     deleteHostDialog.close();
     isDialogOpen = false;
@@ -1296,7 +1445,7 @@ function deleteHostDialog(host) {
 function deleteAllHostsDialog() {
   if (Object.keys(hosts).length === 0) {
     // If there are no hosts, show snackbar message
-    snackbarLog(t('No host exists.'));
+    snackbarLog('No host exists.');
     return;
   } else {
     // Find the existing overlay and dialog elements
@@ -1343,7 +1492,7 @@ function deleteAllHostsDialog() {
         }
       }
       // If all hosts removed, show snackbar message
-      snackbarLog(t('All hosts have been deleted successfully.'));
+      snackbarLog('All hosts have been deleted successfully.');
       // Clear the preview app cache and update Smart Hub Preview
       _previewApps = {};
       savePreviewApps();
@@ -1770,7 +1919,7 @@ function updateAppButton(latestVersion) {
       }, 500);
     }).catch(error => {
       console.error('%c[index.js, updateAppButton]', 'color: green;', 'Error: Failed to fetch the release data!', error);
-      snackbarLogLong(t('Unable to check update release notes at this time. Please try again later!'));
+      snackbarLogLong('Unable to check update release notes at this time. Please try again later!');
     });
   });
 }
@@ -1852,7 +2001,7 @@ function updateAppDialog(latestVersion, releaseNotes) {
 // Check for updates when the Check for Updates button is pressed
 function checkForAppUpdates() {
   console.log('%c[index.js, checkForAppUpdates]', 'color: green;', 'Checking for new application updates...');
-  snackbarLog(t('Checking for available Moonlight updates...'));
+  snackbarLog('Checking for available Moonlight updates...');
   // Fetch the latest release data from the GitHub API
   fetchLatestRelease().then(({ latestVersion, releaseNotes }) => {
     setTimeout(() => {
@@ -1862,12 +2011,12 @@ function checkForAppUpdates() {
         updateAppDialog(latestVersion, releaseNotes);
       } else {
         // Otherwise, show a snackbar message to inform the user that the app is already up to date
-        snackbarLogLong(t('Your app is already up to date! You\'re on the latest version.'));
+        snackbarLogLong('Your app is already up to date! You\'re on the latest version.');
       }
     }, 1500);
   }).catch(error => {
     console.error('%c[index.js, checkForAppUpdates]', 'color: green;', 'Error: Failed to fetch the release data!', error);
-    snackbarLogLong(t('Unable to check for updates right now. Please try again later!'));
+    snackbarLogLong('Unable to check for updates right now. Please try again later!');
   });
 }
 
@@ -1891,14 +2040,14 @@ function checkForAppUpdatesAtStartup() {
           // Check if a new version update is available
           if (checkVersionUpdate(appInfo.version, latestVersion)) {
             // Show snackbar message with new version to inform user to update the app
-            snackbarLogLong(t('Version %1$s is now available! Check out the latest features & improvements.', latestVersion));
+            snackbarLogLong('Version %1$s is now available! Check out the latest features & improvements.', latestVersion);
             // Create and display the Update App button with tooltip and additional layout spacer
             updateAppButton(latestVersion);
           }
         }, 100);
       }).catch(error => {
         console.error('%c[index.js, checkForAppUpdatesAtStartup]', 'color: green;', 'Error: Failed to fetch the release data!', error);
-        snackbarLogLong(t('Cannot automatically check for updates at this time!'));
+        snackbarLogLong('Cannot automatically check for updates at this time!');
       });
 
       // Save the current time
@@ -1947,7 +2096,7 @@ function restoreDefaultsDialog() {
     // Reset any settings to their default state and save the updated values
     restoreDefaultsSettingsValues();
     // If the settings have been reset to default, show snackbar message
-    snackbarLog(t('Settings have been restored to their default values.'));
+    snackbarLog('Settings have been restored to their default values.');
     restoreDefaultsDialogOverlay.style.display = 'none';
     restoreDefaultsDialog.close();
     isDialogOpen = false;
@@ -1974,6 +2123,11 @@ function warningDialog(title, message) {
   isDialogOpen = true;
   Navigation.push(Views.WarningDialog);
 
+  // Ensure the continueWarning button is hidden for standard warnings
+  $('#continueWarning').hide();
+  // Add single-button class for CSS styling when only Close button is visible
+  warningDialog.classList.add('single-button');
+
   // Cancel the operation if the Close button is pressed
   $('#closeWarning').off('click');
   $('#closeWarning').on('click', function() {
@@ -1981,8 +2135,61 @@ function warningDialog(title, message) {
     warningDialogOverlay.style.display = 'none';
     warningDialog.close();
     isDialogOpen = false;
+    warningDialog.classList.remove('single-button');
     Navigation.pop();
     Navigation.switch();
+  });
+}
+
+// Show a WoL warning dialog for randomized (locally administered) MAC addresses
+function wakeOnLanWarningDialog(host) {
+  var warningDialogOverlay = document.querySelector('#warningDialogOverlay');
+  var warningDialog = document.querySelector('#warningDialog');
+
+  // Set the title and message
+  document.getElementById('warningDialogTitle').innerHTML = t('Wake-on-LAN Warning');
+  document.getElementById('warningDialogText').innerHTML = t(
+    'The MAC address of %1$s (%2$s) appears to be randomly generated.', host.hostname, host.macAddress) + '<br><br>' +
+    t('The Operating System may be using a random MAC address instead of the physical network card address.') + ' ' +
+    t('Wake-on-LAN may be unable to wake up the machine since the MAC address does not match the one from the network card.');
+
+  // Show the dialog and push the view
+  warningDialogOverlay.style.display = 'flex';
+  warningDialog.showModal();
+  isDialogOpen = true;
+  Navigation.push(Views.WarningDialog);
+
+  // Dynamically swap buttons: show "Continue" and change "Close" to act as Cancel
+  $('#continueWarning').show();
+  // Remove single-button class since both buttons are now visible
+  warningDialog.classList.remove('single-button');
+
+  // Cancel — close dialog without sending WoL (using Close button)
+  $('#closeWarning').off('click');
+  $('#closeWarning').on('click', function() {
+    console.log('%c[index.js, wakeOnLanWarningDialog]', 'color: green;', 'Closing WoL warning dialog and returning.');
+    warningDialogOverlay.style.display = 'none';
+    warningDialog.close();
+    isDialogOpen = false;
+    // Restore the default state for future non-WoL warnings
+    $('#continueWarning').hide();
+    Navigation.pop();
+    Navigation.switch();
+  });
+
+  // Continue — send WoL despite randomized MAC
+  $('#continueWarning').off('click');
+  $('#continueWarning').on('click', function() {
+    console.log('%c[index.js, wakeOnLanWarningDialog]', 'color: green;', 'User accepted WoL warning. Sending WoL to ' + host.hostname);
+    warningDialogOverlay.style.display = 'none';
+    warningDialog.close();
+    isDialogOpen = false;
+    // Restore the default state for future non-WoL warnings
+    $('#continueWarning').hide();
+    Navigation.pop();
+    Navigation.switch();
+    // Proceed with sending the WoL packet
+    setTimeout(() => autoWolDialog(host, function() {}, function() {}), 100);
   });
 }
 
@@ -2195,6 +2402,7 @@ function showApps(host) {
 
     // Stop navigation before showing the loading screen
     Navigation.stop();
+    if (typeof window.abortSubnetScan === 'function') window.abortSubnetScan();
 
     // Hide the main header before showing a loading screen
     $('#main-header').children().hide();
@@ -2227,7 +2435,7 @@ function showApps(host) {
           var emptyAppListImg = new Image();
           emptyAppListImg.src = 'static/res/applist_empty.svg';
           $('#game-grid').html(emptyAppListImg);
-          snackbarLogLong(t('Your list is currently empty. Please add your favorite apps to the list.'));
+          snackbarLogLong('Your list is currently empty. Please add your favorite apps to the list.');
           // Navigate to the Apps view
           showAppsMode();
           resolve();
@@ -2271,12 +2479,12 @@ function showApps(host) {
         // the polling /serverinfo request from being queued behind 40+
         // concurrent image downloads, which would cause a 5-second timeout
         // and trigger cancelRequest, killing all in-flight downloads.
-        if (activePolls[host.serverUid]) {
-          window.clearInterval(activePolls[host.serverUid]);
-          delete activePolls[host.serverUid];
-        }
+        endBackgroundPollingOfHost(host);
 
         var boxArtPromises = [];
+        
+        // Reset preview promises for this showApps invocation
+        window.previewPromises = [];
 
         sortedAppList.forEach(function(app) {
           // Double clicking the button will cause multiple box arts to appear.
@@ -2421,11 +2629,13 @@ function showApps(host) {
           // Resume background polling now that all box art downloads are complete
           beginBackgroundPollingOfHost(host);
 
-          // Wait 250ms to ensure tizen.filesystem.resolve callbacks have completed
-          setTimeout(function() {
+          // Wait for all Smart Hub Preview JPEGs to finish encoding and saving to disk
+          // before sending the updated data to the background service.
+          var previewsDone = window.previewPromises || [];
+          Promise.all(previewsDone).then(function() {
             savePreviewApps();
             updatePreviewData();
-          }, 250);
+          });
         });
       }, function(failedAppList) {
         // Hide the spinner if the host has failed to retrieve the app list
@@ -2439,7 +2649,7 @@ function showApps(host) {
         var errorAppListImg = new Image();
         errorAppListImg.src = 'static/res/applist_error.svg';
         $('#game-grid').html(errorAppListImg);
-        snackbarLogLong(t('Unable to retrieve your list of apps at this time. Please refresh the list of apps or try again later!'));
+        snackbarLogLong('Unable to retrieve your list of apps at this time. Please refresh the list of apps or try again later!');
 
         // Navigate to the Apps view
         showAppsMode();
@@ -2551,6 +2761,13 @@ function startGame(host, appID) {
     return;
   }
 
+  // Start the audio scheduler of the Web Audio backend while we are still running inside the
+  // handler of the key press that started the stream, because the audio context of a device
+  // with an autoplay policy can only be created from a user gesture
+  if (isWebAudioBackendSelected()) {
+    startAudioScheduler();
+  }
+
   // Refresh the server info, because the user might have quit the game
   host.refreshServerInfo().then(function(ret) {
     host.getAppById(appID).then(function(appToStart) {
@@ -2621,8 +2838,10 @@ function startGame(host, appID) {
       const mouseEmulation = $('#mouseEmulationSwitch').parent().hasClass('is-checked') ? 1 : 0;
       const flipABfaceButtons = $('#flipABfaceButtonsSwitch').parent().hasClass('is-checked') ? 1 : 0;
       const flipXYfaceButtons = $('#flipXYfaceButtonsSwitch').parent().hasClass('is-checked') ? 1 : 0;
+      var audioBackend = $('#selectAudioBackend').data('value').toString();
       var audioConfig = $('#selectAudio').data('value').toString();
       const audioSync = $('#audioSyncSwitch').parent().hasClass('is-checked') ? 1 : 0;
+      const audioJitter = parseInt($('#jitterSlider').val());
       const playHostAudio = $('#playHostAudioSwitch').parent().hasClass('is-checked') ? 1 : 0;
       var videoCodec = $('#selectCodec').data('value').toString();
       const hdrMode = $('#hdrModeSwitch').parent().hasClass('is-checked') ? 1 : 0;
@@ -2642,8 +2861,10 @@ function startGame(host, appID) {
       '\n Mouse emulation: ' + mouseEmulation + 
       '\n Flip A/B face buttons: ' + flipABfaceButtons + 
       '\n Flip X/Y face buttons: ' + flipXYfaceButtons + 
+      '\n Audio backend: ' + audioBackend + 
       '\n Audio configuration: ' + audioConfig + 
       '\n Audio synchronization: ' + audioSync + 
+      '\n Audio jitter buffer: ' + audioJitter + ' ms' +
       '\n Play host audio: ' + playHostAudio + 
       '\n Video codec: ' + videoCodec + 
       '\n Video HDR mode: ' + hdrMode + 
@@ -2677,7 +2898,7 @@ function startGame(host, appID) {
           var status_message = $root.attr('status_message');
           if (status_code != 200) {
             $('#loadingSpinnerMessage').text('');
-            snackbarLogLong(t('Error %1$s: %2$s', status_code, status_message));
+            snackbarLogLong('Error %1$s: %2$s', status_code, status_message);
             showApps(host).then(() => {
               // Scroll to the current game row
               Navigation.switch();
@@ -2691,12 +2912,12 @@ function startGame(host, appID) {
             host.address, host.httpPort, streamWidth, streamHeight, frameRate, bitrate.toString(), rikey, rikeyid.toString(),
             host.appVersion, host.gfeVersion, $root.find('sessionUrl0').text().trim(), host.serverCodecModeSupport,
             framePacing, optimizeGames, rumbleFeedback, mouseEmulation, flipABfaceButtons, flipXYfaceButtons,
-            audioConfig, audioSync, playHostAudio, videoCodec, hdrMode, fullRange, gameMode, disableWarnings,
-            performanceStats
+            audioBackend, audioConfig, audioSync, audioJitter, playHostAudio, videoCodec, hdrMode, fullRange, gameMode,
+            disableWarnings, performanceStats
           ]);
         }, function(failedResumeApp) {
           console.error('%c[index.js, startGame]', 'color: green;', 'Error: Failed to resume app with id: ' + appID + '\n Returned error was: ' + failedResumeApp + '!');
-          snackbarLog(t('Failed to resume %1$s', appToStart.title));
+          snackbarLog('Failed to resume %1$s', appToStart.title);
           showApps(host).then(() => {
             // Scroll to the current game row
             Navigation.switch();
@@ -2729,7 +2950,7 @@ function startGame(host, appID) {
             status_message = t('Audio capture device is missing. Please reinstall the audio drivers.');
           }
           $('#loadingSpinnerMessage').text('');
-          snackbarLogLong(t('Error %1$s: %2$s', status_code, status_message));
+          snackbarLogLong('Error %1$s: %2$s', status_code, status_message);
           showApps(host).then(() => {
             // Scroll to the current game row
             Navigation.switch();
@@ -2743,12 +2964,12 @@ function startGame(host, appID) {
           host.address, host.httpPort, streamWidth, streamHeight, frameRate, bitrate.toString(), rikey, rikeyid.toString(),
           host.appVersion, host.gfeVersion, $root.find('sessionUrl0').text().trim(), host.serverCodecModeSupport,
           framePacing, optimizeGames, rumbleFeedback, mouseEmulation, flipABfaceButtons, flipXYfaceButtons,
-          audioConfig, audioSync, playHostAudio, videoCodec, hdrMode, fullRange, gameMode, disableWarnings,
-          performanceStats
+          audioBackend, audioConfig, audioSync, audioJitter, playHostAudio, videoCodec, hdrMode, fullRange, gameMode,
+          disableWarnings, performanceStats
         ]);
       }, function(failedLaunchApp) {
         console.error('%c[index.js, startGame]', 'color: green;', 'Error: Failed to launch app with id: ' + appID + '\n Returned error was: ' + failedLaunchApp + '!');
-        snackbarLog(t('Failed to launch %1$s', appToStart.title));
+        snackbarLog('Failed to launch %1$s', appToStart.title);
         showApps(host).then(() => {
           // Scroll to the current game row
           Navigation.switch();
@@ -2774,13 +2995,13 @@ function stopGame(host, callbackFunction) {
   host.refreshServerInfo().then(function(ret) {
     host.getAppById(host.currentGame).then(function(runningApp) {
       if (!runningApp) {
-        snackbarLog(t('No app is currently running.'));
+        snackbarLog('No app is currently running.');
         return;
       }
       var appTitle = runningApp.title;
-      snackbarLog(t('Quitting %1$s...', appTitle));
+      snackbarLog('Quitting %1$s...', appTitle);
       host.quitApp().then(function(ret2) {
-        snackbarLog(t('Successfully quit %1$s', appTitle));
+        snackbarLog('Successfully quit %1$s', appTitle);
         host.refreshServerInfo().then(function(ret3) {
           // Refresh to show no app is currently running
           showApps(host).finally(() => {
@@ -2992,7 +3213,7 @@ function warnResolutionFramerate() {
   // Video resolution and frame rate warning
   if (!resFpsWarning && chosenResolutionWidth > '1920' && chosenResolutionHeight > '1080' && chosenFramerate > '60') {
     // Warn only if video resolution is greater than 1080p and frame rate is greater than 60 FPS
-    snackbarLogLong(t('Warning: This resolution and frame rate may not perform well on lower-end devices or slower connections!'));
+    snackbarLogLong('Warning: This resolution and frame rate may not perform well on lower-end devices or slower connections!');
     // Set flag for video resolution and frame rate warning
     resFpsWarning = true;
   } else if (resFpsWarning && (chosenResolutionWidth <= '1920' || chosenResolutionHeight <= '1080' || chosenFramerate <= '60')) {
@@ -3017,7 +3238,7 @@ function warnBitrate() {
   // Video bitrate warning
   if (!bitrateWarning && chosenBitrate > 100) {
     // Warn only if video bitrate is greater than 100 Mbps
-    snackbarLogLong(t('Warning: Higher bitrate may cause playback interruptions and performance issues, please try with caution!'));
+    snackbarLogLong('Warning: Higher bitrate may cause playback interruptions and performance issues, please try with caution!');
     // Set flag for video bitrate warning
     bitrateWarning = true;
   } else if (bitrateWarning && chosenBitrate <= 100) {
@@ -3225,6 +3446,35 @@ function saveFlipXYfaceButtons() {
   }, 100);
 }
 
+function saveAudioBackend() {
+  var chosenAudioBackend = $(this).data('value');
+  $('#selectAudioBackend').text($(this).text()).attr('data-value', chosenAudioBackend).data('value', chosenAudioBackend);
+  console.log('%c[index.js, saveAudioBackend]', 'color: green;', 'Saving audioBackend value: ' + chosenAudioBackend);
+  storeData('audioBackend', chosenAudioBackend, null);
+
+  // Show only the settings that apply to the selected audio backend
+  updateAudioBackendSettings();
+}
+
+// The audio backends do not share their tuning settings, so only show the settings that the
+// selected backend actually uses while streaming
+function updateAudioBackendSettings() {
+  if (isWebAudioBackendSelected()) {
+    // The Web Audio backend schedules the audio itself using the jitter buffer
+    $('#audioSyncOption').hide();
+    $('#audioJitterOption').show();
+  } else {
+    // The EMSS backend drops audio packets to stay in sync instead of buffering them
+    $('#audioJitterOption').hide();
+    $('#audioSyncOption').show();
+  }
+}
+
+// Check whether the Web Audio backend is the currently selected audio backend
+function isWebAudioBackendSelected() {
+  return $('#selectAudioBackend').data('value') === 'WebAudio';
+}
+
 function saveAudioConfiguration() {
   var chosenAudioConfig = $(this).data('value');
   $('#selectAudio').text($(this).text()).attr('data-value', chosenAudioConfig).data('value', chosenAudioConfig);
@@ -3241,7 +3491,7 @@ function warnAudioConfiguration() {
   // Audio configuration warning
   if (!audioWarning && (chosenAudioConfig === '71Surround' || chosenAudioConfig === '51Surround')) {
     // Warn only if audio configuration is selected to 5.1 or 7.1 Surround
-    snackbarLogLong(t('Warning: Surround Sound (5.1/7.1) may not be supported by your TV and is not guaranteed to work due to platform limitations!'));
+    snackbarLogLong('Warning: Surround Sound (5.1/7.1) may not be supported by your TV and is not guaranteed to work due to platform limitations!');
     // Set flag for audio configuration warning
     audioWarning = true;
   } else if (audioWarning && (chosenAudioConfig === 'Stereo')) {
@@ -3256,6 +3506,13 @@ function saveAudioSync() {
     console.log('%c[index.js, saveAudioSync]', 'color: green;', 'Saving audio sync state: ' + chosenAudioSync);
     storeData('audioSync', chosenAudioSync, null);
   }, 100);
+}
+
+function saveAudioJitter() {
+  var chosenAudioJitter = $('#jitterSlider').val();
+  $('#selectAudioJitter').html(chosenAudioJitter + ' ms');
+  console.log('%c[index.js, saveAudioJitter]', 'color: green;', 'Saving audio jitter buffer: ' + chosenAudioJitter);
+  storeData('audioJitter', chosenAudioJitter, null);
 }
 
 function savePlayHostAudio() {
@@ -3275,9 +3532,9 @@ function saveVideoCodec() {
   if (enabledHdrMode && chosenVideoCodec === selectedH264Codec) { // Selecting H.264 while HDR mode is enabled
     // H.264 does not support HDR profile, so stay on H.264 codec
     updateVideoCodec('#h264', selectedH264Codec);
-    snackbarLog(t('HDR has been disabled due to unsupported H.264 codec.'));
+    snackbarLog('HDR has been disabled due to unsupported H.264 codec.');
     // Turn off the HDR mode switch and save the state
-    $('#hdrModeSwitch').parent().removeClass('is-checked');
+    document.querySelector('#hdrModeBtn').MaterialSwitch.off();
     updateHdrMode();
   } else { // Selecting other video codecs while HDR mode is disabled
     // Continue to select the SDR profile of other video codecs
@@ -3304,7 +3561,7 @@ function warnVideoCodec() {
   // Video codec warning
   if (!codecWarning && (chosenVideoCodec === 'AV1')) {
     // Warn only if video codec is selected to AV1
-    snackbarLogLong(t('Warning: Selected codec may not be supported by your host PC and may significantly slow down performance!'));
+    snackbarLogLong('Warning: Selected codec may not be supported by your host PC and may significantly slow down performance!');
     // Set flag for video codec warning
     codecWarning = true;
   } else if (codecWarning && (chosenVideoCodec === 'HEVC' || chosenVideoCodec === 'H264')) {
@@ -3323,9 +3580,9 @@ function saveHdrMode() {
     // Handle HDR mode switch based on the selected codec
     if (selectedVideoCodec === chosenH264Codec) { // H.264
       // H.264 does not support HDR profile, so stay on H.264 codec
-      snackbarLog(t('H.264 codec does not support the HDR profile.'));
+      snackbarLog('H.264 codec does not support the HDR profile.');
       // Turn off the HDR mode switch and save the state
-      $('#hdrModeSwitch').parent().removeClass('is-checked');
+      document.querySelector('#hdrModeBtn').MaterialSwitch.off();
       updateHdrMode();
     } else if (selectedVideoCodec === chosenHevcCodec) { // HEVC
       // Select the HDR profile of the HEVC codec (HEVC Main10)
@@ -3337,9 +3594,9 @@ function saveHdrMode() {
       updateHdrMode();
     } else { // Undefined
       // Unknown codec format does not support HDR profile
-      snackbarLog(t('Selected codec does not support the HDR profile.'));
+      snackbarLog('Selected codec does not support the HDR profile.');
       // Turn off the HDR mode switch and save the state
-      $('#hdrModeSwitch').parent().removeClass('is-checked');
+      document.querySelector('#hdrModeBtn').MaterialSwitch.off();
       updateHdrMode();
     }
   }, 100);
@@ -3385,7 +3642,7 @@ function saveGameMode() {
       }, 250);
     } else if (parseFloat(platformVer) < 9.0 && !chosenGameMode) { // Warning other Tizen versions when disabling game mode
       // Show a warning message when disabling game mode
-      snackbarLogLong(t('Warning: Disabling game mode may increase latency and affect your game streaming performance!'));
+      snackbarLogLong('Warning: Disabling game mode may increase latency and affect your game streaming performance!');
     }
   }, 100);
 }
@@ -3399,7 +3656,7 @@ function saveUnlockAllFps() {
     // Warning when enabling higher FPS options
     if (chosenUnlockAllFps) {
       // Show a warning message when enabling higher FPS options
-      snackbarLogLong(t('Warning: Higher frame rates may not be fully supported by your TV and do not guarantee a smoother experience. Performance issues may occur due to platform limitations!'));
+      snackbarLogLong('Warning: Higher frame rates may not be fully supported by your TV and do not guarantee a smoother experience. Performance issues may occur due to platform limitations!');
     }
   }, 100);
 }
@@ -3511,6 +3768,12 @@ function restoreDefaultsSettingsValues() {
   document.querySelector('#flipXYfaceButtonsBtn').MaterialSwitch.off();
   storeData('flipXYfaceButtons', defaultFlipXYfaceButtons, null);
 
+  const defaultAudioBackend = 'EMSS';
+  $('#selectAudioBackend').text('EMSS').attr('data-value', defaultAudioBackend).data('value', defaultAudioBackend);
+  storeData('audioBackend', defaultAudioBackend, null);
+  // Show the settings of the restored audio backend
+  updateAudioBackendSettings();
+
   const defaultAudioConfig = 'Stereo';
   $('#selectAudio').text('Stereo').attr('data-value', defaultAudioConfig).data('value', defaultAudioConfig);
   storeData('audioConfig', defaultAudioConfig, null);
@@ -3518,6 +3781,11 @@ function restoreDefaultsSettingsValues() {
   const defaultAudioSync = false;
   document.querySelector('#audioSyncBtn').MaterialSwitch.off();
   storeData('audioSync', defaultAudioSync, null);
+
+  const defaultAudioJitter = '100';
+  $('#selectAudioJitter').html(defaultAudioJitter + ' ms');
+  $('#jitterSlider')[0].MaterialSlider.change(defaultAudioJitter);
+  storeData('audioJitter', defaultAudioJitter, null);
 
   const defaultPlayHostAudio = false;
   document.querySelector('#playHostAudioBtn').MaterialSwitch.off();
@@ -3647,19 +3915,6 @@ function loadUserData() {
 }
 
 function loadUserDataCb() {
-  console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored language preferences.');
-  getData('languagePreference', function(previousValue) {
-    const savedLanguagePreference = (previousValue && previousValue['languagePreference']) || 'auto';
-    // Update the language field based on the stored value
-    $('#selectLanguage').attr('data-value', savedLanguagePreference).data('value', savedLanguagePreference);
-    // Apply the stored language preference if the i18n object is available
-    if (window.i18n && typeof window.i18n.applyLanguagePreference === 'function') {
-      window.i18n.applyLanguagePreference(savedLanguagePreference).catch((error) => {
-        console.error('%c[index.js, loadUserDataCb]', 'color: green;', 'Error: Failed to apply stored language: ' + error);
-      });
-    }
-  });
-
   console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored resolution preferences.');
   getData('resolution', function(previousValue) {
     if (previousValue.resolution != null) {
@@ -3799,6 +4054,20 @@ function loadUserDataCb() {
     }
   });
 
+  console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored audioBackend preferences.');
+  getData('audioBackend', function(previousValue) {
+    if (previousValue.audioBackend != null) {
+      $('.audioBackendMenu li').each(function() {
+        if ($(this).data('value') === previousValue.audioBackend) {
+          // Update the audio backend field based on the given value
+          $('#selectAudioBackend').text($(this).text()).attr('data-value', previousValue.audioBackend).data('value', previousValue.audioBackend);
+        }
+      });
+    }
+    // Show the settings of the stored audio backend
+    updateAudioBackendSettings();
+  });
+
   console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored audioConfig preferences.');
   getData('audioConfig', function(previousValue) {
     if (previousValue.audioConfig != null) {
@@ -3820,6 +4089,13 @@ function loadUserDataCb() {
     } else {
       document.querySelector('#audioSyncBtn').MaterialSwitch.on();
     }
+  });
+
+  console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored audioJitter preferences.');
+  getData('audioJitter', function(previousValue) {
+    $('#jitterSlider')[0].MaterialSlider.change(previousValue.audioJitter != null ? previousValue.audioJitter : '100');
+    // Update the audio jitter buffer field based on the given value
+    $('#selectAudioJitter').html($('#jitterSlider').val() + ' ms');
   });
 
   console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored playHostAudio preferences.');
@@ -3976,14 +4252,11 @@ function loadHTTPCertsCb() {
           revivedHost.externalIP = hosts[hostUID].externalIP;
           revivedHost.hostname = hosts[hostUID].hostname;
           revivedHost.ppkstr = hosts[hostUID].ppkstr;
+          revivedHost.autoWolEnabled = hosts[hostUID].autoWolEnabled || false;
           hosts[hostUID] = revivedHost;
           addHostToGrid(revivedHost);
         }
-        startPollingHosts();
-        // Register loadSystemInfo to re-run every time the language changes
-        if (window.i18n && typeof window.i18n.onRefresh === 'function') {
-          window.i18n.onRefresh(loadSystemInfo);
-        }
+        isHostsLoaded = true;
         // Load stored preview app lists and update Smart Hub Preview tiles.
         // Using the persisted list avoids requiring live host connections at startup.
         getData('previewApps', function(storedPreview) {
@@ -3991,11 +4264,26 @@ function loadHTTPCertsCb() {
           updatePreviewData();
         });
         console.log('%c[index.js, loadHTTPCertsCb]', 'color: green;', 'Loading previously connected hosts...');
-        // Start subnet scanning silently in the background after hosts are fully loaded
-        setTimeout(() => {
-          snackbarLog(t('Scanning the local network to discover new hosts...'));
-          startSubnetScanner();
-        }, 1000);
+        
+        // Immediately start polling known hosts so they are ready for Smart Hub or instant clicks.
+        // We wait for all known hosts to finish their initial ping before launching the subnet scanner
+        // to guarantee that the 254 scanner requests don't choke the network stack and cause known hosts to timeout.
+        startPollingHosts().then(() => {
+          if (typeof startSubnetScanner === 'function') {
+            snackbarLog('Scanning the local network to discover new hosts...');
+            // Stop background polling while sweeping the subnet to prevent network exhaustion
+            stopPollingHosts();
+            startSubnetScanner().then(() => {
+              isSubnetScanFinished = true;
+              startPollingHosts();
+            }).catch(() => {
+              isSubnetScanFinished = true;
+              startPollingHosts();
+            });
+          } else {
+            isSubnetScanFinished = true;
+          }
+        });
       });
     });
   });
@@ -4007,13 +4295,21 @@ function waitForHostAndNavigate(serverUid) {
   var attempts = 0;
   var interval = setInterval(function() {
     attempts++;
-    if (hosts[serverUid]) {
+    var host = hosts[serverUid];
+    
+    if (host && (host.online || isSubnetScanFinished)) {
       clearInterval(interval);
       console.log('%c[index.js, waitForHostAndNavigate]', 'color: green;', 'Host found for deep link, navigating: ' + serverUid);
-      hostChosen(hosts[serverUid]);
+      hostChosen(host);
+    } else if (!host && isHostsLoaded) {
+      clearInterval(interval);
+      console.warn('%c[index.js, waitForHostAndNavigate]', 'color: orange;', 'Host ' + serverUid + ' no longer exists in Moonlight.');
+      snackbarLogLong('The selected host is no longer available on Moonlight.');
+      if (typeof updatePreviewData === 'function') updatePreviewData();
     } else if (attempts > 30) {
       clearInterval(interval);
       console.warn('%c[index.js, waitForHostAndNavigate]', 'color: orange;', 'Warning: Timed out waiting for host ' + serverUid + ' to load.');
+      if (host) hostChosen(host); // Fallback to trigger offline error or Auto WOL
     }
   }, 1000);
 }
@@ -4027,14 +4323,18 @@ function waitForHostAndNavigateToApp(serverUid, appId) {
   var attempts = 0;
   var interval = setInterval(function() {
     attempts++;
-    if (hosts[serverUid]) {
+    var host = hosts[serverUid];
+
+    if (host && (host.online || isSubnetScanFinished)) {
       clearInterval(interval);
-      var host = hosts[serverUid];
       console.log('%c[index.js, waitForHostAndNavigateToApp]', 'color: green;', 'Host found for deep link, checking availability: ' + serverUid);
 
       // Check whether the host is online before trying to connect
       if (!host.online) {
-        hostChosen(host);
+        hostChosen(host, function() {
+          // Success callback: The host is now online. Retry the deep link navigation.
+          waitForHostAndNavigateToApp(serverUid, appId);
+        });
         return;
       }
 
@@ -4110,9 +4410,15 @@ function waitForHostAndNavigateToApp(serverUid, appId) {
         // Could not fetch app list (host may have gone offline during the check)
         hostChosen(host);
       });
-    } else if (attempts > 30) {
+    } else if (!host && isHostsLoaded) {
+      clearInterval(interval);
+      console.warn('%c[index.js, waitForHostAndNavigateToApp]', 'color: orange;', 'Host ' + serverUid + ' no longer exists in Moonlight.');
+      snackbarLogLong('The selected host is no longer available on Moonlight.');
+      if (typeof updatePreviewData === 'function') updatePreviewData();
+    } else if (attempts > 30) { // 30s timeout
       clearInterval(interval);
       console.warn('%c[index.js, waitForHostAndNavigateToApp]', 'color: orange;', 'Warning: Timed out waiting for host ' + serverUid + ' to load.');
+      if (host) hostChosen(host); // Fallback to trigger offline error or Auto WOL
     }
   }, 1000);
 }
@@ -4337,7 +4643,6 @@ function onWindowLoad() {
 
   initSamsungKeys();
   initSpecialKeys();
-  loadSystemInfo();
   loadUserData();
 
   probeSmartHubSupport().then(function() {
@@ -4356,7 +4661,7 @@ window.addEventListener('gamepadconnected', function(e) {
   const gamepadIndex = connectedGamepad.index;
   const rumbleFeedbackSwitch = document.getElementById('rumbleFeedbackSwitch');
   console.log('%c[index.js, gamepadconnected]', 'color: green;', 'Gamepad connected:\n' + JSON.stringify(connectedGamepad), connectedGamepad);
-  snackbarLog(t('Gamepad %1$s has been connected.', gamepadIndex));
+  snackbarLog('Gamepad %1$s has been connected.', gamepadIndex);
   // Check if the rumble feedback switch is checked
   if (rumbleFeedbackSwitch.checked) {
     // Check if the connected gamepad has a vibrationActuator associated with it
@@ -4379,6 +4684,6 @@ window.addEventListener('gamepaddisconnected', function(e) {
   const disconnectedGamepad = e.gamepad;
   const gamepadIndex = disconnectedGamepad.index;
   console.log('%c[index.js, gamepaddisconnected]', 'color: green;', 'Gamepad disconnected:\n' + JSON.stringify(disconnectedGamepad), disconnectedGamepad);
-  snackbarLog(t('Gamepad %1$s has been disconnected.', gamepadIndex));
+  snackbarLog('Gamepad %1$s has been disconnected.', gamepadIndex);
   console.warn('%c[index.js, gamepaddisconnected]', 'color: green;', 'Warning: Lost connection to gamepad ' + gamepadIndex + '. Please reconnect your gamepad!');
 });
