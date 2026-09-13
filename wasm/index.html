@@ -276,7 +276,20 @@
           </div>
           <div id="audioSettings" class="settings-options">
             <div class="setting-option">
-              <label data-i18n="Audio configuration">Audio configuration
+              <label data-i18n="Audio backend">Audio backend</label>
+              <span class="mdl-list__item-text-body" data-i18n="- Choose EMSS for the original implementation or Web Audio if you hear crackling or stuttering while streaming.">
+                - Choose EMSS for the original implementation or Web Audio if you hear crackling or stuttering while streaming.
+              </span>
+              <div id="audioBackendMenu">
+                <button type="button" id="selectAudioBackend" class="mdl-button mdl-js-button mdl-js-ripple-effect" data-value="EMSS" data-i18n="EMSS">EMSS</button>
+              </div>
+              <ul class="audioBackendMenu mdl-menu mdl-menu--bottom-left mdl-js-menu mdl-js-ripple-effect" for="selectAudioBackend">
+                <li class="mdl-menu__item" data-value="EMSS" data-i18n="EMSS">EMSS</li>
+                <li class="mdl-menu__item" data-value="WebAudio" data-i18n="Web Audio">Web Audio</li>
+              </ul>
+            </div>
+            <div class="setting-option">
+              <label><span data-i18n="Audio configuration">Audio configuration</span>
                 <span class="badge badge-experimental" data-i18n="Experimental">Experimental</span>
               </label>
               <span class="mdl-list__item-text-body" data-i18n="- Choose 5.1 or 7.1 surround sound for home-theater systems or use Stereo for general audio compatibility.">
@@ -291,7 +304,7 @@
                 <li class="mdl-menu__item" data-value="71Surround" data-i18n="7.1 Surround Sound">7.1 Surround Sound</li>
               </ul>
             </div>
-            <div class="setting-option">
+            <div id="audioSyncOption" class="setting-option">
               <label data-i18n="Audio synchronization">Audio synchronization</label>
               <span class="mdl-list__item-text-body" data-i18n="- This can help reduce delays by keeping audio in sync for a consistent sound while streaming.">
                 - This can help reduce delays by keeping audio in sync for a consistent sound while streaming.
@@ -303,6 +316,20 @@
                     Allow audio synchronization support for optimal sound output
                   </span>
                 </label>
+              </div>
+            </div>
+            <div id="audioJitterOption" class="setting-option">
+              <label data-i18n="Audio jitter buffer">Audio jitter buffer</label>
+              <span class="mdl-list__item-text-body" data-i18n="- Increase to keep the sound smooth over an unstable network or decrease to lower the audio delay.">
+                - Increase to keep the sound smooth over an unstable network or decrease to lower the audio delay.
+              </span>
+              <div id="audioJitterMenu">
+                <button type="button" id="selectAudioJitter" class="mdl-button mdl-js-button mdl-js-ripple-effect">100 ms</button>
+              </div>
+              <div class="audioJitterMenu mdl-menu mdl-menu--bottom-left mdl-js-menu mdl-js-ripple-effect" for="selectAudioJitter">
+                <span id="jitterLowestValue">50</span>
+                <input type="range" id="jitterSlider" class="mdl-slider mdl-js-slider" min="50" max="500" step="25" value="100">
+                <span id="jitterHighestValue">500</span>
               </div>
             </div>
             <div class="setting-option">
@@ -378,7 +405,7 @@
           </div>
           <div id="advancedSettings" class="settings-options">
             <div class="setting-option">
-              <label data-i18n="Unlock all frame rates">Unlock all frame rates
+              <label><span data-i18n="Unlock all frame rates">Unlock all frame rates</span>
                 <span class="badge badge-experimental" data-i18n="Experimental">Experimental</span>
               </label>
               <span class="mdl-list__item-text-body" data-i18n="- Higher FPS can reduce latency on high-end devices, but may cause lag or instability on unsupported devices.">
@@ -506,6 +533,7 @@
   <script type="text/javascript" src="platform/i18n.js"></script>
   <script type="text/javascript" src="platform/common.js"></script>
   <script type="text/javascript" src="platform/gamepad.js"></script>
+  <script type="text/javascript" src="platform/audio.js"></script>
   <script type="text/javascript" src="platform/index.js"></script>
   <script type="text/javascript" src="platform/navigation.js"></script>
   <script type="text/javascript" src="platform/remote_controller.js"></script>
@@ -549,6 +577,25 @@
       </div>
       <div class="mdl-dialog__actions">
         <button type="button" id="cancelPairing" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect" data-i18n="Cancel">Cancel</button>
+      </div>
+    </dialog>
+  </div>
+  <div id="autoWolDialogOverlay" class="dialog-overlay">
+    <dialog id="autoWolDialog" class="mdl-dialog">
+      <h3 id="autoWolDialogTitle" class="mdl-dialog__title" data-i18n="Wake PC">Wake PC</h3>
+      <div class="mdl-dialog__content">
+        <p id="autoWolDialogText"></p>
+        <div id="autoWolCheckboxContainer">
+          <label id="autoWolCheckboxBtn" class="mdl-switch mdl-js-switch mdl-js-ripple-effect" for="autoWolCheckboxSwitch">
+            <input type="checkbox" id="autoWolCheckboxSwitch" class="mdl-switch__input">
+            <span class="mdl-switch__label" data-i18n="Always wake this PC automatically">
+              Always wake this PC automatically
+            </span>
+          </label>
+        </div>
+      </div>
+      <div class="mdl-dialog__actions">
+        <button type="button" id="cancelAutoWol" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect" data-i18n="Cancel">Cancel</button>
       </div>
     </dialog>
   </div>
@@ -712,6 +759,7 @@
       </div>
       <div class="mdl-dialog__actions">
         <button type="button" id="closeWarning" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect" data-i18n="Close">Close</button>
+        <button type="button" id="continueWarning" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect" data-i18n="Continue">Continue</button>
       </div>
     </dialog>
   </div>
