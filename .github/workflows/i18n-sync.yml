@@ -9,6 +9,7 @@ permissions:
 # There is a single job in this workflow. It's configured to run on the latest available version of Ubuntu.
 jobs:
   sync-locales-and-push-changes:
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     # This job checks out the code, sets up Node.js, synchronizes localization files, and pushes any changes back to the repository.
     steps:
