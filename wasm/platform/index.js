@@ -469,8 +469,19 @@ function showHosts() {
     showHostsMode();
   }, 500);
 
-  // Set focus to current item and/or scroll to the current host row
-  setTimeout(() => Navigation.switch(), 500);
+  setTimeout(() => {
+    var lastOpenedHost = localStorage.getItem('lastOpenedHost');
+    if (lastOpenedHost && window.Views && Views.Hosts && Views.Hosts.view) {
+      var children = Views.Hosts.view.func();
+      for (var i = 0; i < children.length; i++) {
+        if (children[i].id === 'host-' + lastOpenedHost) {
+          Views.Hosts.view.index = i;
+          break;
+        }
+      }
+    }
+    Navigation.switch();
+  }, 500);
 }
 
 function restoreUiAfterWasmLoad() {
@@ -527,6 +538,7 @@ function hostChosen(host, onSuccessCallback) {
     snackbarLogLong('A pairing request is currently in progress. Please wait for it to timeout or finish before trying again.');
     return;
   }
+  localStorage.setItem('lastOpenedHost', host.serverUid);
 
   // If the host is already offline or fails to connect, notify the user.
   if (!host.online) {
@@ -2621,6 +2633,17 @@ function showApps(host) {
           });
         });
 
+        var appToSelect = (host.currentGame != 0) ? host.currentGame : localStorage.getItem('lastOpenedApp_' + host.serverUid);
+        if (appToSelect && window.Views && Views.Apps && Views.Apps.view) {
+          var children = Views.Apps.view.func();
+          for (var i = 0; i < children.length; i++) {
+            if (children[i].id === 'game-container-' + appToSelect) {
+              Views.Apps.view.index = i;
+              break;
+            }
+          }
+        }
+
         // Navigate to the Apps view
         showAppsMode();
         resolve();
@@ -2760,6 +2783,7 @@ function startGame(host, appID) {
     console.error('%c[index.js, startGame]', 'color: green;', 'Error: Attempted to start a game, but the host was not initialized properly! Host object: ', host);
     return;
   }
+  localStorage.setItem('lastOpenedApp_' + host.serverUid, appID);
 
   // Start the audio scheduler of the Web Audio backend while we are still running inside the
   // handler of the key press that started the stream, because the audio context of a device
