@@ -325,6 +325,9 @@ int MoonlightInstance::VidDecSetup(int videoFormat, int width, int height, int r
   // Reset global video statistics for new decoding session
   memset(&m_GlobalVideoStats, 0, sizeof(m_GlobalVideoStats));
 
+  // Reset last frame number to prevent massive integer underflow on subsequent streams
+  m_LastFrameNumber = 0;
+
   // Ensure that StartupVidDecSetup is called every time when VidDecSetup is invoked to reinitialize the media pipeline
   int initVidDec = StartupVidDecSetup(videoFormat, width, height, redrawRate, context, drFlags);
 
