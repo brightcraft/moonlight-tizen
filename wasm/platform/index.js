@@ -414,8 +414,7 @@ function snackbarLogLong(...args) {
 // Handle layout elements when displaying the Hosts view
 function showHostsMode() {
   console.log('%c[index.js, showHostsMode]', 'color: green;', 'Entering "Show Hosts" mode.');
-  $('#header-title').html(t('Hosts'));
-  $('#header-logo').show();
+  $('#header-title').empty();
   $('#main-header').show();
   $('.nav-menu-parent').show();
   $('#updateAppBtn').show();
@@ -463,7 +462,7 @@ function showHosts() {
 
     // Show the main header after the loading screen is complete
     $('#main-header').children().show();
-    $('#main-header').css({'backgroundColor': '#333846', 'boxShadow': '0 0 4px 0 rgba(0, 0, 0, 1)'});
+    $('#main-header').css({'backgroundColor': 'transparent', 'boxShadow': 'none'});
 
     // Navigate to the Hosts view
     showHostsMode();
@@ -1619,7 +1618,6 @@ function appSupportDialog() {
 function showSettingsMode() {
   console.log('%c[index.js, showSettingsMode]', 'color: green;', 'Entering "Show Settings" mode.');
   $('#header-title').html(t('Settings'));
-  $('#header-logo').show();
   $('#main-header').show();
   $('#goBackBtn').show();
   $('#restoreDefaultsBtn').show();
@@ -1665,7 +1663,7 @@ function showSettings() {
 
     // Show the main header after the loading screen is complete
     $('#main-header').children().show();
-    $('#main-header').css({'backgroundColor': '#333846', 'boxShadow': '0 0 4px 0 rgba(0, 0, 0, 1)'});
+    $('#main-header').css({'backgroundColor': 'transparent', 'boxShadow': 'none'});
 
     // Show the settings list section
     $('#settings-list').removeClass('hide-container');
@@ -2361,7 +2359,6 @@ function sortTitles(list, sortOrder) {
 function showAppsMode() {
   console.log('%c[index.js, showAppsMode]', 'color: green;', 'Entering "Show Apps" mode.');
   $('#header-title').html(t('Apps'));
-  $('#header-logo').show();
   $('#main-header').show();
   $('#goBackBtn').show();
   $('#quitRunningAppBtn').show();
@@ -2425,7 +2422,7 @@ function showApps(host) {
 
         // Show the main header after the loading screen is complete
         $('#main-header').children().show();
-        $('#main-header').css({'backgroundColor': '#333846', 'boxShadow': '0 0 4px 0 rgba(0, 0, 0, 1)'});
+        $('#main-header').css({'backgroundColor': 'transparent', 'boxShadow': 'none'});
 
         // Show the game grid section
         $('#game-grid').show();
@@ -2520,12 +2517,10 @@ function showApps(host) {
             // Append the game text to the game title wrapper
             gameTitle.append(gameText);
 
-            // Handle animation state based on game title text length
+            // Keep short titles static and scroll only titles that are likely to overflow.
             if (app.title.length <= 20) {
-              // For game title text of 20 characters or less, disable scrolling text animation
               gameText.addClass('disable-animation');
             } else {
-              // For game title text longer than 20 characters, enable scrolling text animation
               gameText.removeClass('disable-animation');
             }
 
@@ -2643,7 +2638,7 @@ function showApps(host) {
 
         // Show the main header after the loading screen is complete
         $('#main-header').children().show();
-        $('#main-header').css({'backgroundColor': '#333846', 'boxShadow': '0 0 4px 0 rgba(0, 0, 0, 1)'});
+        $('#main-header').css({'backgroundColor': 'transparent', 'boxShadow': 'none'});
 
         console.error('%c[index.js, showApps]', 'color: green;', 'Error: Failed to get app list from ' + host.hostname + '. Host object: ', host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
         var errorAppListImg = new Image();
