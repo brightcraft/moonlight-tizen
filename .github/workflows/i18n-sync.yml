@@ -1,0 +1,33 @@
+# This workflow synchronizes localization files from the source of truth and pushes any changes back to the repository.
+name: i18n Sync
+# Configure this workflow to be triggered manually from the GitHub Actions tab for the `master` branch.
+on:
+  workflow_dispatch:
+# By specifying the access of one of the scopes, all of those that are not specified are set to 'none'.
+permissions:
+  contents: write
+# There is a single job in this workflow. It's configured to run on the latest available version of Ubuntu.
+jobs:
+  sync-locales-and-push-changes:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    # This job checks out the code, sets up Node.js, synchronizes localization files, and pushes any changes back to the repository.
+    steps:
+      # This step uses the `actions/checkout` action to check out the repository's code so that it can be used in the workflow.
+      - name: Checkout
+        uses: actions/checkout@v7
+      # This step uses the `actions/setup-node` action to set up a Node.js environment for the workflow.
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+      # This step runs a Node.js script to synchronize localization files from the source of truth. The script is located at `wasm/static/js/i18n-sync.js`.
+      - name: Sync locale files
+        run: node wasm/static/js/i18n-sync.js
+      # This step uses the `stefanzweifel/git-auto-commit-action` action to automatically commit and push any changes made to the localization files back to the repository.
+      # The commit message is set to "chore(i18n): sync locale source-of-truth", and the file pattern specifies that only JSON files in the `wasm/static/locales/` directory should be included in the commit.
+      - name: Auto-commit locale changes
+        uses: stefanzweifel/git-auto-commit-action@v7
+        with:
+          commit_message: "chore(i18n): sync locale source-of-truth"
+          file_pattern: "wasm/static/locales/*.json"
