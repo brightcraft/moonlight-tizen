@@ -325,6 +325,9 @@ int MoonlightInstance::VidDecSetup(int videoFormat, int width, int height, int r
   // Reset global video statistics for new decoding session
   memset(&m_GlobalVideoStats, 0, sizeof(m_GlobalVideoStats));
 
+  // Reset last frame number to prevent massive integer underflow on subsequent streams
+  m_LastFrameNumber = 0;
+
   // Ensure that StartupVidDecSetup is called every time when VidDecSetup is invoked to reinitialize the media pipeline
   int initVidDec = StartupVidDecSetup(videoFormat, width, height, redrawRate, context, drFlags);
 
@@ -511,8 +514,8 @@ int MoonlightInstance::VidDecSubmitDecodeUnit(PDECODE_UNIT decodeUnit) {
   };
 
   // Track total time spent reassembling and decoding this frame
-  m_ActiveWndVideoStats.totalReassemblyTime += decodeUnit->enqueueTimeMs - decodeUnit->receiveTimeMs;
-  m_ActiveWndVideoStats.totalDecodeTime += LiGetMillis() - decodeUnit->enqueueTimeMs;
+  m_ActiveWndVideoStats.totalReassemblyTime += (uint32_t)MAX(0, (int32_t)(decodeUnit->enqueueTimeMs - decodeUnit->receiveTimeMs));
+  m_ActiveWndVideoStats.totalDecodeTime += (uint32_t)MAX(0, (int32_t)(LiGetMillis() - decodeUnit->enqueueTimeMs));
   m_ActiveWndVideoStats.decodedFrames++;
 
   // Calculate time before rendering

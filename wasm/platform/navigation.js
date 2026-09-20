@@ -429,10 +429,17 @@ const Views = {
       if (this.view.prevCardRow(5)) {
         focusElement(this.view.current());
       } else {
-        // If there are no more rows, navigate to the HostsNav view
-        Navigation.change(Views.HostsNav);
-        // Set focus on the first navigation item in HostsNav view when transitioning from Hosts view
-        focusElement(Views.HostsNav.view.current());
+        // If there are no more rows, check if the current item is a host
+        const currentItem = resolveElement(this.view.current());
+        if (currentItem && currentItem.id !== 'addHostContainer') {
+          // Navigate to the HostsMenuHighlight view to highlight the host's menu icon
+          Navigation.change(Views.HostsMenuHighlight);
+          focusElement(Views.HostsMenuHighlight.view.current());
+        } else {
+          // Set focus on the first navigation item in HostsNav view when transitioning from Add Host container
+          Navigation.change(Views.HostsNav);
+          focusElement(Views.HostsNav.view.current());
+        }
       }
     },
     down: function() {
@@ -529,6 +536,54 @@ const Views = {
       // Navigate to the Hosts view
       Navigation.change(Views.Hosts);
       // Set focus on the first navigation item in Hosts view when transitioning from HostsNav view
+      focusElement(Views.Hosts.view.current());
+    },
+    press: function() {},
+    switch: function() {
+      focusElement(this.view.current());
+    },
+    enter: function() {
+      mark(this.view.current());
+    },
+    leave: function() {
+      unmark(this.view.current());
+    },
+  },
+  HostsMenuHighlight: {
+    view: new ListView(() => {
+      // Return the menu button of the currently selected host
+      const currentHost = resolveElement(Views.Hosts.view.current());
+      if (currentHost && currentHost.id !== 'addHostContainer') {
+        const menuButton = currentHost.children ? currentHost.children[1] : null;
+        return menuButton ? [menuButton] : [];
+      }
+      return [];
+    }),
+    up: function() {
+      // Navigate to the HostsNav view (Settings button)
+      Navigation.change(Views.HostsNav);
+      focusElement(Views.HostsNav.view.current());
+    },
+    down: function() {
+      // Return to the Hosts view
+      Navigation.change(Views.Hosts);
+      focusElement(Views.Hosts.view.current());
+    },
+    left: function() {},
+    right: function() {},
+    accept: function() {
+      // Open the host menu dialog (same behavior as CH+)
+      const currentHost = resolveElement(Views.Hosts.view.current());
+      if (currentHost && currentHost.id !== 'addHostContainer') {
+        const menuButton = currentHost.children ? currentHost.children[1] : null;
+        if (menuButton) {
+          clickElement(menuButton);
+        }
+      }
+    },
+    back: function() {
+      // Return to the Hosts view
+      Navigation.change(Views.Hosts);
       focusElement(Views.Hosts.view.current());
     },
     press: function() {},
@@ -647,6 +702,46 @@ const Views = {
     },
     back: function() {
       resolveElement('cancelPairing').click();
+    },
+    press: function() {},
+    switch: function() {
+      focusElement(this.view.current());
+    },
+    enter: function() {
+      mark(this.view.current());
+      setTimeout(() => focusElement(this.view.current()), 100);
+    },
+    leave: function() {
+      unmark(this.view.current());
+      setTimeout(() => blurElement(this.view.current()), 100);
+    },
+  },
+  AutoWolDialog: {
+    view: new ListView(() => [
+      'autoWolCheckboxSwitch',
+      'cancelAutoWol'
+    ]),
+    up: function() {
+      const currentItem = elementId(this.view.current());
+      if (currentItem === 'cancelAutoWol') {
+        this.view.prev();
+        focusElement(this.view.current());
+      }
+    },
+    down: function() {
+      const currentItem = elementId(this.view.current());
+      if (currentItem === 'autoWolCheckboxSwitch') {
+        this.view.next();
+        focusElement(this.view.current());
+      }
+    },
+    left: function() {},
+    right: function() {},
+    accept: function() {
+      clickElement(this.view.current());
+    },
+    back: function() {
+      resolveElement('cancelAutoWol').click();
     },
     press: function() {},
     switch: function() {
@@ -1679,17 +1774,31 @@ const Views = {
     },
   },
   WarningDialog: {
-    view: new ListView(() => [
-      'closeWarning'
-    ]),
-    up: function() {
-      blurElement('closeWarning');
+    view: new ListView(() => {
+      // Dynamically return the visible buttons
+      var buttons = [];
+      if ($('#continueWarning').is(':visible')) {
+        buttons.push('continueWarning');
+      }
+      if ($('#closeWarning').is(':visible')) {
+        buttons.push('closeWarning');
+      }
+      return buttons;
+    }),
+    up: function() {},
+    down: function() {},
+    left: function() {
+      if ($('#continueWarning').is(':visible') && $('#closeWarning').is(':visible')) {
+        this.view.prev();
+        focusElement(this.view.current());
+      }
     },
-    down: function() {
-      focusElement('closeWarning');
+    right: function() {
+      if ($('#continueWarning').is(':visible') && $('#closeWarning').is(':visible')) {
+        this.view.next();
+        focusElement(this.view.current());
+      }
     },
-    left: function() {},
-    right: function() {},
     accept: function() {
       clickElement(this.view.current());
     },
@@ -1701,6 +1810,9 @@ const Views = {
       focusElement(this.view.current());
     },
     enter: function() {
+      // Default to Continue button (index 0) when both buttons are visible
+      // Otherwise default to the only visible Close button (index 0)
+      this.view.index = 0;
       mark(this.view.current());
       setTimeout(() => focusElement(this.view.current()), 100);
     },
