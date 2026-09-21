@@ -1926,76 +1926,37 @@ function updateAppButton(latestVersion) {
 
 // Show the Update Moonlight dialog
 function updateAppDialog(latestVersion, releaseNotes) {
-  // Create an overlay for the dialog and append it to the body
-  var updateAppDialogOverlay = $('<div>', {
-    id: 'updateAppDialogOverlay',
-    class: 'dialog-overlay'
-  }).appendTo(document.body);
+  // Find the existing overlay and dialog elements
+  var updateAppDialogOverlay = $('#updateAppDialogOverlay');
+  var updateAppDialog = $('#updateAppDialog');
 
-  // Create the dialog element and append it to the overlay
-  var updateAppDialog = $('<dialog>', {
-    id: 'updateAppDialog',
-    class: 'mdl-dialog'
-  }).appendTo(updateAppDialogOverlay);
+  // Update the dialog text dynamically
+  $('#updateAppDialogText').html(
+	t('Version %1$s is now available! Update manually to enjoy new features and improvements.<br><br>', latestVersion) + 
+	t('<strong>What\'s Changed:</strong><br>%1$s', releaseNotes)
+  );
 
-  // Add a dialog title named Update Moonlight
-  $('<h3>', {
-    id: 'updateAppDialogTitle',
-    class: 'mdl-dialog__title',
-    'data-i18n': 'Update Moonlight',
-    text: t('Update Moonlight')
-  }).appendTo(updateAppDialog);
-
-  // Create a content section inside the dialog
-  var updateAppDialogContent = $('<div>', {
-    class: 'mdl-dialog__content'
-  }).appendTo(updateAppDialog);
-
-  // Add a paragraph with multiple lines of text
-  $('<p>', {
-    id: 'updateAppDialogText',
-    class: 'update-app-text',
-    html: t('Version %1$s is now available! Update manually to enjoy new features and improvements.<br><br>', latestVersion) + 
-          t('<strong>What\'s Changed:</strong><br>%1$s', releaseNotes)
-  }).appendTo(updateAppDialogContent);
-
-  // Create the actions section inside the dialog
-  var updateAppDialogActions = $('<div>', {
-    class: 'mdl-dialog__actions'
-  }).appendTo(updateAppDialog);
-
-  // Create and set up the Close button
-  var closeUpdateAppDialog = $('<button>', {
-    type: 'button',
-    id: 'closeUpdateApp',
-    class: 'mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect',
-    'data-i18n': 'Close',
-    text: t('Close')
-  });
-
-  // Close the dialog if the Close button is pressed
-  closeUpdateAppDialog.off('click');
-  closeUpdateAppDialog.click(function() {
+  // Set up the Close button
+  $('#closeUpdateApp').off('click').on('click', function() {
     console.log('%c[index.js, updateAppDialog]', 'color: green;', 'Closing app dialog and returning.');
-    $(updateAppDialogOverlay).css('display', 'none');
+    updateAppDialogOverlay.css('display', 'none');
     updateAppDialog[0].close();
-    updateAppDialogOverlay.remove();
     isDialogOpen = false;
     Navigation.pop();
     Navigation.switch();
-  }).appendTo(updateAppDialogActions);
+  });
 
-  // If the dialog element doesn't support the showModal method, register it with dialogPolyfill
+  // Check if the dialog element does not support the showModal method
   if (!updateAppDialog[0].showModal) {
+    // Register the dialog with dialogPolyfill to enable modal functionality for older browsers
     dialogPolyfill.registerDialog(updateAppDialog[0]);
   }
 
   // Show the dialog and push the view
-  $(updateAppDialogOverlay).css('display', 'flex');
+  updateAppDialogOverlay.css('display', 'flex');
   updateAppDialog[0].showModal();
   isDialogOpen = true;
   Navigation.push(Views.UpdateMoonlightDialog);
-  setTimeout(() => Navigation.switch(), 5);
 }
 
 // Check for updates when the Check for Updates button is pressed
