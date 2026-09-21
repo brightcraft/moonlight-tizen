@@ -1930,38 +1930,33 @@ function updateAppDialog(latestVersion, releaseNotes) {
   var updateAppDialogOverlay = $('#updateAppDialogOverlay');
   var updateAppDialog = $('#updateAppDialog');
 
-  // Reset the dialog title
-  $('#updateAppDialogTitle').text(t('Update Moonlight'));
-
-  // Update the text dynamically
+  // Update the dialog text dynamically
   $('#updateAppDialogText').html(
-    t('Version %1$s is now available! Update manually to enjoy new features and improvements.', latestVersion) + '<br><br>' +
-    '<strong>' + t('What\'s Changed:') + '</strong><br>' + releaseNotes
+	t('Version %1$s is now available! Update manually to enjoy new features and improvements.<br><br>', latestVersion) + 
+	t('<strong>What\'s Changed:</strong><br>%1$s', releaseNotes)
   );
 
   // Set up the Close button
-  var closeUpdateAppDialog = $('#closeUpdateApp');
-  closeUpdateAppDialog.text(t('Close'));
-  closeUpdateAppDialog.off('click').click(function() {
+  $('#closeUpdateApp').off('click').on('click', function() {
     console.log('%c[index.js, updateAppDialog]', 'color: green;', 'Closing app dialog and returning.');
-    $(updateAppDialogOverlay).css('display', 'none');
+    updateAppDialogOverlay.css('display', 'none');
     updateAppDialog[0].close();
     isDialogOpen = false;
     Navigation.pop();
     Navigation.switch();
   });
 
-  // If the dialog element doesn't support the showModal method, register it with dialogPolyfill
+  // Check if the dialog element does not support the showModal method
   if (!updateAppDialog[0].showModal) {
+    // Register the dialog with dialogPolyfill to enable modal functionality for older browsers
     dialogPolyfill.registerDialog(updateAppDialog[0]);
   }
 
   // Show the dialog and push the view
-  $(updateAppDialogOverlay).css('display', 'flex');
+  updateAppDialogOverlay.css('display', 'flex');
   updateAppDialog[0].showModal();
   isDialogOpen = true;
   Navigation.push(Views.UpdateMoonlightDialog);
-  setTimeout(() => Navigation.switch(), 5);
 }
 
 // Check for updates when the Check for Updates button is pressed

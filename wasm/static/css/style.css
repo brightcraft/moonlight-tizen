@@ -393,7 +393,7 @@ body {
     text-transform: uppercase;
 }
 #pairingDialogText, #deleteHostDialogText, .host-details-text, #appSupportDialogText,
-#autoWolDialogText, #navGuideDialogText, .update-app-text, #restoreDefaultsDialogText, #quitAppDialogText,
+#autoWolDialogText, #navGuideDialogText, #updateAppDialogText, #restoreDefaultsDialogText, #quitAppDialogText,
 #warningDialogText, #restartAppDialogText, #exitAppDialogText {
     font-size: 1.45rem;
     line-height: normal;
