@@ -1858,6 +1858,12 @@ function formatUpdateTimestamp(ms) {
 
 // Show the Update App button when a new update is found
 function updateAppButton(latestVersion) {
+  // Prevent adding duplicate buttons if one already exists
+  if ($('#updateAppBtn').length > 0) {
+    console.log('%c[index.js, updateAppButton]', 'color: green;', 'Update App button already exists. Skipping duplicate creation!');
+    return;
+  }
+
   // Create the button dynamically
   var updateAppBtn = $('<button>', {
     type: 'button',
@@ -1971,6 +1977,8 @@ function checkForAppUpdates() {
       if (checkVersionUpdate(appInfo.version, latestVersion)) {
         // Show the Update Moonlight dialog with new version and release notes to inform user to update the app
         updateAppDialog(latestVersion, releaseNotes);
+        // Create and display the Update App button so they can access it later if they close the dialog
+        updateAppButton(latestVersion);
       } else {
         // Otherwise, show a snackbar message to inform the user that the app is already up to date
         snackbarLogLong('Your app is already up to date! You\'re on the latest version.');
