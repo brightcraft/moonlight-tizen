@@ -60,7 +60,7 @@ const REPEAT_INTERVAL = 100; // Repeat interval set to 100ms (milliseconds)
 const ACTION_THRESHOLD = 0.5; // Threshold for initial navigation set to 0.5
 const NAVIGATION_DELAY = 150; // Navigation delay set to 150ms (milliseconds)
 const UPDATE_TIMESTAMP = 'lastUpdateCheck'; // Use the update check timestamp key to determine the last update check
-const UPDATE_VERSION = 'latestUpdateVersion'; // Key to cache the latest found version
+const UPDATE_VERSION = 'latestUpdateVersion'; // // Use the update version key to cache the latest version found
 const UPDATE_INTERVAL = 24 * 60 * 60 * 1000; // Automatic check for updates interval is set to 24 hours
 
 // Called by the common.js module
@@ -2024,14 +2024,13 @@ function checkForAppUpdates() {
 // Automatically perform a scheduled app update check at startup if the interval condition is met and notify the user
 function checkForAppUpdatesAtStartup() {
   // Fetch the current timestamp and stored version info
-  getData(UPDATE_TIMESTAMP, function(result) {
-    var lastChecked = result[UPDATE_TIMESTAMP];
+  getData(UPDATE_TIMESTAMP, function(tResult) {
+    var lastChecked = tResult[UPDATE_TIMESTAMP];
     var currentTime = Date.now();
-
+    // Log the last auto-check timestamp if it exists
     if (lastChecked) {
       console.log('%c[index.js, checkForAppUpdatesAtStartup]', 'color: green;', `Last auto-check performed: ${formatUpdateTimestamp(lastChecked)}`);
     }
-
     // Check if enough time has passed since the last update check
     if (!lastChecked || currentTime - lastChecked > UPDATE_INTERVAL) {
       console.log('%c[index.js, checkForAppUpdatesAtStartup]', 'color: green;', 'Performing auto-check for new application updates...');
@@ -2046,14 +2045,13 @@ function checkForAppUpdatesAtStartup() {
             updateAppButton(latestVersion);
           }
         }, 100);
-        // Save the fetched version
+        // Save the fetched version as the last known update version
         storeData(UPDATE_VERSION, latestVersion);
       }).catch(error => {
         console.error('%c[index.js, checkForAppUpdatesAtStartup]', 'color: green;', 'Error: Failed to fetch the release data!', error);
         snackbarLogLong('Cannot automatically check for updates at this time!');
       });
-
-      // Save the current time
+      // Save the current time as the last update check timestamp
       storeData(UPDATE_TIMESTAMP, currentTime);
       console.log('%c[index.js, checkForAppUpdatesAtStartup]', 'color: green;', `New auto-check timestamp stored: ${formatUpdateTimestamp(currentTime)}`);
     } else {
@@ -2065,13 +2063,15 @@ function checkForAppUpdatesAtStartup() {
         'Auto-update check skipped as the last one was within the past 24 hours. ' + 
         `Next auto-check will occur in ${hoursLeft} hour${hoursLeft !== 1 ? 's' : ''} and ${minutesLeft} minute${minutesLeft !== 1 ? 's' : ''}.`
       );
-
-      // Still show the update button if a newer version was previously cached
+      // Still show the Update App button if a newer version was previously cached
       getData(UPDATE_VERSION, function(vResult) {
         var cachedVersion = vResult[UPDATE_VERSION];
+        // Check if the cached version is newer than the current app version
         if (cachedVersion !== undefined && checkVersionUpdate(appInfo.version, cachedVersion)) {
           setTimeout(() => {
-            snackbarLogLong(t('Version %1$s is now available! Check out the latest features & improvements.', cachedVersion));
+            // Show snackbar message with cached version to inform user to update the app
+            snackbarLogLong('Version %1$s is now available! Check out the latest features & improvements.', cachedVersion);
+            // Create and display the cached Update App button with tooltip and additional layout spacer
             updateAppButton(cachedVersion);
           }, 100);
         }
