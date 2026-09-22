@@ -3612,19 +3612,18 @@ function saveGameMode() {
     console.log('%c[index.js, saveGameMode]', 'color: green;', 'Saving game mode state: ' + chosenGameMode);
     storeData('gameMode', chosenGameMode, null);
 
-    // Warning for Tizen 9.0 platform when enabling game mode
-    if (parseFloat(platformVer) === 9.0 && chosenGameMode) {
-      // Show the Warning dialog and push the view
+    // Check if the Tizen version is 9.0 or higher and the Game Mode is turned on
+    if (parseFloat(platformVer) >= 9.0 && chosenGameMode) {
+      // Show a warning dialog when turning on Game Mode on Tizen 9.0 or higher
       setTimeout(() => {
-        // Show a warning message when enabling game mode on Tizen 9.0 platform
         warningDialog(t('Compatibility Warning'),
           t('Game Mode (Ultra Low Latency) is not compatible with Tizen %1$s due to platform changes introduced by Samsung.', platformVer) + 
           t('Enabling this option may result in video freezing on the first rendered frame, black screen, unstable performance, and other streaming issues.<br><br>') + 
           t('For more information about this incompatibility, including available workarounds and potential limitations, please refer to the <b>Known Issues &amp; Limitations</b> page on the Wiki.')
         );
       }, 250);
-    } else if (parseFloat(platformVer) < 9.0 && !chosenGameMode) { // Warning other Tizen versions when disabling game mode
-      // Show a warning message when disabling game mode
+    } else if (parseFloat(platformVer) < 9.0 && !chosenGameMode) { // Check if the Tizen version is lower than 9.0 and the Game Mode is turned off
+      // Show a warning message when turning off Game Mode on compatible Tizen versions
       snackbarLogLong('Warning: Disabling game mode may increase latency and affect your game streaming performance!');
     }
   }, 100);
@@ -3787,15 +3786,15 @@ function restoreDefaultsSettingsValues() {
   storeData('fullRange', defaultFullRange, null);
 
   // Reset default Game Mode based on Tizen platform version
-  if (parseFloat(platformVer) === 9.0) {
-    // Disable for Tizen 9.0 to avoid compatibility issues
+  if (parseFloat(platformVer) >= 9.0) {
+    // Turn off for Tizen 9.0 and newer to avoid compatibility issues
     const incompatibleGameMode = false;
     document.querySelector('#gameModeBtn').MaterialSwitch.off();
     storeData('gameMode', incompatibleGameMode, null);
   } else if (parseFloat(platformVer) === 5.5) {
-    // Keep disabled for Tizen 5.5 due to lack of support
+    // Keep turned off and disabled for Tizen 5.5 due to lack of support
   } else {
-    // Enable for other Tizen platform versions
+    // Turn on for compatible Tizen versions (e.g., 6.0, 6.5, 7.0, 8.0)
     const defaultGameMode = true;
     document.querySelector('#gameModeBtn').MaterialSwitch.on();
     storeData('gameMode', defaultGameMode, null);
@@ -4129,13 +4128,13 @@ function loadUserDataCb() {
   console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored gameMode preferences.');
   getData('gameMode', function(previousValue) {
     if (previousValue.gameMode == null) {
-      if (parseFloat(platformVer) === 9.0) {
-        document.querySelector('#gameModeBtn').MaterialSwitch.off(); // Disable for Tizen 9.0 to avoid compatibility issues
+      if (parseFloat(platformVer) >= 9.0) {
+        document.querySelector('#gameModeBtn').MaterialSwitch.off(); // Turn off for Tizen 9.0 and newer to avoid compatibility issues
       } else if (parseFloat(platformVer) === 5.5) {
-        document.querySelector('#gameModeBtn').MaterialSwitch.off(); // Disable for Tizen 5.5 due to lack of support
+        document.querySelector('#gameModeBtn').MaterialSwitch.off(); // Turn off for Tizen 5.5 due to lack of support
         document.querySelector('#gameModeBtn').MaterialSwitch.disable(); // Disable the switch to prevent user interaction
       } else {
-        document.querySelector('#gameModeBtn').MaterialSwitch.on(); // Set the default state
+        document.querySelector('#gameModeBtn').MaterialSwitch.on(); // Turn on for compatible Tizen versions (e.g., 6.0, 6.5, 7.0, 8.0)
       }
     } else if (previousValue.gameMode == false) {
       document.querySelector('#gameModeBtn').MaterialSwitch.off();
