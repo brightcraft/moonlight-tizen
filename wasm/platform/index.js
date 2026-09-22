@@ -28,7 +28,7 @@ try {
 }
 var isHdrCapable = webapis.avinfo.isHdrTvSupport(); // Check if the device supports HDR
 var hosts = {}; // Hosts is an associative array of NvHTTP objects, keyed by server UID
-var isHostOpening = false; // Prevents concurrent hostChosen executions
+var isHostOpening = false; // Prevents concurrent hostChosen executions, initial value is false
 var isHostsLoaded = false; // Indicates if IndexedDB has finished loading hosts
 var isSubnetScanFinished = false; // Indicates if the initial subnet scan has completed
 var activePolls = {}; // Hosts currently being polled. An associated array of polling IDs, keyed by server UID
@@ -524,11 +524,19 @@ function restoreUiAfterWasmLoad() {
   setTimeout(() => checkForAppUpdatesAtStartup(), 10000);
 }
 
+// Handles the selection of a host, manages the connection, pairing process, including error handling
 function hostChosen(host, onSuccessCallback) {
-  if (isHostOpening) return;
+  // Check if a host is already being opened to prevent concurrent executions
+  if (isHostOpening) {
+    return;
+  }
+
+  // Set the flag to indicate that a host is currently being opened
   isHostOpening = true;
 
+  // Check if a pairing request is already in progress to prevent multiple pairing attempts
   if (isPairingInProgress) {
+    // Set the flag to indicate that a host is unable to be opened due to an ongoing pairing request
     isHostOpening = false;
     snackbarLogLong('A pairing request is currently in progress. Please wait for it to timeout or finish before trying again.');
     return;
@@ -536,8 +544,9 @@ function hostChosen(host, onSuccessCallback) {
 
   // If the host is already offline or fails to connect, notify the user.
   if (!host.online) {
+    // Set the flag to indicate that a host is unable to be opened due to being offline or failing to connect
     isHostOpening = false;
-    // Only show the Wake PC dialog if the user has explicitly enabled per-host auto-Wake-on-LAN
+    // Only show the Wake PC dialog if the user has explicitly enabled per-host Auto WOL toggle
     if (host.autoWolEnabled === true) {
       autoWolDialog(host, function() {
         // Success callback: The host is now online.
@@ -548,11 +557,11 @@ function hostChosen(host, onSuccessCallback) {
           hostChosen(host);
         }
       });
+    } else {
+      // Let the user know what to do to bring the host back online and until then, we'll be back to the previous view.
+      console.error('%c[index.js, hostChosen]', 'color: green;', 'Error: Connection to host failed or host is offline!');
+      snackbarLogLong('Failed to connect to %1$s. Ensure Sunshine is running on your host PC or GameStream is enabled in GeForce Experience SHIELD settings.', 'the host');
     }
-
-    // Let the user know what to do to bring the host back online and until then, we'll be back to the previous view.
-    console.error('%c[index.js, hostChosen]', 'color: green;', 'Error: Connection to host failed or host is offline!');
-    snackbarLogLong('Failed to connect to %1$s. Ensure Sunshine is running on your host PC or GameStream is enabled in GeForce Experience SHIELD settings.', 'the host');
     return;
   }
 
@@ -573,11 +582,13 @@ function hostChosen(host, onSuccessCallback) {
         // Switch to Apps view
         Navigation.change(Views.Apps);
       }).catch(console.error).finally(() => {
+        // Reset the flag to indicate that a host failed to show apps list
         isHostOpening = false;
       });
     }, function() {
-      // Start polling the host after pairing flow
+      // Reset the flag to indicate that a host failed due to unsuccessful pairing
       isHostOpening = false;
+      // Start polling the host after pairing flow
       startPollingHosts();
     });
   } else {
@@ -589,6 +600,7 @@ function hostChosen(host, onSuccessCallback) {
       // Switch to Apps view
       Navigation.change(Views.Apps);
     }).catch(console.error).finally(() => {
+      // Reset the flag to indicate that a host failed to show apps list
       isHostOpening = false;
     });
   }
