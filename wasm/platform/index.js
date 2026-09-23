@@ -115,6 +115,7 @@ function attachListeners() {
   $('#audioSyncSwitch').on('click', saveAudioSync);
   $('#jitterSlider').on('input', saveAudioJitter);
   $('#playHostAudioSwitch').on('click', savePlayHostAudio);
+  $('#decryptHostAudioSwitch').on('click', saveDecryptHostAudio);
   $('.videoCodecMenu li').on('click', saveVideoCodec);
   $('#hdrModeSwitch').on('click', saveHdrMode);
   $('#fullRangeSwitch').on('click', saveFullRange);
@@ -2849,6 +2850,7 @@ function startGame(host, appID) {
       const audioSync = $('#audioSyncSwitch').parent().hasClass('is-checked') ? 1 : 0;
       const audioJitter = parseInt($('#jitterSlider').val());
       const playHostAudio = $('#playHostAudioSwitch').parent().hasClass('is-checked') ? 1 : 0;
+      const decryptHostAudio = $('#decryptHostAudioSwitch').parent().hasClass('is-checked') ? 1 : 0;
       var videoCodec = $('#selectCodec').data('value').toString();
       const hdrMode = $('#hdrModeSwitch').parent().hasClass('is-checked') ? 1 : 0;
       const fullRange = $('#fullRangeSwitch').parent().hasClass('is-checked') ? 1 : 0;
@@ -2872,6 +2874,7 @@ function startGame(host, appID) {
       '\n Audio synchronization: ' + audioSync + 
       '\n Audio jitter buffer: ' + audioJitter + ' ms' +
       '\n Play host audio: ' + playHostAudio + 
+      '\n Decrypt host audio (Punktfunk): ' + decryptHostAudio + 
       '\n Video codec: ' + videoCodec + 
       '\n Video HDR mode: ' + hdrMode + 
       '\n Full color range: ' + fullRange + 
@@ -2918,7 +2921,7 @@ function startGame(host, appID) {
             host.address, host.httpPort, streamWidth, streamHeight, frameRate, bitrate.toString(), rikey, rikeyid.toString(),
             host.appVersion, host.gfeVersion, $root.find('sessionUrl0').text().trim(), host.serverCodecModeSupport,
             framePacing, optimizeGames, rumbleFeedback, mouseEmulation, flipABfaceButtons, flipXYfaceButtons,
-            audioBackend, audioConfig, audioSync, audioJitter, playHostAudio, videoCodec, hdrMode, fullRange, gameMode,
+            audioBackend, audioConfig, audioSync, audioJitter, playHostAudio, decryptHostAudio, videoCodec, hdrMode, fullRange, gameMode,
             disableWarnings, performanceStats
           ]);
         }, function(failedResumeApp) {
@@ -2970,7 +2973,7 @@ function startGame(host, appID) {
           host.address, host.httpPort, streamWidth, streamHeight, frameRate, bitrate.toString(), rikey, rikeyid.toString(),
           host.appVersion, host.gfeVersion, $root.find('sessionUrl0').text().trim(), host.serverCodecModeSupport,
           framePacing, optimizeGames, rumbleFeedback, mouseEmulation, flipABfaceButtons, flipXYfaceButtons,
-          audioBackend, audioConfig, audioSync, audioJitter, playHostAudio, videoCodec, hdrMode, fullRange, gameMode,
+          audioBackend, audioConfig, audioSync, audioJitter, playHostAudio, decryptHostAudio, videoCodec, hdrMode, fullRange, gameMode,
           disableWarnings, performanceStats
         ]);
       }, function(failedLaunchApp) {
@@ -3529,6 +3532,17 @@ function savePlayHostAudio() {
   }, 100);
 }
 
+function saveDecryptHostAudio() {
+  setTimeout(() => {
+    const chosenDecryptHostAudio = $('#decryptHostAudioSwitch').parent().hasClass('is-checked');
+    console.log('%c[index.js, saveDecryptHostAudio]', 'color: green;', 'Saving decrypt host audio (Punktfunk) state: ' + chosenDecryptHostAudio);
+    storeData('decryptHostAudio', chosenDecryptHostAudio, null);
+    if (chosenDecryptHostAudio) {
+      snackbarLogLong('Warning: Enable Decrypt host audio only for Punktfunk-style hosts. Leave it off for Sunshine / GeForce Experience.');
+    }
+  }, 100);
+}
+
 function saveVideoCodec() {
   var chosenVideoCodec = $(this).data('value');
   const selectedH264Codec = $('#h264').data('value');
@@ -3795,6 +3809,10 @@ function restoreDefaultsSettingsValues() {
   const defaultPlayHostAudio = false;
   document.querySelector('#playHostAudioBtn').MaterialSwitch.off();
   storeData('playHostAudio', defaultPlayHostAudio, null);
+
+  const defaultDecryptHostAudio = false;
+  document.querySelector('#decryptHostAudioBtn').MaterialSwitch.off();
+  storeData('decryptHostAudio', defaultDecryptHostAudio, null);
 
   const defaultVideoCodec = 'H264';
   $('#selectCodec').text('H.264').attr('data-value', defaultVideoCodec).data('value', defaultVideoCodec);
@@ -4111,6 +4129,17 @@ function loadUserDataCb() {
       document.querySelector('#playHostAudioBtn').MaterialSwitch.off();
     } else {
       document.querySelector('#playHostAudioBtn').MaterialSwitch.on();
+    }
+  });
+
+  console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored decryptHostAudio preferences.');
+  getData('decryptHostAudio', function(previousValue) {
+    if (previousValue.decryptHostAudio == null) {
+      document.querySelector('#decryptHostAudioBtn').MaterialSwitch.off(); // Set the default state
+    } else if (previousValue.decryptHostAudio == false) {
+      document.querySelector('#decryptHostAudioBtn').MaterialSwitch.off();
+    } else {
+      document.querySelector('#decryptHostAudioBtn').MaterialSwitch.on();
     }
   });
 

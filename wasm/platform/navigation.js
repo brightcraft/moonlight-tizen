@@ -1273,7 +1273,8 @@ const Views = {
       'selectAudio',
       // Only one of these settings is shown at a time, as each one belongs to a single backend
       isWebAudioBackendSelected() ? 'selectAudioJitter' : 'audioSyncBtn',
-      'playHostAudioBtn'
+      'playHostAudioBtn',
+      'decryptHostAudioBtn'
     ]),
     up: function() {
       this.view.prevOption();
