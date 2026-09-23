@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## v1.17.1
+
+### Added
+- Reintroduced i18n workflow to synchronize locale files from the source of truth
+
+### Changed
+- Extended the Game Mode restrictions to newer platform versions (Tizen 9.0+)
+- Refactored the 'Update Moonlight' dialog to use static HTML for cleaner code structure
+
+### Fixed
+- Fixed EMSS pipeline cleanup when connections terminate unexpectedly
+- Fixed last frame number not resetting on new streams to prevent stats underflow
+- Fixed decoding time statistic displaying incorrect values due to integer underflow
+- Fixed the 'Update App' button notification not being restored after restarting the app
+- Fixed the 'Update App' button not being displayed after manually checking for updates
+- Fixed an issue where rapid or multiple clicks on a host could trigger concurrent executions
+
 ## v1.17.0
 
 ### Added
