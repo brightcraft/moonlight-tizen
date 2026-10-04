@@ -34,7 +34,7 @@ inline uint8_t controllerType(std::string id) {
   return LI_CTYPE_UNKNOWN;
 }
 
-inline uint32_t supportedButtons(int count) {
+inline uint32_t supportedButtons(int count, bool flipAB = false, bool flipXY = false) {
   static constexpr uint32_t buttons[] = {
     A_FLAG, B_FLAG, X_FLAG, Y_FLAG, LB_FLAG, RB_FLAG, 0, 0,
     BACK_FLAG, PLAY_FLAG, LS_CLK_FLAG, RS_CLK_FLAG,
@@ -42,7 +42,13 @@ inline uint32_t supportedButtons(int count) {
   };
   uint32_t flags = 0;
   for (int i = 0; i < count && i < 17; ++i) {
-    flags |= buttons[i];
+    auto flag = buttons[i];
+    if (flipAB && i < 2) {
+      flag = buttons[1 - i];
+    } else if (flipXY && i >= 2 && i < 4) {
+      flag = buttons[5 - i];
+    }
+    flags |= flag;
   }
   return flags;
 }
@@ -91,7 +97,13 @@ class Tracker {
 
   void announced(unsigned i) { states_.at(i).announced = true; }
   bool isAnnounced(unsigned i) const { return states_.at(i).announced; }
-  void reset() { states_ = {}; }
+  // Announcements are scoped to a stream. Retain timestamp knowledge like the
+  // browser-side mask until a disconnect or replacement invalidates the slot.
+  void reset() {
+    for (auto& state : states_) {
+      state.announced = false;
+    }
+  }
 
  private:
   struct State {

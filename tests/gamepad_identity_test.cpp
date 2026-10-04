@@ -17,6 +17,9 @@ int main() {
   assert(controllerType("Wireless Controller") == LI_CTYPE_UNKNOWN);
   assert(supportedButtons(0) == 0);
   assert(supportedButtons(1) == A_FLAG);
+  assert(supportedButtons(1, true) == B_FLAG);
+  assert(supportedButtons(3, false, true) == (A_FLAG | B_FLAG | Y_FLAG));
+  assert(supportedButtons(17, true, true) == supportedButtons(17));
   assert(supportedButtons(7) == supportedButtons(6));
   assert(!(supportedButtons(16) & SPECIAL_FLAG));
   assert(supportedButtons(17) & SPECIAL_FLAG);
@@ -48,6 +51,7 @@ int main() {
   assert(change.removed == std::vector<unsigned>{3});
   assert(change.arrived == std::vector<unsigned>{3});
   tracker.announced(3);
+  samples[3].timestamp = 0;
   tracker.reset();
   assert(tracker.update(samples).arrived == std::vector<unsigned>{3});
   tracker.announced(3);

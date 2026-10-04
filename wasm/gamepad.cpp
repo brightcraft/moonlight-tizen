@@ -171,7 +171,8 @@ void MoonlightInstance::PollGamepads() {
   for (const auto i : changes.arrived) {
     const auto& gamepad = events[i];
     const auto type = gamepad_identity::controllerType(samples[i].id);
-    const auto buttons = gamepad_identity::supportedButtons(gamepad.numButtons);
+    const auto buttons = gamepad_identity::supportedButtons(
+        gamepad.numButtons, flipABfaceButtonsSwitch, flipXYfaceButtonsSwitch);
     uint16_t capabilities = gamepad.numButtons > 7 ? LI_CCAP_ANALOG_TRIGGERS : 0;
     // The browser Gamepad API does not expose motion, battery, RGB or touchpad
     // data. Only advertise rumble when our existing feedback path can use it.
