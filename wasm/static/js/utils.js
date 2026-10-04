@@ -69,36 +69,39 @@ function cryptoRand(upper_bound) {
   return array[0] % upper_bound;
 }
 
-var _realGamepads = new Set();
+var _realGamepads = new Map();
 function getConnectedGamepadMask() {
   var count = 0;
   var mask = 0;
   var gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
 
-  for (var i = 0; i < gamepads.length; i++) {
+  for (var i = 0; i < 16; i++) {
     var gamepad = gamepads[i];
+    if (!gamepad || !gamepad.connected) {
+      _realGamepads.delete(i);
+      continue;
+    }
     if (gamepad) {
       // See logic in gamepad.cpp
       // These must stay in sync!
 
-      if (!gamepad.connected) {
-        // Not connected
-        _realGamepads.delete(gamepad.index);
-        continue;
+      if (_realGamepads.get(i) !== gamepad.id) {
+        _realGamepads.delete(i);
       }
 
       if (gamepad.timestamp !== 0) {
-        _realGamepads.add(gamepad.index);
+        _realGamepads.set(i, gamepad.id);
       }
 
-      if (gamepad.timestamp === 0 && !_realGamepads.has(gamepad.index)) {
+      if (gamepad.timestamp === 0 && !_realGamepads.has(i)) {
         // On some platforms, Tizen returns "connected" gamepads that really 
         // aren't, so timestamp stays at zero. To work around this, we'll only
         // count gamepads that have a non-zero timestamp in our controller index.
         continue;
       }
 
-      mask |= 1 << count++;
+      mask |= 1 << i;
+      count++;
     }
   }
 
