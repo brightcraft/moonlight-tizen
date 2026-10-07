@@ -1,4 +1,5 @@
 #include <atomic>
+#include <chrono>
 #include <memory>
 #include <queue>
 
@@ -91,6 +92,10 @@ enum class AudioBackend {
 
 constexpr const char* kCanvasName = "#wasm_module";
 
+// Error code reported when the TV rejects the video stream or doesn't start it in time,
+// which usually means the TV doesn't support the selected resolution or frame rate
+#define ERROR_VIDEO_SETUP_FAILED -200
+
 class MoonlightInstance {
   public:
   explicit MoonlightInstance();
@@ -130,6 +135,8 @@ class MoonlightInstance {
   void OnConnectionStopped(uint32_t unused);
   void OnConnectionStarted(uint32_t error);
   void StopConnection();
+  void CancelPendingSetup();
+  void CloseMediaSource();
 
   static uint32_t ProfilerGetPackedMillis();
   static uint64_t ProfilerGetMillis();
@@ -210,7 +217,8 @@ class MoonlightInstance {
     MoonlightInstance* m_Instance;
   };
 
-  void WaitFor(std::condition_variable* variable, std::function<bool()> condition);
+  bool WaitFor(std::condition_variable* variable, std::function<bool()> condition, std::chrono::milliseconds timeout);
+  static int MediaSetupWaitFailed(const char* step);
 
   void OpenUrl_private(int callbackId, std::string url, std::string ppk, bool binaryResponse);
   void STUN_private(int callbackId);
@@ -290,6 +298,7 @@ class MoonlightInstance {
   samsung::wasm::ElementaryMediaTrack m_VideoTrack;
   std::atomic<bool> m_SourceClosed;
   std::condition_variable m_SourceClosedCV;
+  std::atomic<bool> m_SourceAttached;
 };
 
 extern MoonlightInstance* g_Instance;
