@@ -924,6 +924,7 @@ function addHostDialog() {
         // Use the host in the array directly to ensure the PPK propagates after pairing
         pairingDialog(hosts[_nvhttpHost.serverUid], function() {
           saveHosts();
+          startPollingHosts();
         }, function() {
           // Resume background polling after the pairing flow
           startPollingHosts();
@@ -933,6 +934,7 @@ function addHostDialog() {
           // Add the host to the grid after successful pairing
           addHostToGrid(_nvhttpHost);
           saveHosts();
+          startPollingHosts();
         }, function() {
           // Resume background polling after the pairing flow
           startPollingHosts();
