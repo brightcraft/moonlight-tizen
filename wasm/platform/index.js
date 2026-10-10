@@ -1856,6 +1856,8 @@ function fetchLatestRelease() {
 
 // Compare the current version with the latest version to determine if an update is available
 function checkVersionUpdate(currentVersion, latestVersion) {
+  if (!currentVersion || !latestVersion) return false;
+
   const currentVerParts = currentVersion.split('.').map(Number);
   const latestVerParts = latestVersion.split('.').map(Number);
 
