@@ -56,6 +56,16 @@ function clickElement(target) {
   // Prevent clicking if the element is disabled based on common disabled states
   if (element.disabled || element.getAttribute('aria-disabled') === 'true' || element.classList.contains('is-disabled')) {
     console.warn('%c[navigation.js, clickElement]', 'color: gray;', 'Cannot click the disabled target element:', element);
+    // Check if the disabled element is the Video HDR switch
+    if (element.id === 'hdrModeBtn' && !isHdrCapable) {
+      // Show a warning message when attempting to enable HDR mode on incompatible TVs
+      setTimeout(() => {
+        warningDialog(t('Unsupported Feature'),
+          t('Video HDR is not compatible on this TV model due to lack of hardware support and display capabilities.<br><br>') + 
+          t('Enabling this option will not activate HDR and may result in degraded quality, washed-out video, overly dark or bright images, severe color distortion, and other visual issues.')
+        );
+      }, 250);
+    }
     // Check if the disabled element is the Game Mode switch
     if (element.id === 'gameModeBtn' && parseFloat(platformVer) === 5.5) {
       // Show a warning message when attempting to enable game mode on Tizen 5.5 platform

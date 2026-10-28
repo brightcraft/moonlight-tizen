@@ -988,6 +988,8 @@ body {
 	color: #dedede !important;
     background-color: #666875 !important;
 }
+#hdrModeBtn.is-disabled.hovered, #hdrModeBtn.is-disabled:hover,
+#hdrModeBtn.is-disabled:focus, #hdrModeBtn.is-disabled:active,
 #gameModeBtn.is-disabled.hovered, #gameModeBtn.is-disabled:hover,
 #gameModeBtn.is-disabled:focus, #gameModeBtn.is-disabled:active {
     box-shadow: 0 0 2px 3px rgba(170, 170, 170, 1) !important;

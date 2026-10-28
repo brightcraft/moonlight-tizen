@@ -3900,9 +3900,14 @@ function restoreDefaultsSettingsValues() {
   $('#selectCodec').text('H.264').attr('data-value', defaultVideoCodec).data('value', defaultVideoCodec);
   storeData('videoCodec', defaultVideoCodec, null);
 
-  const defaultHdrMode = false;
-  document.querySelector('#hdrModeBtn').MaterialSwitch.off();
-  storeData('hdrMode', defaultHdrMode, null);
+  // Reset default Video HDR based on TV capability
+  if (isHdrCapable) {
+    const defaultHdrMode = false;
+    document.querySelector('#hdrModeBtn').MaterialSwitch.off();
+    storeData('hdrMode', defaultHdrMode, null);
+  } else {
+    // Keep turned off and disabled for TVs that are not HDR compatible
+  }
 
   const defaultFullRange = false;
   document.querySelector('#fullRangeBtn').MaterialSwitch.off();
@@ -4241,7 +4246,12 @@ function loadUserDataCb() {
   console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored hdrMode preferences.');
   getData('hdrMode', function(previousValue) {
     if (previousValue.hdrMode == null) {
-      document.querySelector('#hdrModeBtn').MaterialSwitch.off(); // Set the default state
+      if (isHdrCapable) {
+        document.querySelector('#hdrModeBtn').MaterialSwitch.off(); // Set the default state
+      } else {
+        document.querySelector('#hdrModeBtn').MaterialSwitch.off(); // Turn off for TVs that are not HDR compatible
+        document.querySelector('#hdrModeBtn').MaterialSwitch.disable(); // Disable the switch to prevent user interaction
+      }
     } else if (previousValue.hdrMode == false) {
       document.querySelector('#hdrModeBtn').MaterialSwitch.off();
     } else {
