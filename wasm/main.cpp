@@ -426,6 +426,13 @@ MessageResult MoonlightInstance::StartStream(std::string host, int httpPort, std
     PostToJs("Selecting the fallback video format to: VIDEO_FORMAT_H264");
   }
 
+  // Initialize the color space with default value
+  m_StreamConfig.colorSpace = 0;
+  // Apply the desired color space ​based on the HDR toggle switch state.
+  // Uses Rec. 709 for standard HD video to prevent unwanted color shifts 
+  // caused by the SD-intended Rec. 601, and Rec. 2020 for HDR streams.
+  m_StreamConfig.colorSpace |= hdrMode ? COLORSPACE_REC_2020 : COLORSPACE_REC_709;
+
   // Initialize the color range with default value
   m_StreamConfig.colorRange = 0;
   // Apply the desired color range ​based on the toggle switch state
