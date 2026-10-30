@@ -321,10 +321,10 @@ function handleMessage(msg) {
         snackbarLogLong('Connection terminated');
         break;
     }
-    // Refresh the server info to update the current game and app list
-    api.refreshServerInfo().then(function(ret) {
-      // Return to the app list with new current game
-      showApps(api).then(() => {
+    // Check if there is a normal termination and if the Quit App After switch is checked
+    if (errorCode === 0 && $('#quitAppAfterSwitch').prop('checked')) {
+      // Quit running app after the stream session ends and return to the app list with no current game
+      stopGame(api, function() {
         // Scroll to the current game row
         Navigation.switch();
         // Switch to Apps view
@@ -332,18 +332,31 @@ function handleMessage(msg) {
           Navigation.change(Views.Apps);
         }
       });
-    }, function(failedRefreshInfo) {
-      console.error('%c[messages.js, handleMessage]', 'color: gray;', 'Error: Failed to refresh server info! Returned error was: ' + failedRefreshInfo + '!');
-      // Return to the app list anyway
-      showApps(api).then(() => {
-        // Scroll to the current game row
-        Navigation.switch();
-        // Switch to Apps view
-        if (!window.isDialogOpen) {
-          Navigation.change(Views.Apps);
-        }
+    } else {
+      // Refresh the server info to update the current game and app list
+      api.refreshServerInfo().then(function(ret) {
+        // Return to the app list with new current game
+        showApps(api).then(() => {
+          // Scroll to the current game row
+          Navigation.switch();
+          // Switch to Apps view
+          if (!window.isDialogOpen) {
+            Navigation.change(Views.Apps);
+          }
+        });
+      }, function(failedRefreshInfo) {
+        console.error('%c[messages.js, handleMessage]', 'color: red;', 'Error: Failed to refresh server info! Returned error was: ' + failedRefreshInfo + '!');
+        // Return to the app list anyway
+        showApps(api).then(() => {
+          // Scroll to the current game row
+          Navigation.switch();
+          // Switch to Apps view
+          if (!window.isDialogOpen) {
+            Navigation.change(Views.Apps);
+          }
+        });
       });
-    });
+    }
   } else if (msg === 'Connection Established') {
     // Prepare the screen for video stream
     $('#loadingSpinner').css('display', 'none');

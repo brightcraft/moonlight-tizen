@@ -107,6 +107,7 @@ function attachListeners() {
   $('#ipAddressTextInput').on('input', updateIpAddressInputValidationState);
   $('#sortAppsListSwitch').on('click', saveSortAppsList);
   $('#optimizeGamesSwitch').on('click', saveOptimizeGames);
+  $('#quitAppAfterSwitch').on('click', saveQuitAppAfter);
   $('#removeAllHostsBtn').on('click', deleteAllHostsDialog);
   $('#rumbleFeedbackSwitch').on('click', saveRumbleFeedback);
   $('#mouseEmulationSwitch').on('click', saveMouseEmulation);
@@ -3484,6 +3485,19 @@ function saveOptimizeGames() {
   }, 100);
 }
 
+function saveQuitAppAfter() {
+  setTimeout(() => {
+    const chosenQuitAppAfter = $('#quitAppAfterSwitch').parent().hasClass('is-checked');
+    console.log('%c[index.js, saveQuitAppAfter]', 'color: green;', 'Saving quit app after session state: ' + chosenQuitAppAfter);
+    storeData('quitAppAfter', chosenQuitAppAfter, null);
+
+    // Show a warning message when enabling quit app on host
+    if (chosenQuitAppAfter) {
+      snackbarLogLong('Warning: Enabling this setting may result in losing any unsaved progress when the running app is automatically closed!');
+    }
+  }, 100);
+}
+
 function saveRumbleFeedback() {
   setTimeout(() => {
     const chosenRumbleFeedback = $('#rumbleFeedbackSwitch').parent().hasClass('is-checked');
@@ -3853,6 +3867,10 @@ function restoreDefaultsSettingsValues() {
   document.querySelector('#optimizeGamesBtn').MaterialSwitch.off();
   storeData('optimizeGames', defaultOptimizeGames, null);
 
+  const defaultQuitAppAfter = false;
+  document.querySelector('#quitAppAfterBtn').MaterialSwitch.off();
+  storeData('quitAppAfter', defaultQuitAppAfter, null);
+
   const defaultRumbleFeedback = false;
   document.querySelector('#rumbleFeedbackBtn').MaterialSwitch.off();
   storeData('rumbleFeedback', defaultRumbleFeedback, null);
@@ -4118,6 +4136,17 @@ function loadUserDataCb() {
       document.querySelector('#optimizeGamesBtn').MaterialSwitch.off();
     } else {
       document.querySelector('#optimizeGamesBtn').MaterialSwitch.on();
+    }
+  });
+
+  console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored quitAppAfter preferences.');
+  getData('quitAppAfter', function(previousValue) {
+    if (previousValue.quitAppAfter == null) {
+      document.querySelector('#quitAppAfterBtn').MaterialSwitch.off(); // Set the default state
+    } else if (previousValue.quitAppAfter == false) {
+      document.querySelector('#quitAppAfterBtn').MaterialSwitch.off();
+    } else {
+      document.querySelector('#quitAppAfterBtn').MaterialSwitch.on();
     }
   });
 
