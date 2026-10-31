@@ -67,15 +67,23 @@ function clickElement(target) {
       }, 250);
     }
     // Check if the disabled element is the Game Mode switch
-    if (element.id === 'gameModeBtn' && parseFloat(platformVer) === 5.5) {
-      // Show a warning message when attempting to enable game mode on Tizen 5.5 platform
-      setTimeout(() => {
-        warningDialog(t('Unsupported Feature'),
-          t('Game Mode (Ultra Low Latency) is not supported on Tizen %1$s due to platform limitations and lack of support from the WASM player.', platformVer) + 
-          t('Attempting to enable this option will have no effect, as the decoder will force a fallback to standard Low Latency mode to maintain streaming stability.<br><br>') + 
-          t('Since the Game Mode cannot be enabled, you may experience slightly higher latency while streaming. To further reduce latency, it is highly recommended to open your TV\'s Picture Settings menu and disable post-processing features such as <b>Picture Clarity</b>, <b>Contrast Enhancer</b>, and other video enhancements.')
-        );
-      }, 250);
+    if (element.id === 'gameModeBtn') {
+      // Check if the ForceGM variant is being used
+      if (checkForceGMVariant()) {
+        // Show a warning message when attempting to enable game mode on ForceGM variant
+        snackbarLogLong('Warning: Game Mode setting is not compatible with Game Mode metadata in the ForceGM variant! To adjust this setting, switch to the standard variant.');
+      }
+      // Check if the Tizen platform is 5.5
+      if (parseFloat(platformVer) === 5.5) {
+        // Show a warning message when attempting to enable game mode on Tizen 5.5 platform
+        setTimeout(() => {
+          warningDialog(t('Unsupported Feature'),
+            t('Game Mode (Ultra Low Latency) is not supported on Tizen %1$s due to platform limitations and lack of support from the WASM player.', platformVer) + 
+            t('Attempting to enable this option will have no effect, as the decoder will force a fallback to standard Low Latency mode to maintain streaming stability.<br><br>') + 
+            t('Since the Game Mode cannot be enabled, you may experience slightly higher latency while streaming. To further reduce latency, it is highly recommended to open your TV\'s Picture Settings menu and disable post-processing features such as <b>Picture Clarity</b>, <b>Contrast Enhancer</b>, and other video enhancements.')
+          );
+        }, 250);
+      }
     }
     return;
   }

@@ -3937,8 +3937,8 @@ function restoreDefaultsSettingsValues() {
     const incompatibleGameMode = false;
     document.querySelector('#gameModeBtn').MaterialSwitch.off();
     storeData('gameMode', incompatibleGameMode, null);
-  } else if (parseFloat(platformVer) === 5.5) {
-    // Keep turned off and disabled for Tizen 5.5 due to lack of support
+  } else if (checkForceGMVariant || parseFloat(platformVer) === 5.5) {
+    // Keep turned off and disabled for ForceGM variant and Tizen 5.5 due to lack of support
   } else {
     // Turn on for compatible Tizen versions (e.g., 6.0, 6.5, 7.0, 8.0)
     const defaultGameMode = true;
@@ -4301,11 +4301,12 @@ function loadUserDataCb() {
 
   console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored gameMode preferences.');
   getData('gameMode', function(previousValue) {
+    const isForceGMVariant = checkForceGMVariant();
     if (previousValue.gameMode == null) {
       if (parseFloat(platformVer) >= 9.0) {
         document.querySelector('#gameModeBtn').MaterialSwitch.off(); // Turn off for Tizen 9.0 and newer to avoid compatibility issues
-      } else if (parseFloat(platformVer) === 5.5) {
-        document.querySelector('#gameModeBtn').MaterialSwitch.off(); // Turn off for Tizen 5.5 due to lack of support
+      } else if (isForceGMVariant || parseFloat(platformVer) === 5.5) {
+        document.querySelector('#gameModeBtn').MaterialSwitch.off(); // Turn off for ForceGM variant and Tizen 5.5 due to lack of support
         document.querySelector('#gameModeBtn').MaterialSwitch.disable(); // Disable the switch to prevent user interaction
       } else {
         document.querySelector('#gameModeBtn').MaterialSwitch.on(); // Turn on for compatible Tizen versions (e.g., 6.0, 6.5, 7.0, 8.0)
