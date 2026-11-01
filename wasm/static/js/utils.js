@@ -69,10 +69,65 @@ function cryptoRand(upper_bound) {
   return array[0] % upper_bound;
 }
 
-// This map tracks gamepad IDs for each browser slot to avoid false
-// positives from placeholder gamepads that report as "connected"
-// but have never sent any input (timestamp = 0).
+// Per-slot evidence shared by UI polling and the stream launch mask.
 var _realGamepads = new Map();
+
+function observeGamepad(gamepad, index) {
+  if (!gamepad || !gamepad.connected) {
+    _realGamepads.delete(index);
+    return false;
+  }
+
+  var state = _realGamepads.get(index);
+  if (!state || state.id !== gamepad.id) {
+    state = { id: gamepad.id, validated: false, buttons: [], axes: [] };
+    _realGamepads.set(index, state);
+  }
+  if (typeof gamepad.timestamp === 'number' && isFinite(gamepad.timestamp) && gamepad.timestamp > 0) {
+    state.validated = true;
+  }
+  if (state.validated) {
+    return true;
+  }
+
+  var buttons = gamepad.buttons || [];
+  var axes = gamepad.axes || [];
+  // Match HasGamepadInputChanged() in gamepad.cpp. Keep the baseline until
+  // actual input is observed; metadata or a static nonzero axis is not proof.
+  if (state.buttons.length !== buttons.length || state.axes.length !== axes.length) {
+    state.buttons = Array.prototype.map.call(buttons, function(button) {
+      return { pressed: !!button.pressed, value: button.value };
+    });
+    state.axes = Array.prototype.slice.call(axes);
+    return false;
+  }
+  for (var i = 0; i < buttons.length; i++) {
+    var button = buttons[i];
+    var previous = state.buttons[i];
+    if (!!button.pressed !== previous.pressed) {
+      state.validated = true;
+    }
+    if (typeof button.value === 'number' && isFinite(button.value)) {
+      if (typeof previous.value === 'number' && isFinite(previous.value) && Math.abs(button.value - previous.value) > 0.01) {
+        state.validated = true;
+      }
+      if (typeof previous.value !== 'number' || !isFinite(previous.value)) {
+        previous.value = button.value;
+      }
+    }
+  }
+  for (var j = 0; j < axes.length; j++) {
+    if (typeof axes[j] === 'number' && isFinite(axes[j])) {
+      if (typeof state.axes[j] === 'number' && isFinite(state.axes[j]) && Math.abs(axes[j] - state.axes[j]) > 0.01) {
+        state.validated = true;
+      }
+      if (typeof state.axes[j] !== 'number' || !isFinite(state.axes[j])) {
+        state.axes[j] = axes[j];
+      }
+    }
+  }
+  return state.validated;
+}
 
 // Returns a bitmask representing the connected gamepads in the browser
 function getConnectedGamepadMask() {
@@ -83,34 +138,7 @@ function getConnectedGamepadMask() {
   // Iterate through all possible gamepad slots (0-15) to detect connected gamepads
   // Maximum number of controllers supported by the Moonlight protocol is 16
   for (var i = 0; i < 16; i++) {
-    var gamepad = gamepads[i];
-
-    // Ignore empty or disconnected gamepads and clear any previous tracking for that slot
-    if (!gamepad || !gamepad.connected) {
-      _realGamepads.delete(i);
-      continue;
-    }
-
-    // Check if the gamepad slot is occupied
-    if (gamepad) {
-      // See matching logic in "[gamepad.cpp] PollGamepads()" – these must stay in sync!
-
-      // If the gamepad ID changed, treat it as a new one in this slot
-      if (_realGamepads.get(i) !== gamepad.id) {
-        _realGamepads.delete(i);
-      }
-
-      // Remember any pad that has ever reported a non-zero timestamp
-      if (gamepad.timestamp !== 0) {
-        _realGamepads.set(i, gamepad.id);
-      }
-
-      // Tizen often returns "connected" placeholder gamepads whose timestamp stays
-      // at zero. Ignore them until they become real gamepads that report input.
-      if (gamepad.timestamp === 0 && !_realGamepads.has(i)) {
-        continue;
-      }
-
+    if (observeGamepad(gamepads[i], i)) {
       // Use the physical browser index so the mask matches C++
       mask |= 1 << i;
       count++;

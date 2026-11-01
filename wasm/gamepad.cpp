@@ -61,12 +61,45 @@ enum GamepadAxis {
 
 // Per-slot state used for Tizen placeholder filtering, id tracking and arrival announcements
 struct ControllerSlotState {
-  bool seenTimestamp = false; // true once a non-zero timestamp was observed for this id
+  bool validated = false; // positive timestamp or observed input changes for this id
   bool announced = false; // true after LiSendControllerArrivalEvent succeeded
   std::string id; // last known Gamepad.id (used to detect replacements)
+  bool hasBaseline = false;
+  EmscriptenGamepadEvent baseline{};
 };
 
 static ControllerSlotState slotState[kMaxControllers];
+
+// Compare against a stable baseline: slow movement accumulates, while static
+// nonzero axes and small analog noise do not create phantom controllers.
+static bool HasGamepadInputChanged(const EmscriptenGamepadEvent& gamepad, EmscriptenGamepadEvent& baseline) {
+  for (int i = 0; i < gamepad.numButtons && i < 64; ++i) {
+    if ((gamepad.digitalButton[i] == EM_TRUE) != (baseline.digitalButton[i] == EM_TRUE)) {
+      return true;
+    }
+    const double value = gamepad.analogButton[i];
+    if (std::isfinite(value)) {
+      if (std::isfinite(baseline.analogButton[i]) && std::abs(value - baseline.analogButton[i]) > 0.01) {
+        return true;
+      }
+      if (!std::isfinite(baseline.analogButton[i])) {
+        baseline.analogButton[i] = value;
+      }
+    }
+  }
+  for (int i = 0; i < gamepad.numAxes && i < 64; ++i) {
+    const double value = gamepad.axis[i];
+    if (std::isfinite(value)) {
+      if (std::isfinite(baseline.axis[i]) && std::abs(value - baseline.axis[i]) > 0.01) {
+        return true;
+      }
+      if (!std::isfinite(baseline.axis[i])) {
+        baseline.axis[i] = value;
+      }
+    }
+  }
+  return false;
+}
 
 // Detect controller family from Gamepad.id (PS / Xbox / Nintendo / Unknown)
 static uint8_t GetControllerType(const char* id) {
@@ -283,13 +316,14 @@ void MoonlightInstance::PollGamepads() {
     ControllerSlotState& state = slotState[i];
 
     const bool connected = slotPresent[i] && events[i].connected; // slot exists and reports connected
-    const char* currentId = (connected && events[i].id) ? events[i].id : ""; // current Gamepad.id (or empty)
+    const char* currentId = connected ? events[i].id : ""; // current Gamepad.id (or empty)
     const double timestamp = connected ? events[i].timestamp : 0.0; // current timestamp (0 if disconnected)
     const bool sameDevice = (state.id == currentId); // true when the id has not changed
 
-    // Real = connected and (non-zero timestamp, or previously seen real with same id)
-    // This keeps the Tizen placeholder workaround while detecting replacements
-    const bool real = connected && (timestamp != 0.0 || (sameDevice && state.seenTimestamp));
+    const bool sameLayout = state.hasBaseline &&
+      state.baseline.numButtons == events[i].numButtons && state.baseline.numAxes == events[i].numAxes;
+    const bool real = connected && ((std::isfinite(timestamp) && timestamp > 0.0) ||
+      (sameDevice && (state.validated || (sameLayout && HasGamepadInputChanged(events[i], state.baseline)))));
 
     // Previously announced but gone or replaced → queue removal
     if (state.announced && (!real || !sameDevice)) {
@@ -297,15 +331,25 @@ void MoonlightInstance::PollGamepads() {
       state.announced = false;
     }
 
-    // Not a real controller (placeholder or disconnected) → clear state and skip
-    if (!real) {
-      state = {}; // clear so a future different device starts fresh
+    if (!connected) {
+      state = {};
       continue;
     }
 
-    // Record identity and mark this physical bit in the active mask
+    if (!sameDevice) {
+      state = {};
+    }
     state.id = currentId;
-    state.seenTimestamp = true;
+    if (!real) {
+      if (!state.hasBaseline || !sameLayout) {
+        state.baseline = events[i];
+        state.hasBaseline = true;
+      }
+      continue;
+    }
+
+    // Record evidence and mark this physical bit in the active mask
+    state.validated = true;
     activeGamepadMask |= static_cast<short>(1 << i);
 
     // Queue an arrival event if we have not announced this device yet
