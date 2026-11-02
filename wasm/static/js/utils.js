@@ -69,48 +69,105 @@ function cryptoRand(upper_bound) {
   return array[0] % upper_bound;
 }
 
-// This map tracks gamepad IDs for each browser slot to avoid false
-// positives from placeholder gamepads that report as "connected"
-// but have never sent any input (timestamp = 0).
+// Per-slot evidence shared by UI polling and the stream launch mask
 var _realGamepads = new Map();
+
+// Validates a gamepad using its timestamp or observed input changes
+function observeGamepad(gamepad, index) {
+  // Ignore disconnected or unavailable gamepads and clear their cached state
+  if (!gamepad || !gamepad.connected) {
+    _realGamepads.delete(index);
+    return false;
+  }
+
+  // Retrieve the previously recorded validation state for this gamepad slot
+  var state = _realGamepads.get(index);
+
+  // Reset the validation state if the slot contains a different gamepad
+  if (!state || state.id !== gamepad.id) {
+    state = { id: gamepad.id, validated: false, buttons: [], axes: [] };
+    _realGamepads.set(index, state);
+  }
+
+  // A positive, finite timestamp is sufficient evidence of a genuine gamepad
+  if (typeof gamepad.timestamp === 'number' && isFinite(gamepad.timestamp) && gamepad.timestamp > 0) {
+    state.validated = true;
+  }
+
+  // Once validated, the gamepad remains accepted while connected
+  if (state.validated) {
+    return true;
+  }
+
+  // Retrieve the current button and axis states for input change detection
+  var buttons = gamepad.buttons || [];
+  var axes = gamepad.axes || [];
+
+  // Match "HasGamepadInputChanged()" in "gamepad.cpp" – these should stay in sync!
+  // Keep the baseline until actual input is observed; metadata or a static nonzero axis is not proof.
+  if (state.buttons.length !== buttons.length || state.axes.length !== axes.length) {
+    // Initialize the input baseline without validating the gamepad
+    state.buttons = Array.prototype.map.call(buttons, function(button) {
+      return { pressed: !!button.pressed, value: button.value };
+    });
+    state.axes = Array.prototype.slice.call(axes);
+    return false;
+  }
+
+  // Check for changes in button states and analog values
+  for (var i = 0; i < buttons.length; i++) {
+    // Retrieve the current and previously recorded button states
+    var button = buttons[i];
+    var previous = state.buttons[i];
+    // A change in the pressed state indicates actual user input
+    if (!!button.pressed !== previous.pressed) {
+      state.validated = true;
+    }
+    // Only compare finite numeric values to avoid invalid analog readings
+    if (typeof button.value === 'number' && isFinite(button.value)) {
+      // Detect meaningful changes in the analog button value
+      if (typeof previous.value === 'number' && isFinite(previous.value) && Math.abs(button.value - previous.value) > 0.01) {
+        state.validated = true;
+      }
+      // Initialize the baseline if the previous button value was invalid
+      if (typeof previous.value !== 'number' || !isFinite(previous.value)) {
+        previous.value = button.value;
+      }
+    }
+  }
+
+  // Check for changes in analog stick and trigger axis values
+  for (var j = 0; j < axes.length; j++) {
+    // Ignore axis values that are not valid finite numbers
+    if (typeof axes[j] === 'number' && isFinite(axes[j])) {
+      // Detect meaningful movement by comparing against the recorded axis value
+      if (typeof state.axes[j] === 'number' && isFinite(state.axes[j]) && Math.abs(axes[j] - state.axes[j]) > 0.01) {
+        state.validated = true;
+      }
+      // Initialize the baseline if the previous axis value was invalid
+      if (typeof state.axes[j] !== 'number' || !isFinite(state.axes[j])) {
+        state.axes[j] = axes[j];
+      }
+    }
+  }
+
+  return state.validated;
+}
 
 // Returns a bitmask representing the connected gamepads in the browser
 function getConnectedGamepadMask() {
+  // Initialize the connected gamepad counter and resulting bitmask
   var count = 0;
   var mask = 0;
+
+  // Retrieve the current gamepad states exposed by the browser
   var gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
 
-  // Iterate through all possible gamepad slots (0-15) to detect connected gamepads
-  // Maximum number of controllers supported by the Moonlight protocol is 16
+  // Iterate through all possible gamepad slots (0-15) to detect connected gamepads,
+  // where maximum number of controllers supported by the Moonlight protocol is 16.
   for (var i = 0; i < 16; i++) {
-    var gamepad = gamepads[i];
-
-    // Ignore empty or disconnected gamepads and clear any previous tracking for that slot
-    if (!gamepad || !gamepad.connected) {
-      _realGamepads.delete(i);
-      continue;
-    }
-
-    // Check if the gamepad slot is occupied
-    if (gamepad) {
-      // See matching logic in "[gamepad.cpp] PollGamepads()" – these must stay in sync!
-
-      // If the gamepad ID changed, treat it as a new one in this slot
-      if (_realGamepads.get(i) !== gamepad.id) {
-        _realGamepads.delete(i);
-      }
-
-      // Remember any pad that has ever reported a non-zero timestamp
-      if (gamepad.timestamp !== 0) {
-        _realGamepads.set(i, gamepad.id);
-      }
-
-      // Tizen often returns "connected" placeholder gamepads whose timestamp stays
-      // at zero. Ignore them until they become real gamepads that report input.
-      if (gamepad.timestamp === 0 && !_realGamepads.has(i)) {
-        continue;
-      }
-
+    // Include only gamepads that have passed the validation checks
+    if (observeGamepad(gamepads[i], i)) {
       // Use the physical browser index so the mask matches C++
       mask |= 1 << i;
       count++;
