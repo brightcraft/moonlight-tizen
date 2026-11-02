@@ -78,7 +78,7 @@ const Controller = (function() {
       : navigator.webkitGetGamepads
       ? navigator.webkitGetGamepads
       : [];
-    // Remember input before stream launch and clear evidence for vacant slots.
+    // Remember input before stream launch and clear evidence for vacant slots
     for (let i = 0; i < 16; i++) {
       observeGamepad(gamepads[i], i);
     }

@@ -63,41 +63,54 @@ enum GamepadAxis {
 struct ControllerSlotState {
   bool validated = false; // positive timestamp or observed input changes for this id
   bool announced = false; // true after LiSendControllerArrivalEvent succeeded
+  bool hasBaseline = false; // true once the initial button and axis states have been recorded
   std::string id; // last known Gamepad.id (used to detect replacements)
-  bool hasBaseline = false;
-  EmscriptenGamepadEvent baseline{};
+  EmscriptenGamepadEvent baseline{}; // last recorded input state used to detect subsequent changes
 };
 
 static ControllerSlotState slotState[kMaxControllers];
 
-// Compare against a stable baseline: slow movement accumulates, while static
-// nonzero axes and small analog noise do not create phantom controllers.
+// Compare against a stable baseline: slow movement accumulates, while static nonzero axes and small analog noise do not create phantom controllers
 static bool HasGamepadInputChanged(const EmscriptenGamepadEvent& gamepad, EmscriptenGamepadEvent& baseline) {
+  // See the match with "observeGamepad()" in "utils.js" – these should stay in sync!
+  // Check digital and analog button states against the recorded baseline
   for (int i = 0; i < gamepad.numButtons && i < 64; ++i) {
+    // Detect changes in the digital pressed state
     if ((gamepad.digitalButton[i] == EM_TRUE) != (baseline.digitalButton[i] == EM_TRUE)) {
       return true;
     }
+    // Retrieve the current analog button value
     const double value = gamepad.analogButton[i];
+    // Ignore invalid or non-finite analog values
     if (std::isfinite(value)) {
+      // Detect meaningful changes in the analog button value
       if (std::isfinite(baseline.analogButton[i]) && std::abs(value - baseline.analogButton[i]) > 0.01) {
         return true;
       }
+      // Initialize the baseline if the previous analog value was invalid
       if (!std::isfinite(baseline.analogButton[i])) {
         baseline.analogButton[i] = value;
       }
     }
   }
+
+  // Check analog axis values for meaningful changes
   for (int i = 0; i < gamepad.numAxes && i < 64; ++i) {
+    // Retrieve the current axis value
     const double value = gamepad.axis[i];
+    // Ignore invalid or non-finite axis values
     if (std::isfinite(value)) {
+      // Detect meaningful axis movement compared to the recorded baseline
       if (std::isfinite(baseline.axis[i]) && std::abs(value - baseline.axis[i]) > 0.01) {
         return true;
       }
+      // Initialize the baseline if the previous axis value was invalid
       if (!std::isfinite(baseline.axis[i])) {
         baseline.axis[i] = value;
       }
     }
   }
+
   return false;
 }
 
@@ -301,8 +314,7 @@ void MoonlightInstance::PollGamepads() {
   EmscriptenGamepadEvent events[kMaxControllers]{};
   bool slotPresent[kMaxControllers] = { false };
 
-  // See matching logic in "[utils.js] getConnectedGamepadMask()" – these must stay in sync!
-
+  // See the match with "getConnectedGamepadMask()" in "utils.js" – these should stay in sync!
   // Read every browser slot once so later logic can work from a stable snapshot
   for (int i = 0; i < limit; ++i) {
     // Check if the gamepad status retrieval is successful for the current slot
@@ -320,8 +332,10 @@ void MoonlightInstance::PollGamepads() {
     const double timestamp = connected ? events[i].timestamp : 0.0; // current timestamp (0 if disconnected)
     const bool sameDevice = (state.id == currentId); // true when the id has not changed
 
+    // Ensure the button and axis counts match the recorded baseline before comparing input
     const bool sameLayout = state.hasBaseline &&
       state.baseline.numButtons == events[i].numButtons && state.baseline.numAxes == events[i].numAxes;
+    // Accept connected gamepads with a valid timestamp or sufficient evidence of actual input
     const bool real = connected && ((std::isfinite(timestamp) && timestamp > 0.0) ||
       (sameDevice && (state.validated || (sameLayout && HasGamepadInputChanged(events[i], state.baseline)))));
 
@@ -331,16 +345,23 @@ void MoonlightInstance::PollGamepads() {
       state.announced = false;
     }
 
+    // Clear all cached state when the gamepad disconnects
     if (!connected) {
       state = {};
       continue;
     }
 
+    // Reset the previous state when a different gamepad occupies this slot
     if (!sameDevice) {
       state = {};
     }
+
+    // Update the stored identifier for the current gamepad
     state.id = currentId;
+
+    // Ignore not validated gamepads until a valid timestamp or actual input change is detected
     if (!real) {
+      // Record the initial input state or refresh it when the button/axis layout changes
       if (!state.hasBaseline || !sameLayout) {
         state.baseline = events[i];
         state.hasBaseline = true;
