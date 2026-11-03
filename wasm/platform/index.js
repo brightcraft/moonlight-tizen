@@ -41,6 +41,8 @@ var isPairingInProgress = false; // Flag indicating whether a pairing process is
 var wasPairingCanceled = false; // Flag indicating whether the current pairing process was canceled by the user, initial value is false
 var isGamepadActive = false; // Flag indicating whether the gamepad input is active, initial value is false
 var isClickPrevented = false; // Flag indicating whether the click event should be prevented, initial value is false
+var pageHiddenTimestamp = 0; // Flag indicating the timestamp calculated since the page was hidden, initial value is 0
+var wasStreamStoppedInBackground = false; // Flag indicating whether streaming was stopped while the page was hidden, initial value is false
 var resFpsWarning = false; // Flag indicating whether the video resolution and frame rate warning message has shown, initial value is false
 var bitrateWarning = false; // Flag indicating whether the video bitrate warning message has shown, initial value is false
 var audioWarning = false; // Flag indicating whether the audio configuration warning message has shown, initial value is false
@@ -4800,6 +4802,39 @@ function onWindowLoad() {
 }
 
 window.onload = onWindowLoad;
+
+// Log visibility changes and stop an active stream when the app goes to the background to prevent TV resource issues
+document.addEventListener('visibilitychange', function() {
+  var isHidden = document.visibilityState === 'hidden';
+  var details = 'Page visibility changed to ' + document.visibilityState + ' (stream active: ' + isInGame + ')';
+
+  // Record when the page becomes hidden
+  if (isHidden) {
+    pageHiddenTimestamp = Date.now();
+  } else if (pageHiddenTimestamp !== 0) {
+    // Calculate how long the page was hidden
+    details += ' after being hidden for ' + (Date.now() - pageHiddenTimestamp) + ' ms';
+    pageHiddenTimestamp = 0;
+  }
+
+  console.log('%c[index.js, visibilitychange]', 'color: green;', details + '.');
+
+  // Check if the page becomes hidden while a stream session is active
+  if (isHidden && isInGame === true) {
+    console.log('%c[index.js, visibilitychange]', 'color: green;', 'Stopping the stream session because Moonlight went to the background.');
+    try {
+      // Stop the stream to prevent background video decoding and network usage
+      Module.stopStream();
+      wasStreamStoppedInBackground = true;
+    } catch (error) {
+      console.error('%c[index.js, visibilitychange]', 'color: green;', 'Error: Failed to stop the stream session: ' + error);
+    }
+  } else if (!isHidden && wasStreamStoppedInBackground) {
+    // Notify the user that they can resume the game
+    wasStreamStoppedInBackground = false;
+    snackbarLogLong('The stream was stopped because Moonlight went to the background. Select the game again to resume streaming.');
+  }
+});
 
 // Gamepad connected events
 window.addEventListener('gamepadconnected', function(e) {

@@ -320,6 +320,7 @@
   "Scanning the local network to discover new hosts...": "Duke skanuar rrjetin lokal për të zbuluar hostë të rinj...",
   "The selected host is no longer available on Moonlight.": "Hosti i zgjedhur nuk është më i disponueshëm në Moonlight.",
   "The selected app is no longer available on this host. Showing the current app list.": "Aplikacioni i zgjedhur nuk është më i disponueshëm në këtë host. Po shfaqet lista aktuale e aplikacioneve.",
+  "The stream was stopped because Moonlight went to the background. Select the game again to resume streaming.": "Transmetimi u ndalua sepse Moonlight kaloi në sfond. Zgjidhni përsëri lojën për të rifilluar transmetimin.",
   "Gamepad %1$s has been connected.": "Gamepad %1$s është lidhur.",
   "Gamepad %1$s has been disconnected.": "Gamepad %1$s është shkëputur.",
   "90 FPS": "90 FPS",

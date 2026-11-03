@@ -320,6 +320,7 @@
   "Scanning the local network to discover new hosts...": "Scanning the local network to discover new hosts...",
   "The selected host is no longer available on Moonlight.": "The selected host is no longer available on Moonlight.",
   "The selected app is no longer available on this host. Showing the current app list.": "The selected app is no longer available on this host. Showing the current app list.",
+  "The stream was stopped because Moonlight went to the background. Select the game again to resume streaming.": "The stream was stopped because Moonlight went to the background. Select the game again to resume streaming.",
   "Gamepad %1$s has been connected.": "Gamepad %1$s has been connected.",
   "Gamepad %1$s has been disconnected.": "Gamepad %1$s has been disconnected.",
   "90 FPS": "90 FPS",
