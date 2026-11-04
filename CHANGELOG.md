@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## v1.20.0
+
+### Added
+- Introduced a new 'Quit app on host' setting to close the running app after the streaming ends
+- Added Albanian (sq-AL) and Spanish (es-ES) language support to the language selector
+- Added color space configuration to properly handle HDR and standard HD video streams
+
+### Changed
+- Disabled 'Video HDR' setting for incompatible TVs due to lack of display capabilities
+- Disabled 'Game mode' setting in the ForceGM variant to avoid conflicts with its metadata
+
+### Removed
+- Removed the unsupported '144 FPS' option as it causes streaming initialization to fail
+
+### Fixed
+- Fixed a heap corruption that occasionally caused freezes during the streaming session
+- Fixed an issue where gamepads reporting zero timestamps were not detected during streaming
+- Fixed an issue where the Wake-on-LAN dialog could remain open after the host became available
+- Fixed an issue where the stream continued running in the background when Moonlight was hidden
+
 ## v1.19.0
 
 ### Added
