@@ -98,7 +98,6 @@ function replaceKnownStatsLabels(text) {
     .replace(/Incoming bitrate from network:/g, t('Incoming bitrate from network:'))
     .replace(/Host processing latency min\/max\/average:/g, t('Host processing latency min/max/average:'))
     .replace(/Frames dropped by your network connection:/g, t('Frames dropped by your network connection:'))
-    .replace(/Frames dropped due to network jitter:/g, t('Frames dropped due to network jitter:'))
     .replace(/Average network latency:/g, t('Average network latency:'))
     .replace(/\bvariance:/g, t('variance:'))
     .replace(/\bN\/A\b/g, t('N/A'))
@@ -156,9 +155,16 @@ function translateBackendMessage(text) {
  * @return {void}        The Wasm module calls back through the handleMessage method
  */
 var _httpLock = Promise.resolve();
+// The pairing request waiting in the JS queue, if any, so that canceling can keep it from starting
+var _queuedPairing = null;
 
 var sendMessage = function(method, params) {
   if (SyncFunctions[method]) {
+    // Starting a request resets the cancel flag in C++, so a canceled pairing request
+    // that is still waiting in the JS queue must not start afterwards
+    if (method === 'cancelRequest' && _queuedPairing) {
+      _queuedPairing.canceled = true;
+    }
     return new Promise(function(resolve, reject) {
       const ret = SyncFunctions[method](...params);
       if (ret.type === "resolve") {
@@ -213,6 +219,41 @@ var sendMessage = function(method, params) {
           };
 
           AsyncFunctions['openUrl'](id, ...params);
+        });
+      });
+    });
+  } else if (method === 'pair') {
+    // Pairing runs on the same C++ HTTP thread as openUrl and waits until the PIN is entered on the host,
+    // so it must wait in the same JS queue. Otherwise an openUrl request queued behind it would time out
+    // and its cancelRequest would abort the pairing request instead.
+    var pairing = { canceled: false };
+    _queuedPairing = pairing;
+
+    return new Promise(function(resolve, reject) {
+      _httpLock = _httpLock.catch(function() {}).then(function() {
+        if (_queuedPairing === pairing) {
+          _queuedPairing = null;
+        }
+        // Don't start a pairing request that was canceled while it was waiting in the queue
+        if (pairing.canceled) {
+          reject(-1); // GS_FAILED
+          return;
+        }
+
+        return new Promise(function(innerResolve, innerReject) {
+          const id = callbacks_ids++;
+          callbacks[id] = {
+            'resolve': function(msg) {
+              resolve(msg);
+              innerResolve(); // Unlock the JS queue
+            },
+            'reject': function(err) {
+              reject(err);
+              innerResolve(); // Unlock the JS queue
+            }
+          };
+
+          AsyncFunctions['pair'](id, ...params);
         });
       });
     });
@@ -275,14 +316,17 @@ function handleMessage(msg) {
       case -104: // ML_ERROR_FRAME_CONVERSION
         snackbarLogLong('The host PC reported a fatal video encoding error. Try disabling HDR mode, changing the streaming resolution, or changing your host PC\'s display resolution.');
         break;
+      case -200: // ERROR_VIDEO_SETUP_FAILED
+        snackbarLogLong('The TV was unable to start the streaming with the selected video settings. Try reducing the resolution or frame rate and consider changing the codec.');
+        break;
       default:
         snackbarLogLong('Connection terminated');
         break;
     }
-    // Refresh the server info to update the current game and app list
-    api.refreshServerInfo().then(function(ret) {
-      // Return to the app list with new current game
-      showApps(api).then(() => {
+    // Check if there is a normal termination and if the Quit App After switch is checked
+    if (errorCode === 0 && $('#quitAppAfterSwitch').prop('checked')) {
+      // Quit running app after the stream session ends and return to the app list with no current game
+      stopGame(api, function() {
         // Scroll to the current game row
         Navigation.switch();
         // Switch to Apps view
@@ -290,18 +334,31 @@ function handleMessage(msg) {
           Navigation.change(Views.Apps);
         }
       });
-    }, function(failedRefreshInfo) {
-      console.error('%c[messages.js, handleMessage]', 'color: gray;', 'Error: Failed to refresh server info! Returned error was: ' + failedRefreshInfo + '!');
-      // Return to the app list anyway
-      showApps(api).then(() => {
-        // Scroll to the current game row
-        Navigation.switch();
-        // Switch to Apps view
-        if (!window.isDialogOpen) {
-          Navigation.change(Views.Apps);
-        }
+    } else {
+      // Refresh the server info to update the current game and app list
+      api.refreshServerInfo().then(function(ret) {
+        // Return to the app list with new current game
+        showApps(api).then(() => {
+          // Scroll to the current game row
+          Navigation.switch();
+          // Switch to Apps view
+          if (!window.isDialogOpen) {
+            Navigation.change(Views.Apps);
+          }
+        });
+      }, function(failedRefreshInfo) {
+        console.error('%c[messages.js, handleMessage]', 'color: red;', 'Error: Failed to refresh server info! Returned error was: ' + failedRefreshInfo + '!');
+        // Return to the app list anyway
+        showApps(api).then(() => {
+          // Scroll to the current game row
+          Navigation.switch();
+          // Switch to Apps view
+          if (!window.isDialogOpen) {
+            Navigation.change(Views.Apps);
+          }
+        });
       });
-    });
+    }
   } else if (msg === 'Connection Established') {
     // Prepare the screen for video stream
     $('#loadingSpinner').css('display', 'none');

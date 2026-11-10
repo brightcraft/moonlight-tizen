@@ -1,4 +1,5 @@
 #include <atomic>
+#include <chrono>
 #include <memory>
 #include <queue>
 
@@ -59,7 +60,6 @@ typedef struct _VIDEO_STATS {
   uint32_t renderedFrames;
   uint32_t totalFrames;
   uint32_t networkDroppedFrames;
-  uint32_t pacerDroppedFrames;
   uint16_t minHostProcessingLatency;
   uint16_t maxHostProcessingLatency;
   uint32_t totalHostProcessingLatency;
@@ -85,10 +85,15 @@ enum class LoadResult {
 // Audio backend used to render the decoded Opus stream
 enum class AudioBackend {
   Emss, // Elementary Media Stream Source: the original Samsung implementation
-  WebAudio // Web Audio: the scheduler implemented in platform/audio.js
+  WebAudio, // Web Audio: the scheduler implemented in platform/audio.js
+  Disabled // No audio output: the audio stream is discarded, for setups that play it through another device
 };
 
 constexpr const char* kCanvasName = "#wasm_module";
+
+// Error code reported when the TV rejects the video stream or doesn't start it in time,
+// which usually means the TV doesn't support the selected resolution or frame rate
+#define ERROR_VIDEO_SETUP_FAILED -200
 
 class MoonlightInstance {
   public:
@@ -129,6 +134,8 @@ class MoonlightInstance {
   void OnConnectionStopped(uint32_t unused);
   void OnConnectionStarted(uint32_t error);
   void StopConnection();
+  void CancelPendingSetup();
+  void CloseMediaSource();
 
   static uint32_t ProfilerGetPackedMillis();
   static uint64_t ProfilerGetMillis();
@@ -209,7 +216,8 @@ class MoonlightInstance {
     MoonlightInstance* m_Instance;
   };
 
-  void WaitFor(std::condition_variable* variable, std::function<bool()> condition);
+  bool WaitFor(std::condition_variable* variable, std::function<bool()> condition, std::chrono::milliseconds timeout);
+  static int MediaSetupWaitFailed(const char* step);
 
   void OpenUrl_private(int callbackId, std::string url, std::string ppk, bool binaryResponse);
   void STUN_private(int callbackId);
@@ -289,6 +297,7 @@ class MoonlightInstance {
   samsung::wasm::ElementaryMediaTrack m_VideoTrack;
   std::atomic<bool> m_SourceClosed;
   std::condition_variable m_SourceClosedCV;
+  std::atomic<bool> m_SourceAttached;
 };
 
 extern MoonlightInstance* g_Instance;

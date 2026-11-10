@@ -41,6 +41,8 @@ var isPairingInProgress = false; // Flag indicating whether a pairing process is
 var wasPairingCanceled = false; // Flag indicating whether the current pairing process was canceled by the user, initial value is false
 var isGamepadActive = false; // Flag indicating whether the gamepad input is active, initial value is false
 var isClickPrevented = false; // Flag indicating whether the click event should be prevented, initial value is false
+var pageHiddenTimestamp = 0; // Flag indicating the timestamp calculated since the page was hidden, initial value is 0
+var wasStreamStoppedInBackground = false; // Flag indicating whether streaming was stopped while the page was hidden, initial value is false
 var resFpsWarning = false; // Flag indicating whether the video resolution and frame rate warning message has shown, initial value is false
 var bitrateWarning = false; // Flag indicating whether the video bitrate warning message has shown, initial value is false
 var audioWarning = false; // Flag indicating whether the audio configuration warning message has shown, initial value is false
@@ -107,6 +109,7 @@ function attachListeners() {
   $('#ipAddressTextInput').on('input', updateIpAddressInputValidationState);
   $('#sortAppsListSwitch').on('click', saveSortAppsList);
   $('#optimizeGamesSwitch').on('click', saveOptimizeGames);
+  $('#quitAppAfterSwitch').on('click', saveQuitAppAfter);
   $('#removeAllHostsBtn').on('click', deleteAllHostsDialog);
   $('#rumbleFeedbackSwitch').on('click', saveRumbleFeedback);
   $('#mouseEmulationSwitch').on('click', saveMouseEmulation);
@@ -398,8 +401,9 @@ function startPollingHosts() {
 
 function endBackgroundPollingOfHost(host) {
   console.log('%c[index.js, endBackgroundPollingOfHost]', 'color: green;', 'Stopping background polling of host ' + host.serverUid, host, '\n' + host.toString()); // Logging both object (for console) and toString-ed object (for text logs)
-  // Clear the host's polling interval and remove it from the activePolls object
-  if (activePolls[host.serverUid]) {
+  // Clear the host's polling interval and remove it from the activePolls object, also while the first
+  // refresh is still running and the entry is null, otherwise the polling would start anyway when it finishes
+  if (activePolls.hasOwnProperty(host.serverUid)) {
     window.clearTimeout(activePolls[host.serverUid]);
     delete activePolls[host.serverUid];
   }
@@ -618,7 +622,7 @@ function hostChosen(host, onSuccessCallback) {
     }, function() {
       // Reset the flag to indicate that a host failed due to unsuccessful pairing
       isHostOpening = false;
-      // Start polling the host after pairing flow
+      // Resume background polling after the pairing flow
       startPollingHosts();
     });
   } else {
@@ -911,6 +915,8 @@ function addHostDialog() {
       addHostDialog.close();
       isDialogOpen = false;
       Navigation.pop();
+      // Avoid delay from other polling during pairing
+      stopPollingHosts();
       // Check if we already have record of this host. If so, we'll
       // need the PPK string to ensure our pairing status is accurate.
       if (hosts[_nvhttpHost.serverUid] != null) {
@@ -921,13 +927,20 @@ function addHostDialog() {
         // Use the host in the array directly to ensure the PPK propagates after pairing
         pairingDialog(hosts[_nvhttpHost.serverUid], function() {
           saveHosts();
+          startPollingHosts();
+        }, function() {
+          // Resume background polling after the pairing flow
+          startPollingHosts();
         });
       } else {
         pairingDialog(_nvhttpHost, function() {
-          // Host must be in the grid before starting background polling
+          // Add the host to the grid after successful pairing
           addHostToGrid(_nvhttpHost);
-          beginBackgroundPollingOfHost(_nvhttpHost);
           saveHosts();
+          startPollingHosts();
+        }, function() {
+          // Resume background polling after the pairing flow
+          startPollingHosts();
         });
       }
       // Re-enable the Continue button after successful processing
@@ -1034,6 +1047,8 @@ function pairingDialog(nvhttpHost, onSuccess, onFailure) {
       isPairingInProgress = false;
       if (wasPairingCanceled) {
         console.log('%c[index.js, pairingDialog]', 'color: green;', 'Ignored pairing failure due to cancellation.');
+        // Still let the caller recover, so the host can be selected again and the hosts are polled again
+        onFailure();
         return;
       }
       console.error('%c[index.js, pairingDialog]', 'color: green;', 'Error: Failed API object:\n', nvhttpHost, '\n' + nvhttpHost.toString()); // Logging both object (for console) and toString-ed object (for text logs)
@@ -1093,11 +1108,12 @@ function autoWolDialog(host, onSuccess, onCancel) {
   };
 
   var cleanup = function() {
-    stopPollingTasks();
+    console.log('%c[index.js, autoWolDialog]', 'color: green;', 'Closing app dialog and returning.');
     autoWolOverlay.style.display = 'none';
     autoWolDialog.close();
     isDialogOpen = false;
     Navigation.pop();
+    stopPollingTasks();
   };
 
   var sendWakeRequest = function() {
@@ -1836,8 +1852,12 @@ function navigationGuideDialog() {
 
 // Fetch the latest version and release notes from GitHub API
 function fetchLatestRelease() {
+  // Check if the REPO_OWNER and REPO_NAME are set to placeholders and apply fallback values
+  const repoOwner = (REPO_OWNER === '__REPO_OWNER__') ? 'brightcraft' : REPO_OWNER;
+  const repoName = (REPO_NAME === '__REPO_NAME__') ? 'moonlight-tizen' : REPO_NAME;
+
   // GitHub API endpoint to get the latest released version
-  const apiUrl = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest`;
+  const apiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/releases/latest`;
 
   // Fetch the latest release data from the GitHub API
   return fetch(apiUrl).then(response => {
@@ -1856,6 +1876,11 @@ function fetchLatestRelease() {
 
 // Compare the current version with the latest version to determine if an update is available
 function checkVersionUpdate(currentVersion, latestVersion) {
+  // Return false if either version is missing or invalid
+  if (!currentVersion || !latestVersion) {
+    return false;
+  }
+
   const currentVerParts = currentVersion.split('.').map(Number);
   const latestVerParts = latestVersion.split('.').map(Number);
 
@@ -3486,8 +3511,6 @@ function standardBitratePresets() {
       $('#bitrateSlider')[0].MaterialSlider.change('5');
     } else if (frameRate === '120') { // 120 FPS
       $('#bitrateSlider')[0].MaterialSlider.change('6');
-    } else if (frameRate === '144') { // 144 FPS
-      $('#bitrateSlider')[0].MaterialSlider.change('8');
     }
   } else if (res === '1280:720') { // 720p
     if (frameRate === '30') { // 30 FPS
@@ -3498,8 +3521,6 @@ function standardBitratePresets() {
       $('#bitrateSlider')[0].MaterialSlider.change('12');
     } else if (frameRate === '120') { // 120 FPS
       $('#bitrateSlider')[0].MaterialSlider.change('15');
-    } else if (frameRate === '144') { // 144 FPS
-      $('#bitrateSlider')[0].MaterialSlider.change('18');
     }
   } else if (res === '1920:1080') { // 1080p
     if (frameRate === '30') { // 30 FPS
@@ -3510,8 +3531,6 @@ function standardBitratePresets() {
       $('#bitrateSlider')[0].MaterialSlider.change('25');
     } else if (frameRate === '120') { // 120 FPS
       $('#bitrateSlider')[0].MaterialSlider.change('30');
-    } else if (frameRate === '144') { // 144 FPS
-      $('#bitrateSlider')[0].MaterialSlider.change('35');
     }
   } else if (res === '2560:1440') { // 1440p
     if (frameRate === '30') { // 30 FPS
@@ -3522,8 +3541,6 @@ function standardBitratePresets() {
       $('#bitrateSlider')[0].MaterialSlider.change('50');
     } else if (frameRate === '120') { // 120 FPS
       $('#bitrateSlider')[0].MaterialSlider.change('60');
-    } else if (frameRate === '144') { // 144 FPS
-      $('#bitrateSlider')[0].MaterialSlider.change('70');
     }
   } else if (res === '3840:2160') { // 2160p
     if (frameRate === '30') { // 30 FPS
@@ -3534,8 +3551,6 @@ function standardBitratePresets() {
       $('#bitrateSlider')[0].MaterialSlider.change('100');
     } else if (frameRate === '120') { // 120 FPS
       $('#bitrateSlider')[0].MaterialSlider.change('120');
-    } else if (frameRate === '144') { // 144 FPS
-      $('#bitrateSlider')[0].MaterialSlider.change('140');
     }
   } else {
     // Unrecognized option! In case someone screws with the JS to add custom resolutions.
@@ -3638,6 +3653,19 @@ function saveOptimizeGames() {
   }, 100);
 }
 
+function saveQuitAppAfter() {
+  setTimeout(() => {
+    const chosenQuitAppAfter = $('#quitAppAfterSwitch').parent().hasClass('is-checked');
+    console.log('%c[index.js, saveQuitAppAfter]', 'color: green;', 'Saving quit app after session state: ' + chosenQuitAppAfter);
+    storeData('quitAppAfter', chosenQuitAppAfter, null);
+
+    // Show a warning message when enabling quit app on host
+    if (chosenQuitAppAfter) {
+      snackbarLogLong('Warning: Enabling this setting may result in losing any unsaved progress when the running app is automatically closed!');
+    }
+  }, 100);
+}
+
 function saveRumbleFeedback() {
   setTimeout(() => {
     const chosenRumbleFeedback = $('#rumbleFeedbackSwitch').parent().hasClass('is-checked');
@@ -3680,23 +3708,41 @@ function saveAudioBackend() {
   updateAudioBackendSettings();
 }
 
-// The audio backends do not share their tuning settings, so only show the settings that the
-// selected backend actually uses while streaming
+// The audio backends do not share their tuning settings, so only show the
+// settings that the selected backend actually uses while streaming
 function updateAudioBackendSettings() {
-  if (isWebAudioBackendSelected()) {
-    // The Web Audio backend schedules the audio itself using the jitter buffer
+  // Check if the audio output is disabled in the audio backend setting
+  if (isAudioOutputDisabled()) {
+    // Neither setting applies when the audio stream is discarded
+    $('#audioConfigOption').hide();
     $('#audioSyncOption').hide();
-    $('#audioJitterOption').show();
-  } else {
-    // The EMSS backend drops audio packets to stay in sync instead of buffering them
     $('#audioJitterOption').hide();
-    $('#audioSyncOption').show();
+    $('#decryptHostAudioOption').hide();
+  } else {
+    // These two settings apply to all active backends, so show them normally
+    $('#audioConfigOption').show();
+    $('#decryptHostAudioOption').show();
+    // Check which backend is selected and show the appropriate setting for that backend
+    if (isWebAudioBackendSelected()) {
+      // The Web Audio backend schedules the audio itself using the jitter buffer
+      $('#audioSyncOption').hide();
+      $('#audioJitterOption').show();
+    } else {
+      // The EMSS backend drops audio packets to stay in sync instead of buffering them
+      $('#audioJitterOption').hide();
+      $('#audioSyncOption').show();
+    }
   }
 }
 
 // Check whether the Web Audio backend is the currently selected audio backend
 function isWebAudioBackendSelected() {
   return $('#selectAudioBackend').data('value') === 'WebAudio';
+}
+
+// Check whether the audio output is disabled in the audio backend setting
+function isAudioOutputDisabled() {
+  return $('#selectAudioBackend').data('value') === 'Disabled';
 }
 
 function saveAudioConfiguration() {
@@ -3904,26 +3950,25 @@ function handleUnlockAllFps() {
 
   // Check if the Unlock all FPS switch is checked
   if ($('#unlockAllFpsSwitch').prop('checked')) {
-    console.log('%c[index.js, handleUnlockAllFps]', 'color: green;', 'Adding higher framerate options: 90, 120, 144 FPS');
+    console.log('%c[index.js, handleUnlockAllFps]', 'color: green;', 'Adding higher frame rate options...');
     // Check if any of the higher FPS options are absent to avoid duplicates
-    if (!$('.videoFramerateMenu').find('li[data-value="90"], li[data-value="120"], li[data-value="144"]').length) {
-      // Insert all higher FPS options in correct order (90, 120, 144)
+    if (!$('.videoFramerateMenu').find('li[data-value="90"], li[data-value="120"]').length) {
+      // Insert all higher FPS options in correct order after the 60 FPS option
       addFramerate.after(`
         <li class="mdl-menu__item" data-value="90" data-i18n="90 FPS">90 FPS</li>
         <li class="mdl-menu__item" data-value="120" data-i18n="120 FPS">120 FPS</li>
-        <li class="mdl-menu__item" data-value="144" data-i18n="144 FPS">144 FPS</li>
       `);
       // Attach click listeners only to the newly added FPS options
-      $('.videoFramerateMenu li[data-value="90"], li[data-value="120"], li[data-value="144"]').on('click', saveFramerate);
+      $('.videoFramerateMenu li[data-value="90"], li[data-value="120"]').on('click', saveFramerate);
     }
   } else {
-    console.log('%c[index.js, handleUnlockAllFps]', 'color: green;', 'Removing higher framerate options: 90, 120, 144 FPS');
+    console.log('%c[index.js, handleUnlockAllFps]', 'color: green;', 'Removing higher frame rate options...');
     // If unchecked, remove the higher FPS options from the selection menu
-    $('.videoFramerateMenu li[data-value="90"], li[data-value="120"], li[data-value="144"]').remove();
+    $('.videoFramerateMenu li[data-value="90"], li[data-value="120"]').remove();
     // After removal, if a higher FPS option remains selected, then reset it to the default option
-    if (['90', '120', '144'].includes(String(currentFps))) {
+    if (['90', '120'].includes(String(currentFps))) {
       $('#selectFramerate').text('60 FPS').attr('data-value', '60').data('value', '60');
-      console.log('%c[index.js, handleUnlockAllFps]', 'color: green;', 'Resetting framerate value to 60 FPS');
+      console.log('%c[index.js, handleUnlockAllFps]', 'color: green;', 'Resetting frame rate value to 60 FPS');
       storeData('frameRate', '60', null);
       // Update the bitrate value based on the selected frame rate
       $('#optimizeBitrateSwitch').prop('checked') ? optimizeBitratePresets() : standardBitratePresets();
@@ -3973,11 +4018,11 @@ function restoreDefaultsSettingsValues() {
   $('#bitrateSlider')[0].MaterialSlider.change(defaultBitrate);
   storeData('bitrate', defaultBitrate, null);
 
-  const defaultFramePacing = false;
+  const defaultFramePacing = true;
   document.querySelector('#framePacingBtn').MaterialSwitch.off();
   storeData('framePacing', defaultFramePacing, null);
 
-  const defaultIpAddressFieldMode = false;
+  const defaultIpAddressFieldMode = true;
   document.querySelector('#ipAddressFieldModeBtn').MaterialSwitch.off();
   storeData('ipAddressFieldMode', defaultIpAddressFieldMode, null);
 
@@ -3988,6 +4033,10 @@ function restoreDefaultsSettingsValues() {
   const defaultOptimizeGames = false;
   document.querySelector('#optimizeGamesBtn').MaterialSwitch.off();
   storeData('optimizeGames', defaultOptimizeGames, null);
+
+  const defaultQuitAppAfter = false;
+  document.querySelector('#quitAppAfterBtn').MaterialSwitch.off();
+  storeData('quitAppAfter', defaultQuitAppAfter, null);
 
   const defaultRumbleFeedback = false;
   document.querySelector('#rumbleFeedbackBtn').MaterialSwitch.off();
@@ -4036,9 +4085,14 @@ function restoreDefaultsSettingsValues() {
   $('#selectCodec').text('H.264').attr('data-value', defaultVideoCodec).data('value', defaultVideoCodec);
   storeData('videoCodec', defaultVideoCodec, null);
 
-  const defaultHdrMode = false;
-  document.querySelector('#hdrModeBtn').MaterialSwitch.off();
-  storeData('hdrMode', defaultHdrMode, null);
+  // Reset default Video HDR based on TV capability
+  if (isHdrCapable) {
+    const defaultHdrMode = false;
+    document.querySelector('#hdrModeBtn').MaterialSwitch.off();
+    storeData('hdrMode', defaultHdrMode, null);
+  } else {
+    // Keep turned off and disabled for TVs that are not HDR compatible
+  }
 
   const defaultFullRange = false;
   document.querySelector('#fullRangeBtn').MaterialSwitch.off();
@@ -4050,8 +4104,8 @@ function restoreDefaultsSettingsValues() {
     const incompatibleGameMode = false;
     document.querySelector('#gameModeBtn').MaterialSwitch.off();
     storeData('gameMode', incompatibleGameMode, null);
-  } else if (parseFloat(platformVer) === 5.5) {
-    // Keep turned off and disabled for Tizen 5.5 due to lack of support
+  } else if (checkForceGMVariant || parseFloat(platformVer) === 5.5) {
+    // Keep turned off and disabled for ForceGM variant and Tizen 5.5 due to lack of support
   } else {
     // Turn on for compatible Tizen versions (e.g., 6.0, 6.5, 7.0, 8.0)
     const defaultGameMode = true;
@@ -4224,7 +4278,7 @@ function loadUserDataCb() {
   console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored framePacing preferences.');
   getData('framePacing', function(previousValue) {
     if (previousValue.framePacing == null) {
-      document.querySelector('#framePacingBtn').MaterialSwitch.off(); // Set the default state
+      document.querySelector('#framePacingBtn').MaterialSwitch.on(); // Set the default state
     } else if (previousValue.framePacing == false) {
       document.querySelector('#framePacingBtn').MaterialSwitch.off();
     } else {
@@ -4235,7 +4289,7 @@ function loadUserDataCb() {
   console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored ipAddressFieldMode preferences.');
   getData('ipAddressFieldMode', function(previousValue) {
     if (previousValue.ipAddressFieldMode == null) {
-      document.querySelector('#ipAddressFieldModeBtn').MaterialSwitch.off(); // Set the default state
+      document.querySelector('#ipAddressFieldModeBtn').MaterialSwitch.on(); // Set the default state
     } else if (previousValue.ipAddressFieldMode == false) {
       document.querySelector('#ipAddressFieldModeBtn').MaterialSwitch.off();
     } else {
@@ -4264,6 +4318,17 @@ function loadUserDataCb() {
       document.querySelector('#optimizeGamesBtn').MaterialSwitch.off();
     } else {
       document.querySelector('#optimizeGamesBtn').MaterialSwitch.on();
+    }
+  });
+
+  console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored quitAppAfter preferences.');
+  getData('quitAppAfter', function(previousValue) {
+    if (previousValue.quitAppAfter == null) {
+      document.querySelector('#quitAppAfterBtn').MaterialSwitch.off(); // Set the default state
+    } else if (previousValue.quitAppAfter == false) {
+      document.querySelector('#quitAppAfterBtn').MaterialSwitch.off();
+    } else {
+      document.querySelector('#quitAppAfterBtn').MaterialSwitch.on();
     }
   });
 
@@ -4392,7 +4457,12 @@ function loadUserDataCb() {
   console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored hdrMode preferences.');
   getData('hdrMode', function(previousValue) {
     if (previousValue.hdrMode == null) {
-      document.querySelector('#hdrModeBtn').MaterialSwitch.off(); // Set the default state
+      if (isHdrCapable) {
+        document.querySelector('#hdrModeBtn').MaterialSwitch.off(); // Set the default state
+      } else {
+        document.querySelector('#hdrModeBtn').MaterialSwitch.off(); // Turn off for TVs that are not HDR compatible
+        document.querySelector('#hdrModeBtn').MaterialSwitch.disable(); // Disable the switch to prevent user interaction
+      }
     } else if (previousValue.hdrMode == false) {
       document.querySelector('#hdrModeBtn').MaterialSwitch.off();
     } else {
@@ -4413,11 +4483,12 @@ function loadUserDataCb() {
 
   console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored gameMode preferences.');
   getData('gameMode', function(previousValue) {
+    const isForceGMVariant = checkForceGMVariant();
     if (previousValue.gameMode == null) {
       if (parseFloat(platformVer) >= 9.0) {
         document.querySelector('#gameModeBtn').MaterialSwitch.off(); // Turn off for Tizen 9.0 and newer to avoid compatibility issues
-      } else if (parseFloat(platformVer) === 5.5) {
-        document.querySelector('#gameModeBtn').MaterialSwitch.off(); // Turn off for Tizen 5.5 due to lack of support
+      } else if (isForceGMVariant || parseFloat(platformVer) === 5.5) {
+        document.querySelector('#gameModeBtn').MaterialSwitch.off(); // Turn off for ForceGM variant and Tizen 5.5 due to lack of support
         document.querySelector('#gameModeBtn').MaterialSwitch.disable(); // Disable the switch to prevent user interaction
       } else {
         document.querySelector('#gameModeBtn').MaterialSwitch.on(); // Turn on for compatible Tizen versions (e.g., 6.0, 6.5, 7.0, 8.0)
@@ -4922,6 +4993,39 @@ function onWindowLoad() {
 }
 
 window.onload = onWindowLoad;
+
+// Log visibility changes and stop an active stream when the app goes to the background to prevent TV resource issues
+document.addEventListener('visibilitychange', function() {
+  var isHidden = document.visibilityState === 'hidden';
+  var details = 'Page visibility changed to ' + document.visibilityState + ' (stream active: ' + isInGame + ')';
+
+  // Record when the page becomes hidden
+  if (isHidden) {
+    pageHiddenTimestamp = Date.now();
+  } else if (pageHiddenTimestamp !== 0) {
+    // Calculate how long the page was hidden
+    details += ' after being hidden for ' + (Date.now() - pageHiddenTimestamp) + ' ms';
+    pageHiddenTimestamp = 0;
+  }
+
+  console.log('%c[index.js, visibilitychange]', 'color: green;', details + '.');
+
+  // Check if the page becomes hidden while a stream session is active
+  if (isHidden && isInGame === true) {
+    console.log('%c[index.js, visibilitychange]', 'color: green;', 'Stopping the stream session because Moonlight went to the background.');
+    try {
+      // Stop the stream to prevent background video decoding and network usage
+      Module.stopStream();
+      wasStreamStoppedInBackground = true;
+    } catch (error) {
+      console.error('%c[index.js, visibilitychange]', 'color: green;', 'Error: Failed to stop the stream session: ' + error);
+    }
+  } else if (!isHidden && wasStreamStoppedInBackground) {
+    // Notify the user that they can resume the game
+    wasStreamStoppedInBackground = false;
+    snackbarLogLong('The stream was stopped because Moonlight went to the background. Select the game again to resume streaming.');
+  }
+});
 
 // Gamepad connected events
 window.addEventListener('gamepadconnected', function(e) {

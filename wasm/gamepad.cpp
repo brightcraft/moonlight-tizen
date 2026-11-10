@@ -8,9 +8,17 @@
 #include <thread>
 #include <cmath>
 #include <map>
+#include <cstring>
+#include <cctype>
+#include <string>
+#include <algorithm>
+#include <vector>
 
 #include <Limelight.h>
 #include <emscripten/emscripten.h>
+
+// Maximum number of controllers supported by the Moonlight protocol
+static constexpr int kMaxControllers = 16;
 
 // Bitmask for gamepad combo buttons to stop the streaming session
 const short STOP_STREAM_BUTTONS = BACK_FLAG | PLAY_FLAG | LB_FLAG | RB_FLAG;
@@ -51,15 +59,134 @@ enum GamepadAxis {
   RightY = 3,
 };
 
-// Function to create a mask for active gamepads
-static short GetActiveGamepadMask(int numGamepads) {
-  short result = 0;
-  
-  for (int i = 0; i < numGamepads; ++i) {
-    result |= (1 << i);
+// Per-slot state used for Tizen placeholder filtering, id tracking and arrival announcements
+struct ControllerSlotState {
+  bool validated = false; // positive timestamp or observed input changes for this id
+  bool announced = false; // true after LiSendControllerArrivalEvent succeeded
+  bool hasBaseline = false; // true once the initial button and axis states have been recorded
+  std::string id; // last known Gamepad.id (used to detect replacements)
+  EmscriptenGamepadEvent baseline{}; // last recorded input state used to detect subsequent changes
+};
+
+static ControllerSlotState slotState[kMaxControllers];
+
+// Compare against a stable baseline: slow movement accumulates, while static nonzero axes and small analog noise do not create phantom controllers
+static bool HasGamepadInputChanged(const EmscriptenGamepadEvent& gamepad, EmscriptenGamepadEvent& baseline) {
+  // See the match with "observeGamepad()" in "utils.js" – these should stay in sync!
+  // Check digital and analog button states against the recorded baseline
+  for (int i = 0; i < gamepad.numButtons && i < 64; ++i) {
+    // Detect changes in the digital pressed state
+    if ((gamepad.digitalButton[i] == EM_TRUE) != (baseline.digitalButton[i] == EM_TRUE)) {
+      return true;
+    }
+    // Retrieve the current analog button value
+    const double value = gamepad.analogButton[i];
+    // Ignore invalid or non-finite analog values
+    if (std::isfinite(value)) {
+      // Detect meaningful changes in the analog button value
+      if (std::isfinite(baseline.analogButton[i]) && std::abs(value - baseline.analogButton[i]) > 0.01) {
+        return true;
+      }
+      // Initialize the baseline if the previous analog value was invalid
+      if (!std::isfinite(baseline.analogButton[i])) {
+        baseline.analogButton[i] = value;
+      }
+    }
   }
-  
-  return result;
+
+  // Check analog axis values for meaningful changes
+  for (int i = 0; i < gamepad.numAxes && i < 64; ++i) {
+    // Retrieve the current axis value
+    const double value = gamepad.axis[i];
+    // Ignore invalid or non-finite axis values
+    if (std::isfinite(value)) {
+      // Detect meaningful axis movement compared to the recorded baseline
+      if (std::isfinite(baseline.axis[i]) && std::abs(value - baseline.axis[i]) > 0.01) {
+        return true;
+      }
+      // Initialize the baseline if the previous axis value was invalid
+      if (!std::isfinite(baseline.axis[i])) {
+        baseline.axis[i] = value;
+      }
+    }
+  }
+
+  return false;
+}
+
+// Detect controller family from Gamepad.id (PS / Xbox / Nintendo / Unknown)
+static uint8_t GetControllerType(const char* id) {
+  // Guard against null or empty id strings
+  if (!id || !*id) {
+    return LI_CTYPE_UNKNOWN;
+  }
+
+  // Lower-case the id once so all substring checks are case-insensitive
+  std::string lower(id);
+  for (char& c : lower) {
+    c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  }
+
+  // Helper for simple substring search on the lower-cased id
+  const auto contains = [&](const char* needle) {
+    return lower.find(needle) != std::string::npos;
+  };
+
+  // PlayStation (DualSense, DualShock, Sony vendor 054c)
+  if (contains("vendor: 054c") || contains("vendor:054c") ||
+      lower.find("054c-") == 0 ||
+      contains("dualsense") || contains("dualshock") ||
+      contains("playstation") ||
+      contains("sony interactive entertainment") ||
+      contains("sony computer entertainment")) {
+    return LI_CTYPE_PS;
+  }
+
+  // Xbox (vendor 045e)
+  if (contains("vendor: 045e") || contains("vendor:045e") ||
+      lower.find("045e-") == 0 || contains("xbox")) {
+    return LI_CTYPE_XBOX;
+  }
+
+  // Nintendo (vendor 057e, Joy-Con, Pro Controller)
+  if (contains("vendor: 057e") || contains("vendor:057e") ||
+      lower.find("057e-") == 0 ||
+      contains("nintendo") || contains("joy-con")) {
+    return LI_CTYPE_NINTENDO;
+  }
+
+  return LI_CTYPE_UNKNOWN;
+}
+
+// Build the supported-buttons mask advertised in the arrival event (respects face-button flips)
+static uint32_t GetSupportedButtons(int numButtons, bool flipAB, bool flipXY) {
+  // Standard Gamepad layout; triggers are analog so they contribute no flags
+  static constexpr uint32_t kButtons[] = {
+    A_FLAG, B_FLAG, X_FLAG, Y_FLAG,
+    LB_FLAG, RB_FLAG,
+    0, 0, // triggers are analog, not flags
+    BACK_FLAG, PLAY_FLAG,
+    LS_CLK_FLAG, RS_CLK_FLAG,
+    UP_FLAG, DOWN_FLAG, LEFT_FLAG, RIGHT_FLAG,
+    SPECIAL_FLAG
+  };
+
+  uint32_t flags = 0;
+  const int limit = std::min(numButtons, 17);
+
+  // Iterate through the buttons and set the appropriate flags
+  for (int i = 0; i < limit; ++i) {
+    auto flag = kButtons[i];
+    // Mirror the same swaps used by GetButtonFlags()
+    if (flipAB && i < 2) {
+      flag = kButtons[1 - i];       // swap A ↔ B
+    } else if (flipXY && i >= 2 && i < 4) {
+      flag = kButtons[5 - i];       // swap X ↔ Y
+    }
+    flags |= flag;
+  }
+
+  return flags;
 }
 
 // Function to map gamepad buttons to flags
@@ -74,7 +201,7 @@ static short GetButtonFlags(const EmscriptenGamepadEvent& gamepad) {
   static const int buttonMasksABXY[] = {
     B_FLAG, A_FLAG, Y_FLAG, X_FLAG,
     LB_FLAG, RB_FLAG,
-    0 /* LT_FLAG */, 0 /* RT_FLAG */,
+    0 /* LT */, 0 /* RT */,
     BACK_FLAG, PLAY_FLAG,
     LS_CLK_FLAG, RS_CLK_FLAG,
     UP_FLAG, DOWN_FLAG, LEFT_FLAG, RIGHT_FLAG,
@@ -84,7 +211,7 @@ static short GetButtonFlags(const EmscriptenGamepadEvent& gamepad) {
   static const int buttonMasksAB[] = {
     B_FLAG, A_FLAG, X_FLAG, Y_FLAG,
     LB_FLAG, RB_FLAG,
-    0 /* LT_FLAG */, 0 /* RT_FLAG */,
+    0 /* LT */, 0 /* RT */,
     BACK_FLAG, PLAY_FLAG,
     LS_CLK_FLAG, RS_CLK_FLAG,
     UP_FLAG, DOWN_FLAG, LEFT_FLAG, RIGHT_FLAG,
@@ -94,7 +221,7 @@ static short GetButtonFlags(const EmscriptenGamepadEvent& gamepad) {
   static const int buttonMasksXY[] = {
     A_FLAG, B_FLAG, Y_FLAG, X_FLAG,
     LB_FLAG, RB_FLAG,
-    0 /* LT_FLAG */, 0 /* RT_FLAG */,
+    0 /* LT */, 0 /* RT */,
     BACK_FLAG, PLAY_FLAG,
     LS_CLK_FLAG, RS_CLK_FLAG,
     UP_FLAG, DOWN_FLAG, LEFT_FLAG, RIGHT_FLAG,
@@ -104,7 +231,7 @@ static short GetButtonFlags(const EmscriptenGamepadEvent& gamepad) {
   static const int buttonMasksDefault[] = {
     A_FLAG, B_FLAG, X_FLAG, Y_FLAG,
     LB_FLAG, RB_FLAG,
-    0 /* LT_FLAG */, 0 /* RT_FLAG */,
+    0 /* LT */, 0 /* RT */,
     BACK_FLAG, PLAY_FLAG,
     LS_CLK_FLAG, RS_CLK_FLAG,
     UP_FLAG, DOWN_FLAG, LEFT_FLAG, RIGHT_FLAG,
@@ -131,7 +258,8 @@ static short GetButtonFlags(const EmscriptenGamepadEvent& gamepad) {
   }
 
   short result = 0;
-  
+
+  // Iterate through the gamepad buttons and set the corresponding flags
   for (int i = 0; i < gamepad.numButtons && i < buttonMasksSize; ++i) {
     if (gamepad.digitalButton[i] == EM_TRUE) {
       result |= buttonMasks[i];
@@ -141,8 +269,14 @@ static short GetButtonFlags(const EmscriptenGamepadEvent& gamepad) {
   return result;
 }
 
-// Function to handle the gamepad input state
+// Called when gamepad settings change; clears announced flags so arrival is re-sent with updated data
 void MoonlightInstance::HandleGamepadInputState(bool rumbleFeedback, bool mouseEmulation, bool flipABfaceButtons, bool flipXYfaceButtons) {
+  // Force re-announce on next poll so the host gets the updated button map / capabilities
+  for (int i = 0; i < kMaxControllers; ++i) {
+    slotState[i].announced = false;
+  }
+
+  // Store the new settings for use during polling
   rumbleFeedbackSwitch = rumbleFeedback;
   mouseEmulationSwitch = mouseEmulation;
   flipABfaceButtonsSwitch = flipABfaceButtons;
@@ -151,52 +285,142 @@ void MoonlightInstance::HandleGamepadInputState(bool rumbleFeedback, bool mouseE
 
 // Function to poll gamepad input
 void MoonlightInstance::PollGamepads() {
+  // Guard check if sampling gamepad data is not successful
   if (emscripten_sample_gamepad_data() != EMSCRIPTEN_RESULT_SUCCESS) {
-    std::cerr << "Sample gamepad data failed!\n";
+    ClLogMessage("Failed to sample gamepad data!\n");
     return;
   }
 
+  // Query how many gamepad slots the browser currently exposes
   const auto numGamepads = emscripten_get_num_gamepads();
+  // Guard check if retrieving the number of gamepads is not supported
   if (numGamepads == EMSCRIPTEN_RESULT_NOT_SUPPORTED) {
-    std::cerr << "Get num gamepads failed!\n";
+    ClLogMessage("Failed to get number of gamepads!\n");
     return;
   }
-
-  // Create a mask for active gamepads
-  const auto activeGamepadMask = GetActiveGamepadMask(numGamepads);
 
   // Prevent repeated trigger while the button combo is held down
   static std::map<int, bool> comboTriggered;
 
-  // Track valid gamepads that had a non-zero timestamp at least once
-  static bool isRealGamepad[32] = { false };
+  // Snapshot slots, build physical-index mask, and collect removals / arrivals
+  short activeGamepadMask = 0;
+  std::vector<int> removed;
+  std::vector<int> arrived;
 
-  // Iterate through connected gamepads and process their input
-  for (int gamepadID = 0; gamepadID < numGamepads; ++gamepadID) {
-    emscripten_sample_gamepad_data();
-    EmscriptenGamepadEvent gamepad;
-    // See logic in getConnectedGamepadMask() (utils.js)
-    // These must stay in sync!
+  // Cap at the protocol maximum of 16 controllers
+  const int limit = std::min(numGamepads, kMaxControllers);
 
-    const auto result = emscripten_get_gamepad_status(gamepadID, &gamepad);
-    if (result != EMSCRIPTEN_RESULT_SUCCESS || !gamepad.connected) {
-      // Not connected
-      if (gamepadID < 32) {
-        isRealGamepad[gamepadID] = false;
+  // Temporary storage for this poll's gamepad events and presence flags
+  EmscriptenGamepadEvent events[kMaxControllers]{};
+  bool slotPresent[kMaxControllers] = { false };
+
+  // See the match with "getConnectedGamepadMask()" in "utils.js" – these should stay in sync!
+  // Read every browser slot once so later logic can work from a stable snapshot
+  for (int i = 0; i < limit; ++i) {
+    // Check if the gamepad status retrieval is successful for the current slot
+    if (emscripten_get_gamepad_status(i, &events[i]) == EMSCRIPTEN_RESULT_SUCCESS) {
+      slotPresent[i] = true;
+    }
+  }
+
+  // Decide per slot: still real, removed, or newly arrived
+  for (int i = 0; i < kMaxControllers; ++i) {
+    ControllerSlotState& state = slotState[i];
+
+    const bool connected = slotPresent[i] && events[i].connected; // slot exists and reports connected
+    const char* currentId = connected ? events[i].id : ""; // current Gamepad.id (or empty)
+    const double timestamp = connected ? events[i].timestamp : 0.0; // current timestamp (0 if disconnected)
+    const bool sameDevice = (state.id == currentId); // true when the id has not changed
+
+    // Ensure the button and axis counts match the recorded baseline before comparing input
+    const bool sameLayout = state.hasBaseline &&
+      state.baseline.numButtons == events[i].numButtons && state.baseline.numAxes == events[i].numAxes;
+    // Accept connected gamepads with a valid timestamp or sufficient evidence of actual input
+    const bool real = connected && ((std::isfinite(timestamp) && timestamp > 0.0) ||
+      (sameDevice && (state.validated || (sameLayout && HasGamepadInputChanged(events[i], state.baseline)))));
+
+    // Previously announced but gone or replaced → queue removal
+    if (state.announced && (!real || !sameDevice)) {
+      removed.push_back(i);
+      state.announced = false;
+    }
+
+    // Clear all cached state when the gamepad disconnects
+    if (!connected) {
+      state = {};
+      continue;
+    }
+
+    // Reset the previous state when a different gamepad occupies this slot
+    if (!sameDevice) {
+      state = {};
+    }
+
+    // Update the stored identifier for the current gamepad
+    state.id = currentId;
+
+    // Ignore not validated gamepads until a valid timestamp or actual input change is detected
+    if (!real) {
+      // Record the initial input state or refresh it when the button/axis layout changes
+      if (!state.hasBaseline || !sameLayout) {
+        state.baseline = events[i];
+        state.hasBaseline = true;
       }
       continue;
     }
 
-    if (gamepadID < 32 && gamepad.timestamp != 0) {
-      isRealGamepad[gamepadID] = true;
+    // Record evidence and mark this physical bit in the active mask
+    state.validated = true;
+    activeGamepadMask |= static_cast<short>(1 << i);
+
+    // Queue an arrival event if we have not announced this device yet
+    if (!state.announced) {
+      arrived.push_back(i);
+    }
+  }
+
+  // Send zeroed events for removed / replaced controllers so the host cleans up
+  for (int i : removed) {
+    LiSendMultiControllerEvent(i, activeGamepadMask & ~(1 << i), 0, 0, 0, 0, 0, 0, 0);
+  }
+
+  // Announce new (or re-arrived) controllers so Sunshine can pick the right profile
+  for (int i : arrived) {
+    const auto& gamepad = events[i];
+    const uint8_t type = GetControllerType(gamepad.id);
+    const uint32_t buttons = GetSupportedButtons(gamepad.numButtons, flipABfaceButtonsSwitch, flipXYfaceButtonsSwitch);
+
+    // Only advertise capabilities the browser actually provides
+    uint16_t capabilities = (gamepad.numButtons > 7) ? LI_CCAP_ANALOG_TRIGGERS : 0;
+
+    // The browser Gamepad API does not expose motion, battery, RGB or touchpad
+    // data. Only advertise rumble when our existing feedback path can use it.
+    if (rumbleFeedbackSwitch) {
+      const int hasRumble = MAIN_THREAD_EM_ASM_INT({
+        var gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+        var gamepad = gamepads[$0];
+        return !!(gamepad && gamepad.vibrationActuator && typeof gamepad.vibrationActuator.playEffect === 'function');
+      }, i);
+      // Advertise rumble only when the actuator is actually available
+      if (hasRumble) {
+        capabilities |= LI_CCAP_RUMBLE;
+      }
     }
 
-    if (gamepad.timestamp == 0 && (gamepadID >= 32 || !isRealGamepad[gamepadID])) {
-      // On some platforms, Tizen returns "connected" gamepads that really 
-      // aren't, so timestamp stays at zero. To work around this, we'll only
-      // count gamepads that have a non-zero timestamp in our controller index.
+    // On failure leave un-announced; next poll will retry
+    if (LiSendControllerArrivalEvent(i, activeGamepadMask, type, buttons, capabilities) == 0) {
+      slotState[i].announced = true;
+    }
+  }
+
+  // Process live input for every real, already-announced controller
+  for (int gamepadID = 0; gamepadID < limit; ++gamepadID) {
+    // Skip slots that are inactive or still waiting for a successful arrival
+    if (!(activeGamepadMask & (1 << gamepadID)) || !slotState[gamepadID].announced) {
       continue;
     }
+
+    const auto& gamepad = events[gamepadID];
 
     // Process input for active gamepad
     const auto buttonFlags = GetButtonFlags(gamepad);
@@ -257,7 +481,7 @@ void MoonlightInstance::PollGamepads() {
           activatePressTimes[gamepadID] = std::chrono::steady_clock::now();
         }
       } else {
-        // If the PLAY/START button is not pressed, reset PLAY/START press time to the current time
+        // If the PLAY/START button is not pressed, reset PLAY/START press time
         activatePressTimes[gamepadID] = std::chrono::steady_clock::now();
       }
     } else {
@@ -273,7 +497,7 @@ void MoonlightInstance::PollGamepads() {
       const float mouseSpeed = baseMouseSpeed * leftStickMagnitude;
       const float mouseXDelta = static_cast<float>(leftStickX) / std::numeric_limits<short>::max() * mouseSpeed;
       const float mouseYDelta = -static_cast<float>(leftStickY) / std::numeric_limits<short>::max() * mouseSpeed;
-      
+
       // Send a mouse move event with the specified delta values for both horizontal (X-axis) and vertical (Y-axis) coordinates
       LiSendMouseMoveEvent(static_cast<int>(mouseXDelta), static_cast<int>(mouseYDelta));
 
@@ -283,7 +507,7 @@ void MoonlightInstance::PollGamepads() {
       const float scrollSpeed = baseScrollSpeed * rightStickMagnitude;
       const float scrollXDelta = static_cast<float>(rightStickX) / std::numeric_limits<short>::max() * scrollSpeed;
       const float scrollYDelta = static_cast<float>(rightStickY) / std::numeric_limits<short>::max() * scrollSpeed;
-      
+
       // Send mouse scroll events with the specified delta values for both horizontal (X-axis) and vertical (Y-axis) coordinates
       LiSendHScrollEvent(static_cast<int>(scrollXDelta));
       LiSendScrollEvent(static_cast<int>(scrollYDelta));
@@ -323,7 +547,7 @@ void MoonlightInstance::PollGamepads() {
 void MoonlightInstance::ClControllerRumble(unsigned short controllerNumber, unsigned short lowFreqMotor, unsigned short highFreqMotor) {
   const float weakMagnitude = static_cast<float>(highFreqMotor) / static_cast<float>(UINT16_MAX);
   const float strongMagnitude = static_cast<float>(lowFreqMotor) / static_cast<float>(UINT16_MAX);
-  
+
   // Check if the rumble feedback switch is checked
   if (rumbleFeedbackSwitch) {
     std::ostringstream ss;

@@ -185,6 +185,12 @@ int MoonlightInstance::AudDecInit(int audioConfiguration, POPUS_MULTISTREAM_CONF
   // Latch the audio backend selected for this streaming session
   s_AudioBackend = g_Instance->m_AudioBackend;
 
+  // Skip creating the Opus decoder when the audio output is disabled, as every audio packet is discarded
+  if (s_AudioBackend == AudioBackend::Disabled) {
+    ClLogMessage("Audio output is disabled, so the audio stream will be discarded\n");
+    return 0;
+  }
+
   // Initialize packet timestamp to zero
   s_pktPts = 0s;
 
@@ -272,6 +278,11 @@ void MoonlightInstance::AudDecCleanup(void) {
 }
 
 void MoonlightInstance::AudDecDecodeAndPlaySample(char* sampleData, int sampleLength) {
+  // Discard the audio packet without decoding it when the audio output is disabled
+  if (s_AudioBackend == AudioBackend::Disabled) {
+    return;
+  }
+
   // Check if the Web Audio backend is rendering this streaming session
   if (s_AudioBackend == AudioBackend::WebAudio) {
     // Decode the audio packet and schedule it for playback on the main thread
