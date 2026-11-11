@@ -1247,6 +1247,7 @@ const Views = {
   },
   InputSettings: {
     view: new ListView(() => [
+      'swapMouseButtonsBtn',
       'rumbleFeedbackBtn',
       'mouseEmulationBtn',
       'flipABfaceButtonsBtn',

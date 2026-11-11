@@ -4,17 +4,36 @@
 
 #define KEY_PREFIX 0x80
 
+// Flag for mouse to track mouse buttons state
+bool swapMouseButtonsSwitch = false;
+
 static int ConvertButtonToLiButton(unsigned short button) {
   switch (button) {
     case 0:
-      return BUTTON_LEFT;
+      button = BUTTON_LEFT;
+      break;
     case 1:
-      return BUTTON_MIDDLE;
+      button = BUTTON_MIDDLE;
+      break;
     case 2:
-      return BUTTON_RIGHT;
+      button = BUTTON_RIGHT;
+      break;
     default:
+      MoonlightInstance::ClLogMessage("Unhandled mouse button event: %d\n", button);
       return 0;
   }
+
+  // Check if the swap mouse buttons switch is checked
+  if (swapMouseButtonsSwitch) {
+    // Swap left and right mouse buttons values
+    if (button == BUTTON_LEFT) {
+      button = BUTTON_RIGHT;
+    } else if (button == BUTTON_RIGHT) {
+      button = BUTTON_LEFT;
+    }
+  }
+
+  return button;
 }
 
 static char GetModifierFlags(const EmscriptenKeyboardEvent &event) {
@@ -165,6 +184,12 @@ EM_BOOL handlePointerLockChange(int eventType, const EmscriptenPointerlockChange
 EM_BOOL handlePointerLockError(int eventType, const void *reserved, void *userData) {
   g_Instance->DidLockMouse(eventType);
   return true;
+}
+
+// Function called during stream initialization to handle input settings changes
+void MoonlightInstance::HandleInputSettings(bool swapMouseButtons) {
+  // Store the new settings for use during polling
+  swapMouseButtonsSwitch = swapMouseButtons;
 }
 
 void MoonlightInstance::ReportMouseMovement() {

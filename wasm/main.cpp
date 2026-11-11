@@ -300,9 +300,9 @@ static void HexStringToBytes(const char* str, char* output) {
 
 MessageResult MoonlightInstance::StartStream(std::string host, int httpPort, std::string width, std::string height, std::string fps, std::string bitrate,
   std::string rikey, std::string rikeyid, std::string appversion, std::string gfeversion, std::string rtspurl, int serverCodecModeSupport,
-  bool framePacing, bool optimizeGames, bool rumbleFeedback, bool mouseEmulation, bool flipABfaceButtons, bool flipXYfaceButtons,
-  std::string audioBackend, std::string audioConfig, bool audioSync, int audioJitterMs, bool playHostAudio, bool decryptHostAudio,
-  std::string videoCodec, bool hdrMode, bool fullRange, bool gameMode, bool disableWarnings, bool performanceStats) {
+  bool framePacing, bool optimizeGames, bool swapMouseButtons, bool rumbleFeedback, bool mouseEmulation, bool flipABfaceButtons,
+  bool flipXYfaceButtons, std::string audioBackend, std::string audioConfig, bool audioSync, int audioJitterMs, bool playHostAudio,
+  bool decryptHostAudio, std::string videoCodec, bool hdrMode, bool fullRange, bool gameMode, bool disableWarnings, bool performanceStats) {
   
   if (m_StopThread != 0) {
     pthread_join(m_StopThread, NULL);
@@ -325,6 +325,7 @@ MessageResult MoonlightInstance::StartStream(std::string host, int httpPort, std
   PostToJs("Setting the Server codec mode support to: " + std::to_string(serverCodecModeSupport));
   PostToJs("Setting the Video frame pacing to: " + std::to_string(framePacing));
   PostToJs("Setting the Optimize game settings to: " + std::to_string(optimizeGames));
+  PostToJs("Setting the Swap mouse buttons to: " + std::to_string(swapMouseButtons));
   PostToJs("Setting the Rumble feedback to: " + std::to_string(rumbleFeedback));
   PostToJs("Setting the Mouse emulation to: " + std::to_string(mouseEmulation));
   PostToJs("Setting the Flip A/B face buttons to: " + std::to_string(flipABfaceButtons));
@@ -446,7 +447,8 @@ MessageResult MoonlightInstance::StartStream(std::string host, int httpPort, std
   int rikeyiv = htonl(stoi(rikeyid));
   memcpy(m_StreamConfig.remoteInputAesIv, &rikeyiv, sizeof(rikeyiv));
 
-  // Manage gamepad input states based on selected settings
+  // Apply the desired input and gamepad settings ​based on the toggle switch states
+  HandleInputSettings(swapMouseButtons);
   HandleGamepadInputState(rumbleFeedback, mouseEmulation, flipABfaceButtons, flipXYfaceButtons);
 
   // Apply the desired latency mode ​based on the toggle switch state
@@ -469,6 +471,7 @@ MessageResult MoonlightInstance::StartStream(std::string host, int httpPort, std
   m_ServerCodecModeSupport = serverCodecModeSupport;
   m_FramePacingEnabled = framePacing;
   m_OptimizeGamesEnabled = optimizeGames;
+  m_SwapMouseButtonsEnabled = swapMouseButtons;
   m_RumbleFeedbackEnabled = rumbleFeedback;
   m_MouseEmulationEnabled = mouseEmulation;
   m_FlipABfaceButtonsEnabled = flipABfaceButtons;
@@ -680,13 +683,13 @@ int main(int argc, char** argv) {
 
 MessageResult startStream(std::string host, int httpPort, std::string width, std::string height, std::string fps, std::string bitrate,
   std::string rikey, std::string rikeyid, std::string appversion, std::string gfeversion, std::string rtspurl, int serverCodecModeSupport,
-  bool framePacing, bool optimizeGames, bool rumbleFeedback, bool mouseEmulation, bool flipABfaceButtons, bool flipXYfaceButtons,
-  std::string audioBackend, std::string audioConfig, bool audioSync, int audioJitterMs, bool playHostAudio, bool decryptHostAudio,
-  std::string videoCodec, bool hdrMode, bool fullRange, bool gameMode, bool disableWarnings, bool performanceStats) {
+  bool framePacing, bool optimizeGames, bool swapMouseButtons, bool rumbleFeedback, bool mouseEmulation, bool flipABfaceButtons,
+  bool flipXYfaceButtons, std::string audioBackend, std::string audioConfig, bool audioSync, int audioJitterMs, bool playHostAudio,
+  bool decryptHostAudio, std::string videoCodec, bool hdrMode, bool fullRange, bool gameMode, bool disableWarnings, bool performanceStats) {
   PostToJs("Starting the streaming session...");
   return g_Instance->StartStream(host, httpPort, width, height, fps, bitrate, rikey, rikeyid, appversion, gfeversion, rtspurl, serverCodecModeSupport,
-  framePacing, optimizeGames, rumbleFeedback, mouseEmulation, flipABfaceButtons, flipXYfaceButtons, audioBackend, audioConfig, audioSync,
-  audioJitterMs, playHostAudio, decryptHostAudio, videoCodec, hdrMode, fullRange, gameMode, disableWarnings, performanceStats);
+  framePacing, optimizeGames, swapMouseButtons, rumbleFeedback, mouseEmulation, flipABfaceButtons, flipXYfaceButtons, audioBackend, audioConfig,
+  audioSync, audioJitterMs, playHostAudio, decryptHostAudio, videoCodec, hdrMode, fullRange, gameMode, disableWarnings, performanceStats);
 }
 
 MessageResult stopStream() {
