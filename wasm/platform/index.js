@@ -111,6 +111,7 @@ function attachListeners() {
   $('#optimizeGamesSwitch').on('click', saveOptimizeGames);
   $('#quitAppAfterSwitch').on('click', saveQuitAppAfter);
   $('#removeAllHostsBtn').on('click', deleteAllHostsDialog);
+  $('#swapMouseButtonsSwitch').on('click', saveSwapMouseButtons);
   $('#rumbleFeedbackSwitch').on('click', saveRumbleFeedback);
   $('#mouseEmulationSwitch').on('click', saveMouseEmulation);
   $('#flipABfaceButtonsSwitch').on('click', saveFlipABfaceButtons);
@@ -2905,6 +2906,7 @@ function startGame(host, appID) {
       var gamepadMask = getConnectedGamepadMask();
       const framePacing = $('#framePacingSwitch').parent().hasClass('is-checked') ? 1 : 0;
       const optimizeGames = $('#optimizeGamesSwitch').parent().hasClass('is-checked') ? 1 : 0;
+      const swapMouseButtons = $('#swapMouseButtonsSwitch').parent().hasClass('is-checked') ? 1 : 0;
       const rumbleFeedback = $('#rumbleFeedbackSwitch').parent().hasClass('is-checked') ? 1 : 0;
       const mouseEmulation = $('#mouseEmulationSwitch').parent().hasClass('is-checked') ? 1 : 0;
       const flipABfaceButtons = $('#flipABfaceButtonsSwitch').parent().hasClass('is-checked') ? 1 : 0;
@@ -2929,6 +2931,7 @@ function startGame(host, appID) {
       '\n Video bitrate: ' + bitrate + ' Kbps' + 
       '\n Video frame pacing: ' + framePacing + 
       '\n Optimize game settings: ' + optimizeGames + 
+      '\n Swap mouse buttons: ' + swapMouseButtons + 
       '\n Rumble feedback: ' + rumbleFeedback + 
       '\n Mouse emulation: ' + mouseEmulation + 
       '\n Flip A/B face buttons: ' + flipABfaceButtons + 
@@ -2984,9 +2987,9 @@ function startGame(host, appID) {
           sendMessage('startRequest', [
             host.address, host.httpPort, streamWidth, streamHeight, frameRate, bitrate.toString(), rikey, rikeyid.toString(),
             host.appVersion, host.gfeVersion, $root.find('sessionUrl0').text().trim(), host.serverCodecModeSupport,
-            framePacing, optimizeGames, rumbleFeedback, mouseEmulation, flipABfaceButtons, flipXYfaceButtons,
-            audioBackend, audioConfig, audioSync, audioJitter, playHostAudio, decryptHostAudio, videoCodec, hdrMode, fullRange,
-            gameMode, disableWarnings, performanceStats
+            framePacing, optimizeGames, swapMouseButtons, rumbleFeedback, mouseEmulation, flipABfaceButtons,
+            flipXYfaceButtons, audioBackend, audioConfig, audioSync, audioJitter, playHostAudio, decryptHostAudio,
+            videoCodec, hdrMode, fullRange, gameMode, disableWarnings, performanceStats
           ]);
         }, function(failedResumeApp) {
           console.error('%c[index.js, startGame]', 'color: green;', 'Error: Failed to resume app with id: ' + appID + '\n Returned error was: ' + failedResumeApp + '!');
@@ -3036,9 +3039,9 @@ function startGame(host, appID) {
         sendMessage('startRequest', [
           host.address, host.httpPort, streamWidth, streamHeight, frameRate, bitrate.toString(), rikey, rikeyid.toString(),
           host.appVersion, host.gfeVersion, $root.find('sessionUrl0').text().trim(), host.serverCodecModeSupport,
-          framePacing, optimizeGames, rumbleFeedback, mouseEmulation, flipABfaceButtons, flipXYfaceButtons,
-          audioBackend, audioConfig, audioSync, audioJitter, playHostAudio, decryptHostAudio, videoCodec, hdrMode, fullRange,
-          gameMode, disableWarnings, performanceStats
+          framePacing, optimizeGames, swapMouseButtons, rumbleFeedback, mouseEmulation, flipABfaceButtons,
+          flipXYfaceButtons, audioBackend, audioConfig, audioSync, audioJitter, playHostAudio, decryptHostAudio,
+          videoCodec, hdrMode, fullRange, gameMode, disableWarnings, performanceStats
         ]);
       }, function(failedLaunchApp) {
         console.error('%c[index.js, startGame]', 'color: green;', 'Error: Failed to launch app with id: ' + appID + '\n Returned error was: ' + failedLaunchApp + '!');
@@ -3666,6 +3669,14 @@ function saveQuitAppAfter() {
   }, 100);
 }
 
+function saveSwapMouseButtons() {
+  setTimeout(() => {
+    const chosenSwapMouseButtons = $('#swapMouseButtonsSwitch').parent().hasClass('is-checked');
+    console.log('%c[index.js, saveSwapMouseButtons]', 'color: green;', 'Saving swap mouse buttons state: ' + chosenSwapMouseButtons);
+    storeData('swapMouseButtons', chosenSwapMouseButtons, null);
+  }, 100);
+}
+
 function saveRumbleFeedback() {
   setTimeout(() => {
     const chosenRumbleFeedback = $('#rumbleFeedbackSwitch').parent().hasClass('is-checked');
@@ -4038,6 +4049,10 @@ function restoreDefaultsSettingsValues() {
   document.querySelector('#quitAppAfterBtn').MaterialSwitch.off();
   storeData('quitAppAfter', defaultQuitAppAfter, null);
 
+  const defaultSwapMouseButtons = false;
+  document.querySelector('#swapMouseButtonsBtn').MaterialSwitch.off();
+  storeData('swapMouseButtons', defaultSwapMouseButtons, null);
+
   const defaultRumbleFeedback = false;
   document.querySelector('#rumbleFeedbackBtn').MaterialSwitch.off();
   storeData('rumbleFeedback', defaultRumbleFeedback, null);
@@ -4338,6 +4353,17 @@ function loadUserDataCb() {
       document.querySelector('#quitAppAfterBtn').MaterialSwitch.off();
     } else {
       document.querySelector('#quitAppAfterBtn').MaterialSwitch.on();
+    }
+  });
+
+  console.log('%c[index.js, loadUserDataCb]', 'color: green;', 'Load stored swapMouseButtons preferences.');
+  getData('swapMouseButtons', function(previousValue) {
+    if (previousValue.swapMouseButtons == null) {
+      document.querySelector('#swapMouseButtonsBtn').MaterialSwitch.off(); // Set the default state
+    } else if (previousValue.swapMouseButtons == false) {
+      document.querySelector('#swapMouseButtonsBtn').MaterialSwitch.off();
+    } else {
+      document.querySelector('#swapMouseButtonsBtn').MaterialSwitch.on();
     }
   });
 

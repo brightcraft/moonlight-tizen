@@ -47,6 +47,8 @@
   "Allow the running application to close after the streaming session ends": "Autoriser la fermeture de l'application en cours d'exécution après la fin de la session de diffusion",
   "Remove all hosts": "Supprimer tous les hôtes",
   "Remove all currently saved hosts from the list": "Supprimer de la liste tous les hôtes actuellement enregistrés",
+  "Swap mouse buttons": "Inverser les boutons de la souris",
+  "Swap left and right mouse buttons while streaming": "Inverser les boutons gauche et droit de la souris pendant la diffusion",
   "Rumble feedback": "Retour de vibration",
   "Allow gamepad rumble feedback support while streaming": "Activer les vibrations de la manette pendant la diffusion",
   "Mouse emulation": "Émulation de la souris",

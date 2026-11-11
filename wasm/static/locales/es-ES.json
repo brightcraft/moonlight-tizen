@@ -47,6 +47,8 @@
   "Allow the running application to close after the streaming session ends": "Permitir que la aplicación en ejecución se cierre después de que finalice la sesión de transmisión",
   "Remove all hosts": "Eliminar todos los equipos",
   "Remove all currently saved hosts from the list": "Eliminar de la lista todos los equipos guardados",
+  "Swap mouse buttons": "Intercambiar botones del ratón",
+  "Swap left and right mouse buttons while streaming": "Intercambiar los botones izquierdo y derecho del ratón durante la transmisión",
   "Rumble feedback": "Vibración del mando",
   "Allow gamepad rumble feedback support while streaming": "Permitir la vibración del mando durante la retransmisión",
   "Mouse emulation": "Emulación del ratón",

@@ -47,6 +47,8 @@
   "Allow the running application to close after the streaming session ends": "Lejo që aplikacioni në ekzekutim të mbyllet pasi të mbarojë seanca e transmetimit",
   "Remove all hosts": "Hiq të gjithë hostët",
   "Remove all currently saved hosts from the list": "Hiq të gjithë hostët e ruajtur aktualisht nga lista",
+  "Swap mouse buttons": "Ndërro butonat e miut",
+  "Swap left and right mouse buttons while streaming": "Ndërro butonat e majtë dhe të djathtë të miut gjatë transmetimit",
   "Rumble feedback": "Reagim me dridhje",
   "Allow gamepad rumble feedback support while streaming": "Lejo mbështetjen e reagimit të zhurmës së gamepad-it gjatë transmetimit",
   "Mouse emulation": "Emulimi i miut",
