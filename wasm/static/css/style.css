@@ -273,7 +273,7 @@ body {
     color: var(--lunar-text);
     background-color: rgba(21, 26, 30, 0.98);
     width: 30%;
-    height: auto;
+    height: fit-content;
     padding: 20px;
     border: 1px solid rgba(155, 231, 196, 0.34);
     border-radius: 10px;
@@ -283,11 +283,15 @@ body {
     color: var(--lunar-text);
     background-color: rgba(21, 26, 30, 0.98);
     width: 90%;
-    height: auto;
+    height: fit-content;
     padding: 20px;
     border: 1px solid rgba(155, 231, 196, 0.34);
     border-radius: 10px;
     box-shadow: 0 18px 50px rgba(0, 0, 0, 0.56);
+}
+/* Hide the mouse pointer around the Stream Menu, which appears when the mouse is released */
+#streamMenuDialogOverlay, #streamMenuDialog::backdrop {
+    cursor: none;
 }
 .mdl-dialog__title {
     margin: 0;
@@ -457,7 +461,7 @@ body {
     text-transform: uppercase;
 }
 #pairingDialogText, #deleteHostDialogText, .host-details-text, #appSupportDialogText,
-#autoWolDialogText, #navGuideDialogText, .update-app-text, #restoreDefaultsDialogText, #quitAppDialogText,
+#autoWolDialogText, #navGuideDialogText, #updateAppDialogText, #restoreDefaultsDialogText, #quitAppDialogText,
 #warningDialogText, #restartAppDialogText, #exitAppDialogText {
     font-size: 1.45rem;
     line-height: normal;
@@ -508,7 +512,7 @@ body {
     padding: 5px 20px 5px 20px;
 }
 #continueAddHost, #cancelAddHost, #cancelPairing, #continueDeleteHost,
-#closeHostMenu, #closeHostDetails, #cancelDeleteHost, #closeAppSupport,
+#closeHostMenu, #closeStreamMenu, #closeHostDetails, #cancelDeleteHost, #closeAppSupport,
 #closeNavGuide, #closeUpdateApp, #continueRestoreDefaults, #cancelRestoreDefaults,
 #continueQuitApp, #cancelQuitApp, #continueWarning, #closeWarning,
 #continueRestartApp, #cancelRestartApp, #continueExitApp, #cancelExitApp, #cancelAutoWol {
@@ -555,7 +559,7 @@ body {
     box-shadow: 0 0 2px 3px rgba(170, 170, 170, 1) !important;
     cursor: not-allowed;
 }
-.host-menu-button, #closeHostMenu, #closeHostDetails,
+.host-menu-button, #closeHostMenu, #closeStreamMenu, #closeHostDetails,
 #closeUpdateApp {
     margin: 10px 15px 20px 0;
     font-size: 1.4rem;
@@ -1126,9 +1130,9 @@ body {
     text-indent: 36px;
 }
 #selectResolution, #selectFramerate, #selectBitrate, #framePacingBtn, #selectLanguage, #ipAddressFieldModeBtn,
-#sortAppsListBtn, #optimizeGamesBtn, #removeAllHostsBtn, #rumbleFeedbackBtn, #mouseEmulationBtn,
+#sortAppsListBtn, #optimizeGamesBtn, #quitAppAfterBtn, #removeAllHostsBtn, #swapMouseButtonsBtn, #rumbleFeedbackBtn, #mouseEmulationBtn,
 #flipABfaceButtonsBtn, #flipXYfaceButtonsBtn, #selectAudioBackend, #selectAudio, #audioSyncBtn,
-#selectAudioJitter, #playHostAudioBtn,
+#selectAudioJitter, #playHostAudioBtn, #decryptHostAudioBtn,
 #selectCodec, #hdrModeBtn, #fullRangeBtn, #gameModeBtn, #unlockAllFpsBtn, #optimizeBitrateBtn,
 #disableWarningsBtn, #performanceStatsBtn, #navigationGuideBtn, #checkUpdatesBtn, #restartAppBtn {
     color: var(--lunar-text);
@@ -1163,6 +1167,8 @@ body {
 	color: #dedede !important;
     background-color: #666875 !important;
 }
+#hdrModeBtn.is-disabled.hovered, #hdrModeBtn.is-disabled:hover,
+#hdrModeBtn.is-disabled:focus, #hdrModeBtn.is-disabled:active,
 #gameModeBtn.is-disabled.hovered, #gameModeBtn.is-disabled:hover,
 #gameModeBtn.is-disabled:focus, #gameModeBtn.is-disabled:active {
     box-shadow: 0 0 2px 3px rgba(170, 170, 170, 1) !important;
@@ -1249,7 +1255,7 @@ body {
    Interactive Elements
 ============================= */
 #continueAddHost:hover, #continueAddHost:focus, #cancelAddHost:hover, #cancelAddHost:focus, #cancelPairing:hover, #cancelPairing:focus, #cancelAutoWol:hover, #cancelAutoWol:focus,
-#continueDeleteHost:hover, #continueDeleteHost:focus, #cancelDeleteHost:hover, #cancelDeleteHost:focus, #closeHostMenu:hover, #closeHostMenu:focus,
+#continueDeleteHost:hover, #continueDeleteHost:focus, #cancelDeleteHost:hover, #cancelDeleteHost:focus, #closeHostMenu:hover, #closeHostMenu:focus, #closeStreamMenu:hover, #closeStreamMenu:focus,
 #closeHostDetails:hover, #closeHostDetails:focus, #closeAppSupport:hover, #closeAppSupport:focus, #closeNavGuide:hover, #closeNavGuide:focus,
 #closeUpdateApp:hover, #closeUpdateApp:focus, #continueRestoreDefaults:hover, #continueRestoreDefaults:focus, #cancelRestoreDefaults:hover,
 #cancelRestoreDefaults:focus, #continueQuitApp:hover, #continueQuitApp:focus, #cancelQuitApp:hover, #cancelQuitApp:focus, #closeWarning:hover,
@@ -1258,11 +1264,11 @@ body {
 #goBackBtn:hover, #goBackBtn:focus, #restoreDefaultsBtn:hover, #restoreDefaultsBtn:focus, #quitRunningAppBtn:hover, #quitRunningAppBtn:focus,
 #selectResolution:hover, #selectResolution:focus, #selectFramerate:hover, #selectFramerate:focus, #selectBitrate:hover, #selectBitrate:focus,
 #framePacingBtn:hover, #framePacingBtn:focus, #selectLanguage:hover, #selectLanguage:focus, #ipAddressFieldModeBtn:hover, #ipAddressFieldModeBtn:focus, #sortAppsListBtn:hover,
-#sortAppsListBtn:focus, #optimizeGamesBtn:hover, #optimizeGamesBtn:focus, #removeAllHostsBtn:hover, #removeAllHostsBtn:focus, #rumbleFeedbackBtn:hover,
-#rumbleFeedbackBtn:focus, #mouseEmulationBtn:hover, #mouseEmulationBtn:focus, #flipABfaceButtonsBtn:hover, #flipABfaceButtonsBtn:focus,
+#sortAppsListBtn:focus, #optimizeGamesBtn:hover, #optimizeGamesBtn:focus, #quitAppAfterBtn:hover, #quitAppAfterBtn:focus, #removeAllHostsBtn:hover, #removeAllHostsBtn:focus,
+#swapMouseButtonsBtn:hover, #swapMouseButtonsBtn:focus, #rumbleFeedbackBtn:hover, #rumbleFeedbackBtn:focus, #mouseEmulationBtn:hover, #mouseEmulationBtn:focus, #flipABfaceButtonsBtn:hover, #flipABfaceButtonsBtn:focus,
 #flipXYfaceButtonsBtn:hover, #flipXYfaceButtonsBtn:focus, #selectAudioBackend:hover, #selectAudioBackend:focus, #selectAudio:hover,
 #selectAudio:focus, #audioSyncBtn:hover, #audioSyncBtn:focus, #selectAudioJitter:hover, #selectAudioJitter:focus,
-#playHostAudioBtn:hover, #playHostAudioBtn:focus, #selectCodec:hover, #selectCodec:focus, #hdrModeBtn:hover, #hdrModeBtn:focus, #fullRangeBtn:hover,
+#playHostAudioBtn:hover, #playHostAudioBtn:focus, #decryptHostAudioBtn:hover, #decryptHostAudioBtn:focus, #selectCodec:hover, #selectCodec:focus, #hdrModeBtn:hover, #hdrModeBtn:focus, #fullRangeBtn:hover,
 #fullRangeBtn:focus, #gameModeBtn:hover, #gameModeBtn:focus, #unlockAllFpsBtn:hover, #unlockAllFpsBtn:focus, #optimizeBitrateBtn:hover,
 #optimizeBitrateBtn:focus, #disableWarningsBtn:hover, #disableWarningsBtn:focus, #performanceStatsBtn:hover, #performanceStatsBtn:focus,
 #systemInfoBtn:hover, #systemInfoBtn:focus, #navigationGuideBtn:hover, #navigationGuideBtn:focus, #checkUpdatesBtn:hover, #checkUpdatesBtn:focus,

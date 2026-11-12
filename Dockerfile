@@ -63,6 +63,7 @@ RUN ./emsdk activate latest-fastcomp
 
 # Copy only the backend files required for compiling the application
 WORKDIR /home/moonlight
+RUN mkdir -p moonlight-tizen
 COPY --chown=moonlight CMakeLists.txt ./moonlight-tizen/
 COPY --chown=moonlight h264bitstream ./moonlight-tizen/h264bitstream/
 COPY --chown=moonlight libgamestream ./moonlight-tizen/libgamestream/
@@ -91,8 +92,47 @@ COPY --chown=moonlight res/ ./moonlight-tizen/res/
 COPY --chown=moonlight wasm/index.html ./moonlight-tizen/wasm/
 COPY --chown=moonlight wasm/platform/ ./moonlight-tizen/wasm/platform/
 COPY --chown=moonlight wasm/static/ ./moonlight-tizen/wasm/static/
+COPY --chown=moonlight .gi[t]/ ./moonlight-tizen/.git/
+
+# The following steps inject build metadata into the application such as build type, short commit SHA, and repository information by replacing placeholders in the `wasm/platform/index.js` file.
+# This allows the application to display build information on development builds while keeping release builds clean.
+ARG BUILD_TYPE=release
+ARG REPO_OWNER
+ARG REPO_NAME
+RUN \
+    # Always inject the build type, repo owner, and repo name regardless of the build type
+	sed -i "s/__BUILD_TYPE__/$BUILD_TYPE/g" moonlight-tizen/wasm/platform/index.js && \
+    if [ -n "$REPO_OWNER" ]; then \
+        sed -i "s/__REPO_OWNER__/$REPO_OWNER/g" moonlight-tizen/wasm/platform/index.js; \
+    fi && \
+    if [ -n "$REPO_NAME" ]; then \
+        sed -i "s/__REPO_NAME__/$REPO_NAME/g" moonlight-tizen/wasm/platform/index.js; \
+    fi && \
+	echo "Injected base metadata: build type ($BUILD_TYPE), repo owner ($REPO_OWNER), repo name ($REPO_NAME)"; \
+    \
+    # Conditionally inject the short commit SHA only if it's a development build
+    if [ "$BUILD_TYPE" = "development" ]; then \
+        SHORT_SHA=""; \
+        if [ -d "moonlight-tizen/.git" ]; then \
+            SHORT_SHA=$(git -C moonlight-tizen rev-parse --short HEAD); \
+        fi; \
+        if [ -n "$SHORT_SHA" ]; then \
+            sed -i "s/__BUILD_COMMIT__/$SHORT_SHA/g" moonlight-tizen/wasm/platform/index.js; \
+        fi; \
+		echo "Injected development commit hash ($SHORT_SHA)"; \
+    else \
+        echo "Build type is release, skipping commit hash injection."; \
+    fi
 
 RUN cmake --install build --prefix build
+
+# Embind reads a std::string that C++ returns to JavaScript by writing a zero into the byte after the buffer and putting the
+# old byte back afterwards. That byte is outside of the buffer and no lock is held, so it can overwrite a change that another
+# thread makes to the heap in between and crash the next free() (see tools/patch-embind-string.js). The patch fails the
+# build when the code it replaces is not found exactly once, so a toolchain update cannot drop it unnoticed.
+COPY --chown=moonlight tools/patch-embind-string.js ./moonlight-tizen/tools/
+RUN /home/moonlight/emscripten-release-bundle/emsdk/node/12.9.1_64bit/bin/node moonlight-tizen/tools/patch-embind-string.js build/widget/moonlight-wasm.js
+
 RUN cp moonlight-tizen/res/icon.png build/widget/
 
 # Inject Game Mode metadata into the Tizen config.xml file, which is required for building the ForceGM variant later

@@ -69,40 +69,112 @@ function cryptoRand(upper_bound) {
   return array[0] % upper_bound;
 }
 
-var _realGamepads = new Set();
-function getConnectedGamepadMask() {
-  var count = 0;
-  var mask = 0;
-  var gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+// Per-slot evidence shared by UI polling and the stream launch mask
+var _realGamepads = new Map();
 
-  for (var i = 0; i < gamepads.length; i++) {
-    var gamepad = gamepads[i];
-    if (gamepad) {
-      // See logic in gamepad.cpp
-      // These must stay in sync!
+// Validates a gamepad using its timestamp or observed input changes
+function observeGamepad(gamepad, index) {
+  // Ignore disconnected or unavailable gamepads and clear their cached state
+  if (!gamepad || !gamepad.connected) {
+    _realGamepads.delete(index);
+    return false;
+  }
 
-      if (!gamepad.connected) {
-        // Not connected
-        _realGamepads.delete(gamepad.index);
-        continue;
+  // Retrieve the previously recorded validation state for this gamepad slot
+  var state = _realGamepads.get(index);
+
+  // Reset the validation state if the slot contains a different gamepad
+  if (!state || state.id !== gamepad.id) {
+    state = { id: gamepad.id, validated: false, buttons: [], axes: [] };
+    _realGamepads.set(index, state);
+  }
+
+  // A positive, finite timestamp is sufficient evidence of a genuine gamepad
+  if (typeof gamepad.timestamp === 'number' && isFinite(gamepad.timestamp) && gamepad.timestamp > 0) {
+    state.validated = true;
+  }
+
+  // Once validated, the gamepad remains accepted while connected
+  if (state.validated) {
+    return true;
+  }
+
+  // Retrieve the current button and axis states for input change detection
+  var buttons = gamepad.buttons || [];
+  var axes = gamepad.axes || [];
+
+  // Match "HasGamepadInputChanged()" in "gamepad.cpp" – these should stay in sync!
+  // Keep the baseline until actual input is observed; metadata or a static nonzero axis is not proof.
+  if (state.buttons.length !== buttons.length || state.axes.length !== axes.length) {
+    // Initialize the input baseline without validating the gamepad
+    state.buttons = Array.prototype.map.call(buttons, function(button) {
+      return { pressed: !!button.pressed, value: button.value };
+    });
+    state.axes = Array.prototype.slice.call(axes);
+    return false;
+  }
+
+  // Check for changes in button states and analog values
+  for (var i = 0; i < buttons.length; i++) {
+    // Retrieve the current and previously recorded button states
+    var button = buttons[i];
+    var previous = state.buttons[i];
+    // A change in the pressed state indicates actual user input
+    if (!!button.pressed !== previous.pressed) {
+      state.validated = true;
+    }
+    // Only compare finite numeric values to avoid invalid analog readings
+    if (typeof button.value === 'number' && isFinite(button.value)) {
+      // Detect meaningful changes in the analog button value
+      if (typeof previous.value === 'number' && isFinite(previous.value) && Math.abs(button.value - previous.value) > 0.01) {
+        state.validated = true;
       }
-
-      if (gamepad.timestamp !== 0) {
-        _realGamepads.add(gamepad.index);
+      // Initialize the baseline if the previous button value was invalid
+      if (typeof previous.value !== 'number' || !isFinite(previous.value)) {
+        previous.value = button.value;
       }
-
-      if (gamepad.timestamp === 0 && !_realGamepads.has(gamepad.index)) {
-        // On some platforms, Tizen returns "connected" gamepads that really 
-        // aren't, so timestamp stays at zero. To work around this, we'll only
-        // count gamepads that have a non-zero timestamp in our controller index.
-        continue;
-      }
-
-      mask |= 1 << count++;
     }
   }
 
-  console.log('%c[utils.js, getConnectedGamepadMask]', 'color: gray;', 'Detected: ' + count + ' gamepads.');
+  // Check for changes in analog stick and trigger axis values
+  for (var j = 0; j < axes.length; j++) {
+    // Ignore axis values that are not valid finite numbers
+    if (typeof axes[j] === 'number' && isFinite(axes[j])) {
+      // Detect meaningful movement by comparing against the recorded axis value
+      if (typeof state.axes[j] === 'number' && isFinite(state.axes[j]) && Math.abs(axes[j] - state.axes[j]) > 0.01) {
+        state.validated = true;
+      }
+      // Initialize the baseline if the previous axis value was invalid
+      if (typeof state.axes[j] !== 'number' || !isFinite(state.axes[j])) {
+        state.axes[j] = axes[j];
+      }
+    }
+  }
+
+  return state.validated;
+}
+
+// Returns a bitmask representing the connected gamepads in the browser
+function getConnectedGamepadMask() {
+  // Initialize the connected gamepad counter and resulting bitmask
+  var count = 0;
+  var mask = 0;
+
+  // Retrieve the current gamepad states exposed by the browser
+  var gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+
+  // Iterate through all possible gamepad slots (0-15) to detect connected gamepads,
+  // where maximum number of controllers supported by the Moonlight protocol is 16.
+  for (var i = 0; i < 16; i++) {
+    // Include only gamepads that have passed the validation checks
+    if (observeGamepad(gamepads[i], i)) {
+      // Use the physical browser index so the mask matches C++
+      mask |= 1 << i;
+      count++;
+    }
+  }
+
+  console.log('%c[utils.js, getConnectedGamepadMask]', 'color: gray;', 'Detected: ' + count + ' ' + (count === 1 ? 'gamepad' : 'gamepads'));
   return mask;
 }
 
@@ -228,33 +300,29 @@ NvHTTP.prototype = {
   // Refreshes the server info using a given address. This is useful for testing whether we can successfully ping a host at a given address
   refreshServerInfoAtAddress: function(givenAddress) {
     var urlAddr = formatAddressForUrl(givenAddress);
-    if (this.ppkstr == null) {
+    // Unpaired hosts have no established certificate trust, so HTTP is allowed.
+    if (this.ppkstr == null) { // No pinned cert
       // Use HTTP if we have no pinned cert
       return this._openUrlWithTimeout('http://' + urlAddr + ':' + this.httpPort + '/serverinfo?' + this._buildUidStr(), this.ppkstr).then(function(retHttp) {
         var parsed = this._parseServerInfo(retHttp);
-        if (!parsed) return Promise.reject("Failed to parse server info from HTTP");
+        if (!parsed) { // If that fails
+          return Promise.reject("Failed to parse server info from HTTP");
+        }
         return parsed;
       }.bind(this));
     }
-    // Try HTTPS first
+    // Paired hosts must use HTTPS with the pinned certificate. Do not fall back to unauthenticated HTTP for server metadata.
     return this._openUrlWithTimeout('https://' + urlAddr + ':' + this.httpsPort + '/serverinfo?' + this._buildUidStr(), this.ppkstr).then(function(ret) {
-      if (!this._parseServerInfo(ret)) { // If that fails
-        console.error('%c[utils.js, refreshServerInfoAtAddress]', 'color: gray;', 'Error: Failed to parse server info from HTTPS, falling back to HTTP...');
-        // Try HTTP as a failover. Useful to clients who aren't paired yet
-        return this._openUrlWithTimeout('http://' + urlAddr + ':' + this.httpPort + '/serverinfo?' + this._buildUidStr(), this.ppkstr).then(function(retHttp) {
-          var parsed = this._parseServerInfo(retHttp);
-          if (!parsed) return Promise.reject("Failed to parse server info from HTTP");
-          return parsed;
-        }.bind(this));
+      var parsed = this._parseServerInfo(ret);
+      if (!parsed) { // If that fails
+        console.warn('%c[utils.js, refreshServerInfoAtAddress]', 'color: gray;', 'Warning: Failed to parse server info from HTTPS. Please verify the host is reachable and re-pair the host if necessary!');
+        return Promise.reject("Failed to parse server info from HTTPS");
       }
+      return parsed;
     }.bind(this), function(error) {
       if (error == -100) { // GS_CERT_MISMATCH
-        console.warn('%c[utils.js, refreshServerInfoAtAddress]', 'color: gray;', 'Warning: Certificate mismatch. Retrying over HTTP...', this);
-        return this._openUrlWithTimeout('http://' + urlAddr + ':' + this.httpPort + '/serverinfo?' + this._buildUidStr(), this.ppkstr).then(function(retHttp) {
-          var parsed = this._parseServerInfo(retHttp);
-          if (!parsed) return Promise.reject("Failed to parse server info from HTTP");
-          return parsed;
-        }.bind(this));
+        // Do not fall back to HTTP after a certificate mismatch. The endpoint must be re-paired before unauthenticated server metadata can be accepted.
+        console.error('%c[utils.js, refreshServerInfoAtAddress]', 'color: gray;', 'Error: Certificate mismatch. Please re-pair the host!', this);
       }
       return Promise.reject(error);
     }.bind(this));
@@ -544,8 +612,8 @@ NvHTTP.prototype = {
 
       for (var i = 0, len = appElements.length; i < len; i++) {
         appList.push({
-          id: parseInt(appElements[i].getElementsByTagName('ID')[0].innerHTML.trim(), 10),
-          title: appElements[i].getElementsByTagName('AppTitle')[0].innerHTML.trim(),
+          id: parseInt(appElements[i].getElementsByTagName('ID')[0].textContent.trim(), 10),
+          title: appElements[i].getElementsByTagName('AppTitle')[0].textContent.trim(),
         });
       }
 

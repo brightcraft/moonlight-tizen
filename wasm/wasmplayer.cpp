@@ -8,6 +8,7 @@
 
 #include <assert.h>
 #include <pthread.h>
+#include <unistd.h>
 
 #include "samsung/wasm/elementary_audio_track_config.h"
 #include "samsung/wasm/elementary_media_packet.h"
@@ -27,8 +28,13 @@ using HTMLAsyncResult = samsung::wasm::OperationResult;
 using TimeStamp = samsung::wasm::Seconds;
 
 static constexpr TimeStamp kFrameTimeMargin = 0.5ms;
+static constexpr TimeStamp kPacingSpinTime = 1ms;
 static constexpr TimeStamp kTimeWindow = 1s;
 static constexpr uint32_t kSampleRate = 48000;
+
+// Maximum time to wait for each step of the media pipeline setup. The TV normally completes each
+// step well within a second, but never completes some of them when it doesn't support the stream.
+static constexpr std::chrono::milliseconds kMediaSetupTimeout{5000};
 
 static uint32_t s_VideoFormat = 0;
 static uint32_t s_Width = 0;
@@ -142,17 +148,27 @@ bool MoonlightInstance::InitializeRenderingSurface(int width, int height) {
   return true;
 }
 
+// Logs why a step of the media pipeline setup stopped waiting, and returns the error to report for it
+int MoonlightInstance::MediaSetupWaitFailed(const char* step) {
+  if (g_Instance->m_ConnectionCancelled) {
+    ClLogMessage("Connection cancelled during %s wait\n", step);
+    return -1;
+  }
+  ClLogMessage("Timed out after %lld ms during %s wait\n", (long long)kMediaSetupTimeout.count(), step);
+  return ERROR_VIDEO_SETUP_FAILED;
+}
+
 int MoonlightInstance::StartupVidDecSetup(int videoFormat, int width, int height, int redrawRate, void* context, int drFlags) {
   // Bind the media source to the media element
   g_Instance->m_MediaElement.SetSrc(g_Instance->m_Source.get());
+  // Mark the source as attached, so that it gets closed if the connection fails from here on
+  g_Instance->m_SourceAttached = true;
   ClLogMessage("Waiting to close\n");
 
-  g_Instance->WaitFor(&g_Instance->m_EmssStateChanged, [] {
+  if (!g_Instance->WaitFor(&g_Instance->m_EmssStateChanged, [] {
     return g_Instance->m_EmssReadyState == EmssReadyState::kClosed;
-  });
-  if (g_Instance->m_ConnectionCancelled) {
-    ClLogMessage("Connection cancelled during initial close wait\n");
-    return -1;
+  }, kMediaSetupTimeout)) {
+    return MediaSetupWaitFailed("initial close");
   }
   ClLogMessage("Closed\n");
 
@@ -191,6 +207,10 @@ int MoonlightInstance::StartupVidDecSetup(int videoFormat, int width, int height
     if (add_track_result) {
       g_Instance->m_AudioTrack = std::move(*add_track_result);
       g_Instance->m_AudioTrack.SetListener(&g_Instance->m_AudioTrackListener);
+    } else {
+      // Fail now, because a track that was never added will never open
+      ClLogMessage("The TV rejected the audio track\n");
+      return -1;
     }
   }
 
@@ -241,18 +261,20 @@ int MoonlightInstance::StartupVidDecSetup(int videoFormat, int width, int height
     if (add_track_result) {
       g_Instance->m_VideoTrack = std::move(*add_track_result);
       g_Instance->m_VideoTrack.SetListener(&g_Instance->m_VideoTrackListener);
+    } else {
+      // Fail now, because a track that was never added will never open
+      ClLogMessage("The TV rejected the video track (%s, %dx%d at %d FPS)\n", mimetype, width, height, redrawRate);
+      return ERROR_VIDEO_SETUP_FAILED;
     }
   }
 
   ClLogMessage("Inb4 source open\n");
   g_Instance->m_Source->Open([](EmssOperationResult){});
-  g_Instance->WaitFor(&g_Instance->m_EmssStateChanged, [] {
-    return g_Instance->m_EmssReadyState == EmssReadyState::kOpenPending || 
+  if (!g_Instance->WaitFor(&g_Instance->m_EmssStateChanged, [] {
+    return g_Instance->m_EmssReadyState == EmssReadyState::kOpenPending ||
            g_Instance->m_EmssReadyState == EmssReadyState::kOpen;
-  });
-  if (g_Instance->m_ConnectionCancelled) {
-    ClLogMessage("Connection cancelled during open wait\n");
-    return -1;
+  }, kMediaSetupTimeout)) {
+    return MediaSetupWaitFailed("open");
   }
 
   ClLogMessage("Source ready to open\n");
@@ -267,16 +289,16 @@ int MoonlightInstance::StartupVidDecSetup(int videoFormat, int width, int height
   ClLogMessage("Waiting to start\n");
   // Only the EMSS backend opens an audio track, so the Web Audio backend has nothing to wait for
   if (g_Instance->m_AudioBackend == AudioBackend::Emss) {
-    g_Instance->WaitFor(&g_Instance->m_EmssAudioStateChanged, [] {
+    if (!g_Instance->WaitFor(&g_Instance->m_EmssAudioStateChanged, [] {
       return g_Instance->m_AudioStarted.load();
-    });
+    }, kMediaSetupTimeout)) {
+      return MediaSetupWaitFailed("audio start");
+    }
   }
-  g_Instance->WaitFor(&g_Instance->m_EmssVideoStateChanged, [] {
+  if (!g_Instance->WaitFor(&g_Instance->m_EmssVideoStateChanged, [] {
     return g_Instance->m_VideoStarted.load();
-  });
-  if (g_Instance->m_ConnectionCancelled) {
-    ClLogMessage("Connection cancelled during audio/video wait\n");
-    return -1;
+  }, kMediaSetupTimeout)) {
+    return MediaSetupWaitFailed("video start");
   }
 
   ClLogMessage("Started\n");
@@ -327,6 +349,9 @@ int MoonlightInstance::VidDecSetup(int videoFormat, int width, int height, int r
 
   // Reset last frame number to prevent massive integer underflow on subsequent streams
   m_LastFrameNumber = 0;
+
+  // Reset the received byte count so the bitrate doesn't include data from a previous stream
+  total_bytes = 0;
 
   // Ensure that StartupVidDecSetup is called every time when VidDecSetup is invoked to reinitialize the media pipeline
   int initVidDec = StartupVidDecSetup(videoFormat, width, height, redrawRate, context, drFlags);
@@ -410,6 +435,13 @@ int MoonlightInstance::VidDecSubmitDecodeUnit(PDECODE_UNIT decodeUnit) {
     TimeStamp fromStart = now - s_firstAppend;
     // Wait until the packet timestamp is within the frame time margin
     while (s_pktPts > fromStart - s_ptsDiff + kFrameTimeMargin) {
+      // Calculate the remaining wait time until the packet timestamp is within the frame time margin
+      TimeStamp waitTime = s_pktPts - (fromStart - s_ptsDiff + kFrameTimeMargin);
+      // Sleep through most of the wait to free up the CPU for the other streaming threads,
+      // and only spin for the final stretch in case the sleep wakes up late
+      if (waitTime > kPacingSpinTime) {
+        usleep(std::chrono::duration_cast<std::chrono::microseconds>(waitTime - kPacingSpinTime).count());
+      }
       // Update the current time and recalculate the elapsed time
       now = std::chrono::steady_clock::now();
       fromStart = now - s_firstAppend;
@@ -447,17 +479,17 @@ int MoonlightInstance::VidDecSubmitDecodeUnit(PDECODE_UNIT decodeUnit) {
     m_LastFrameNumber = decodeUnit->frameNumber;
   }
 
-  // Calculate the current bitrate in bits per second and then convert the bitrate to megabits per second
-  float bitrateMbps = (total_bytes * 8.0) / 1000000.0f;
+  // Get the current time in milliseconds to check whether the stats window has elapsed
+  uint32_t nowMs = LiGetMillis();
 
   // Flip performance stats window roughly every second
-  if (m_ActiveWndVideoStats.measurementStartTimestamp + 1000 < LiGetMillis()) {
+  if (m_ActiveWndVideoStats.measurementStartTimestamp + 1000 < nowMs) {
     // Update performance stats overlay if it's enabled
     if (g_Instance->m_PerformanceStatsEnabled == true) {
       // Create a container to hold aggregated stats for display
       VIDEO_STATS lastTwoWndStats = {};
-      // Set the bitrate field in the temporary stats for display purposes
-      lastTwoWndStats.receivedBitrate = bitrateMbps;
+      // Calculate the bitrate in megabits per second from the bytes received over the actual length of this window
+      lastTwoWndStats.receivedBitrate = (total_bytes * 8.0f) / ((nowMs - m_ActiveWndVideoStats.measurementStartTimestamp) * 1000.0f);
       // Add last window and current window to the aggregated stats
       AddVideoStats(m_LastWndVideoStats, lastTwoWndStats);
       AddVideoStats(m_ActiveWndVideoStats, lastTwoWndStats);
@@ -467,9 +499,10 @@ int MoonlightInstance::VidDecSubmitDecodeUnit(PDECODE_UNIT decodeUnit) {
       PostToJs(std::string("StatMsg: ") + s_StatString.data());
       // Clear the stats string buffer for the next use
       std::fill(s_StatString.begin(), s_StatString.end(), 0);
-      // Reset byte count for the next measurement interval
-      total_bytes = 0;
     }
+    // Reset byte count for the next measurement interval, even while the overlay is hidden,
+    // so that enabling the overlay mid-stream doesn't report every byte since the stream started
+    total_bytes = 0;
     // Accumulate active window stats into global stats for overall tracking
     AddVideoStats(m_ActiveWndVideoStats, m_GlobalVideoStats);
     // Move current active stats to last window stats and reset active window stats for new interval
@@ -545,7 +578,6 @@ void MoonlightInstance::AddVideoStats(VIDEO_STATS& src, VIDEO_STATS& dst) {
   dst.renderedFrames += src.renderedFrames;
   dst.totalFrames += src.totalFrames;
   dst.networkDroppedFrames += src.networkDroppedFrames;
-  dst.pacerDroppedFrames += src.pacerDroppedFrames;
   dst.totalReassemblyTime += src.totalReassemblyTime;
   dst.totalDecodeTime += src.totalDecodeTime;
   dst.totalPacerTime += src.totalPacerTime;
@@ -702,13 +734,11 @@ void MoonlightInstance::FormatVideoStats(VIDEO_STATS& stats, char* output, int l
     ret = snprintf(
       &output[offset], length - offset,
       "Frames dropped by your network connection: %.2f%%\n"
-      "Frames dropped due to network jitter: %.2f%%\n"
       "Average network latency: %s\n"
       "Average decoding time: %.2f ms\n"
       "Average frame queue delay: %.2f ms\n"
       "Average rendering time: %.2f ms\n",
       (float)stats.networkDroppedFrames / stats.totalFrames * 100,
-      (float)stats.pacerDroppedFrames / stats.decodedFrames * 100,
       rttString,
       (float)stats.totalDecodeTime / stats.decodedFrames,
       (float)stats.totalPacerTime / stats.renderedFrames,
@@ -735,9 +765,11 @@ void MoonlightInstance::TogglePerformanceStats() {
   }
 }
 
-void MoonlightInstance::WaitFor(std::condition_variable* variable, std::function<bool()> condition) {
+bool MoonlightInstance::WaitFor(std::condition_variable* variable, std::function<bool()> condition, std::chrono::milliseconds timeout) {
   std::unique_lock<std::mutex> lock(m_Mutex);
-  variable->wait(lock, [&]() { return m_ConnectionCancelled.load() || condition(); });
+  variable->wait_for(lock, timeout, [&]() { return m_ConnectionCancelled.load() || condition(); });
+  // Report whether the condition was met, rather than the connection being cancelled or the wait timing out
+  return !m_ConnectionCancelled.load() && condition();
 }
 
 DECODER_RENDERER_CALLBACKS MoonlightInstance::s_DrCallbacks = {

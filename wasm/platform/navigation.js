@@ -56,16 +56,34 @@ function clickElement(target) {
   // Prevent clicking if the element is disabled based on common disabled states
   if (element.disabled || element.getAttribute('aria-disabled') === 'true' || element.classList.contains('is-disabled')) {
     console.warn('%c[navigation.js, clickElement]', 'color: gray;', 'Cannot click the disabled target element:', element);
-    // Check if the disabled element is the Game Mode switch
-    if (element.id === 'gameModeBtn' && parseFloat(platformVer) === 5.5) {
-      // Show a warning message when attempting to enable game mode on Tizen 5.5 platform
+    // Check if the disabled element is the Video HDR switch
+    if (element.id === 'hdrModeBtn' && !isHdrCapable) {
+      // Show a warning message when attempting to enable HDR mode on incompatible TVs
       setTimeout(() => {
         warningDialog(t('Unsupported Feature'),
-          t('Game Mode (Ultra Low Latency) is not supported on Tizen %1$s due to platform limitations and lack of support from the WASM player.', platformVer) + 
-          t('Attempting to enable this option will have no effect, as the decoder will force a fallback to standard Low Latency mode to maintain streaming stability.<br><br>') + 
-          t('Since the Game Mode cannot be enabled, you may experience slightly higher latency while streaming. To further reduce latency, it is highly recommended to open your TV\'s Picture Settings menu and disable post-processing features such as <b>Picture Clarity</b>, <b>Contrast Enhancer</b>, and other video enhancements.')
+          t('Video HDR is not compatible on this TV model due to lack of hardware support and display capabilities.<br><br>') + 
+          t('Enabling this option will not activate HDR and may result in degraded quality, washed-out video, overly dark or bright images, severe color distortion, and other visual issues.')
         );
       }, 250);
+    }
+    // Check if the disabled element is the Game Mode switch
+    if (element.id === 'gameModeBtn') {
+      // Check if the ForceGM variant is being used
+      if (checkForceGMVariant()) {
+        // Show a warning message when attempting to enable game mode on ForceGM variant
+        snackbarLogLong('Warning: Game Mode setting is not compatible with Game Mode metadata in the ForceGM variant! To adjust this setting, switch to the standard variant.');
+      }
+      // Check if the Tizen platform is 5.5
+      if (parseFloat(platformVer) === 5.5) {
+        // Show a warning message when attempting to enable game mode on Tizen 5.5 platform
+        setTimeout(() => {
+          warningDialog(t('Unsupported Feature'),
+            t('Game Mode (Ultra Low Latency) is not supported on Tizen %1$s due to platform limitations and lack of support from the WASM player.', platformVer) + 
+            t('Attempting to enable this option will have no effect, as the decoder will force a fallback to standard Low Latency mode to maintain streaming stability.<br><br>') + 
+            t('Since the Game Mode cannot be enabled, you may experience slightly higher latency while streaming. To further reduce latency, it is highly recommended to open your TV\'s Picture Settings menu and disable post-processing features such as <b>Picture Clarity</b>, <b>Contrast Enhancer</b>, and other video enhancements.')
+          );
+        }, 250);
+      }
     }
     return;
   }
@@ -1207,6 +1225,7 @@ const Views = {
     view: new ListView(() => [
       'sortAppsListBtn',
       'optimizeGamesBtn',
+      'quitAppAfterBtn',
       'removeAllHostsBtn'
     ]),
     up: function() {
@@ -1245,6 +1264,7 @@ const Views = {
   },
   InputSettings: {
     view: new ListView(() => [
+      'swapMouseButtonsBtn',
       'rumbleFeedbackBtn',
       'mouseEmulationBtn',
       'flipABfaceButtonsBtn',
@@ -1287,11 +1307,13 @@ const Views = {
   AudioSettings: {
     view: new ListView(() => [
       'selectAudioBackend',
-      'selectAudio',
-      // Only one of these settings is shown at a time, as each one belongs to a single backend
-      isWebAudioBackendSelected() ? 'selectAudioJitter' : 'audioSyncBtn',
-      'playHostAudioBtn'
-    ]),
+      isAudioOutputDisabled() ? null : 'selectAudio',
+      // At most one of these settings is shown at a time, as each one belongs to a single backend,
+      // and neither is shown when the audio output is disabled
+      isAudioOutputDisabled() ? null : isWebAudioBackendSelected() ? 'selectAudioJitter' : 'audioSyncBtn',
+      'playHostAudioBtn',
+      isAudioOutputDisabled() ? null : 'decryptHostAudioBtn'
+    ].filter(Boolean)),
     up: function() {
       this.view.prevOption();
       focusElement(this.view.current());
@@ -1904,6 +1926,39 @@ const Views = {
     leave: function() {
       unmark(this.view.current());
       setTimeout(() => blurElement(this.view.current()), 100);
+    },
+  },
+  StreamMenuDialog: {
+    // The options are read from the dialog, so they always match the options defined in getStreamMenuOptions()
+    view: new ListView(() => document.querySelectorAll('#streamMenuDialog button')),
+    up: function() {
+      this.view.prevOption();
+      focusElement(this.view.current());
+    },
+    down: function() {
+      this.view.nextOption();
+      focusElement(this.view.current());
+    },
+    left: function() {},
+    right: function() {},
+    accept: function() {
+      clickElement(this.view.current());
+    },
+    back: function() {
+      resolveElement('closeStreamMenu').click();
+    },
+    press: function() {},
+    switch: function() {
+      focusElement(this.view.current());
+    },
+    enter: function() {
+      mark(this.view.current());
+      setTimeout(() => focusElement(this.view.current()), 100);
+    },
+    leave: function() {
+      // Remove focus right away, since the dialog is removed after closing
+      unmark(this.view.current());
+      blurElement(this.view.current());
     },
   },
 };

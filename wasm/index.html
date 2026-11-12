@@ -214,6 +214,20 @@
               </div>
             </div>
             <div class="setting-option">
+              <label data-i18n="Quit app on host">Quit app on host</label>
+              <span class="mdl-list__item-text-body" data-i18n="- This is useful for those who want to automatically close the running app after the streaming ends.">
+                - This is useful for those who want to automatically close the running app after the streaming ends.
+              </span>
+              <div id="quitAppAfterMenu">
+                <label id="quitAppAfterBtn" class="mdl-switch mdl-js-switch mdl-js-ripple-effect" for="quitAppAfterSwitch">
+                  <input type="checkbox" id="quitAppAfterSwitch" class="mdl-switch__input">
+                  <span class="mdl-switch__label" data-i18n="Allow the running application to close after the streaming session ends">
+                    Allow the running application to close after the streaming session ends
+                  </span>
+                </label>
+              </div>
+            </div>
+            <div class="setting-option">
               <label data-i18n="Remove all hosts">Remove all hosts</label>
               <span class="mdl-list__item-text-body"></span>
               <div id="removeAllHostsMenu">
@@ -227,6 +241,18 @@
             </div>
           </div>
           <div id="inputSettings" class="settings-options">
+            <div class="setting-option">
+              <label data-i18n="Swap mouse buttons">Swap mouse buttons</label>
+              <span class="mdl-list__item-text-body"></span>
+              <div id="swapMouseButtonsMenu">
+                <label id="swapMouseButtonsBtn" class="mdl-switch mdl-js-switch mdl-js-ripple-effect" for="swapMouseButtonsSwitch">
+                  <input type="checkbox" id="swapMouseButtonsSwitch" class="mdl-switch__input">
+                  <span class="mdl-switch__label" data-i18n="Swap left and right mouse buttons while streaming">
+                    Swap left and right mouse buttons while streaming
+                  </span>
+                </label>
+              </div>
+            </div>
             <div class="setting-option">
               <label data-i18n="Rumble feedback">Rumble feedback</label>
               <span class="mdl-list__item-text-body"></span>
@@ -288,9 +314,10 @@
               <ul class="audioBackendMenu mdl-menu mdl-menu--bottom-left mdl-js-menu mdl-js-ripple-effect" for="selectAudioBackend">
                 <li class="mdl-menu__item" data-value="EMSS" data-i18n="EMSS">EMSS</li>
                 <li class="mdl-menu__item" data-value="WebAudio" data-i18n="Web Audio">Web Audio</li>
+                <li class="mdl-menu__item" data-value="Disabled" data-i18n="Disabled">Disabled</li>
               </ul>
             </div>
-            <div class="setting-option">
+            <div id="audioConfigOption" class="setting-option">
               <label><span data-i18n="Audio configuration">Audio configuration</span>
                 <span class="badge badge-experimental" data-i18n="Experimental">Experimental</span>
               </label>
@@ -342,6 +369,23 @@
                   <input type="checkbox" id="playHostAudioSwitch" class="mdl-switch__input">
                   <span class="mdl-switch__label" data-i18n="Allow playing audio from the computer and this device">
                     Allow playing audio from the computer and this device
+                  </span>
+                </label>
+              </div>
+            </div>
+            <div id="decryptHostAudioOption" class="setting-option">
+              <label>
+                <span data-i18n="Decrypt host audio">Decrypt host audio</span>
+                <span class="badge badge-experimental" data-i18n="Experimental">Experimental</span>
+              </label>
+              <span class="mdl-list__item-text-body" data-i18n="- This is only necessary for Wolf and Punktfunk-style hosts that encrypt GameStream audio without advertising it.">
+                - This is only necessary for Wolf and Punktfunk-style hosts that encrypt GameStream audio without advertising it.
+              </span>
+              <div id="decryptHostAudioMenu">
+                <label id="decryptHostAudioBtn" class="mdl-switch mdl-js-switch mdl-js-ripple-effect" for="decryptHostAudioSwitch">
+                  <input type="checkbox" id="decryptHostAudioSwitch" class="mdl-switch__input">
+                  <span class="mdl-switch__label" data-i18n="Allow decrypting AES-CBC audio from Wolf and Punktfunk-style hosts">
+                    Allow decrypting AES-CBC audio from Wolf and Punktfunk-style hosts
                   </span>
                 </label>
               </div>
@@ -744,6 +788,10 @@
             <span class="navGuideRemoteText" data-i18n="YELLOW">YELLOW</span> / <span class="navGuideKeyboardText" data-i18n="F3">F3</span> / <span class="navGuideKeyboardText" data-i18n="CTRL + ALT + SHIFT + S">CTRL + ALT + SHIFT + S</span> / <span class="navGuideGamepadText" data-i18n="SELECT + LB + RB + X">SELECT + LB + RB + X</span>
             <span data-i18n="— Toggle the performance statistics overlay.">— Toggle the performance statistics overlay.</span>
           </li>
+          <li class="navGuideDialogControls">
+            <span class="navGuideRemoteText" data-i18n="PLAY/PAUSE">PLAY/PAUSE</span>
+            <span data-i18n="— Open or close the stream menu while streaming.">— Open or close the stream menu while streaming.</span>
+          </li>
         </ul>
       </div>
       <div class="mdl-dialog__actions">
@@ -762,6 +810,17 @@
       <div class="mdl-dialog__actions">
         <button type="button" id="closeWarning" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect" data-i18n="Close">Close</button>
         <button type="button" id="continueWarning" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect" data-i18n="Continue">Continue</button>
+      </div>
+    </dialog>
+  </div>
+  <div id="updateAppDialogOverlay" class="dialog-overlay">
+    <dialog id="updateAppDialog" class="mdl-dialog">
+      <h3 id="updateAppDialogTitle" class="mdl-dialog__title" data-i18n="Update Moonlight">Update Moonlight</h3>
+      <div class="mdl-dialog__content">
+        <p id="updateAppDialogText"></p>
+      </div>
+      <div class="mdl-dialog__actions">
+        <button type="button" id="closeUpdateApp" autofocus class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect" data-i18n="Close">Close</button>
       </div>
     </dialog>
   </div>

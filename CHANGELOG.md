@@ -2,6 +2,93 @@
 
 All notable changes to this project will be documented in this file.
 
+## v1.20.0
+
+### Added
+- Introduced a new 'Quit app on host' setting to close the running app after the streaming ends
+- Added Albanian (sq-AL) and Spanish (es-ES) language support to the language selector
+- Added color space configuration to properly handle HDR and standard HD video streams
+
+### Changed
+- Disabled 'Video HDR' setting for incompatible TVs due to lack of display capabilities
+- Disabled 'Game mode' setting in the ForceGM variant to avoid conflicts with its metadata
+
+### Removed
+- Removed the unsupported '144 FPS' option as it causes streaming initialization to fail
+
+### Fixed
+- Fixed a heap corruption that occasionally caused freezes during the streaming session
+- Fixed an issue where gamepads reporting zero timestamps were not detected during streaming
+- Fixed an issue where the Wake-on-LAN dialog could remain open after the host became available
+- Fixed an issue where the stream continued running in the background when Moonlight was hidden
+
+## v1.19.0
+
+### Added
+- Added gamepad identification reporting for use with automatic profile selection in Sunshine
+
+### Changed
+- Enabled 'Video frame pacing' and 'Host address field mode' settings as the default
+- Improved gamepad handling when connecting, disconnecting, or replacing a gamepad while streaming
+
+### Removed
+- Removed the obsolete USB release workflow, which was no longer functional and usable
+
+### Fixed
+- Fixed pairing failures caused by concurrent HTTP requests interrupting the pairing process
+- Fixed a bug where release checking could fail if repository placeholders were not configured
+- Fixed host polling during pairing, including pairing failures and host selection after cancellation
+- Fixed commit SHA injection in development builds by ensuring correct directory ownership in Docker
+- Fixed freezes and connection failures when the TV cannot start the video stream with the selected settings
+
+## v1.18.0
+
+### Added
+- Added automatic selection of the last opened host and app when navigating between views
+- Introduced a new 'Decrypt host audio' setting intended for Wolf and Punktfunk-style hosts
+- Added a 'Disabled' option to the 'Audio backend' setting to disable audio output from the TV
+
+### Changed
+- Improved video frame pacing efficiency by reducing CPU usage when frame pacing is enabled
+
+### Removed
+- Removed the always-zero network jitter frame drop statistic from the performance stats
+
+### Fixed
+- Fixed dialogs stretching to the full screen height instead of sizing to their content
+- Fixed incorrect bitrate calculations in the performance stats when enabled mid-stream
+- Fixed Docker image tagging in release workflows for forks with uppercase repository names
+- Fixed a startup crash when checking for cached app updates with an invalid or missing version
+
+## v1.17.2
+
+### Added
+- Added ForceGM variant detection to the System Info panel for easier identification
+
+### Changed
+- Improved build metadata injection in the Dockerfile for development and release builds
+- Prevented paired hosts from falling back to unauthenticated HTTP when refreshing server metadata
+
+### Fixed
+- Fixed a security vulnerability that allowed untrusted host metadata to be executed within the application
+
+## v1.17.1
+
+### Added
+- Reintroduced i18n workflow to synchronize locale files from the source of truth
+
+### Changed
+- Extended the Game Mode restrictions to newer platform versions (Tizen 9.0+)
+- Refactored the 'Update Moonlight' dialog to use static HTML for cleaner code structure
+
+### Fixed
+- Fixed EMSS pipeline cleanup when connections terminate unexpectedly
+- Fixed last frame number not resetting on new streams to prevent stats underflow
+- Fixed decoding time statistic displaying incorrect values due to integer underflow
+- Fixed the 'Update App' button notification not being restored after restarting the app
+- Fixed the 'Update App' button not being displayed after manually checking for updates
+- Fixed an issue where rapid or multiple clicks on a host could trigger concurrent executions
+
 ## v1.17.0
 
 ### Added

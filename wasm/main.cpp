@@ -65,7 +65,8 @@ MoonlightInstance::MoonlightInstance()
     m_VideoTrack(),
     m_ConnectionCancelled(false),
     m_StopThread(0),
-    m_SourceClosed(false) {
+    m_SourceClosed(false),
+    m_SourceAttached(false) {
       m_Dispatcher.start();
     }
 
@@ -93,14 +94,22 @@ void MoonlightInstance::OnConnectionStopped(uint32_t error) {
 }
 
 void MoonlightInstance::StopConnection() {
-  m_ConnectionCancelled = true;
-  g_Instance->m_EmssStateChanged.notify_all();
-  g_Instance->m_EmssAudioStateChanged.notify_all();
-  g_Instance->m_EmssVideoStateChanged.notify_all();
+  CancelPendingSetup();
 
   // We'll need to call the listener ourselves since our connection terminated
   // callback won't be invoked for a manually requested termination.
   OnConnectionStopped(0);
+}
+
+void MoonlightInstance::CancelPendingSetup() {
+  // Mark the connection as cancelled and wake up the media pipeline setup if it's waiting,
+  // so that the connection thread can return from LiStartConnection. The flag is set while
+  // holding the mutex, so that a wait that is just about to start can't miss the wake-up.
+  std::unique_lock<std::mutex> lock(m_Mutex);
+  m_ConnectionCancelled = true;
+  m_EmssStateChanged.notify_all();
+  m_EmssAudioStateChanged.notify_all();
+  m_EmssVideoStateChanged.notify_all();
 }
 
 void* MoonlightInstance::StopThreadFunc(void* context) {
@@ -120,39 +129,60 @@ void* MoonlightInstance::StopThreadFunc(void* context) {
   g_Instance->m_Running = false;
 
   // We also need to stop this thread after the connection thread, because it
-  // depends on being initialized there.
-  pthread_join(g_Instance->m_InputThread, NULL);
+  // depends on being initialized there. It's only started once the connection
+  // is established, so there's nothing to join if the connection failed to start.
+  if (g_Instance->m_InputThread != 0) {
+    pthread_join(g_Instance->m_InputThread, NULL);
+    g_Instance->m_InputThread = 0;
+  }
 
   // Stop the connection
   LiStopConnection();
 
-  // Close the media source and release tracks to ensure WebKit garbage collection
-  if (g_Instance && g_Instance->m_Source) {
-    g_Instance->m_Source->Close([](samsung::wasm::OperationResult err) {
-      g_Instance->m_AudioTrack = samsung::wasm::ElementaryMediaTrack();
-      g_Instance->m_VideoTrack = samsung::wasm::ElementaryMediaTrack();
-      
-      std::unique_lock<std::mutex> lock(g_Instance->m_Mutex);
-      g_Instance->m_SourceClosed = true;
-      g_Instance->m_SourceClosedCV.notify_all();
-    });
-    
-    // Synchronously wait for the source to close before exiting,
-    // which prevents the next StartStream from stomping on our teardown.
-    std::unique_lock<std::mutex> lock(g_Instance->m_Mutex);
-    g_Instance->m_SourceClosedCV.wait(lock, [] {
-      return g_Instance->m_SourceClosed.load();
-    });
-    
-    // Reset EMSS state variables for the next stream
-    g_Instance->m_EmssReadyState = EmssReadyState::kDetached;
-    g_Instance->m_AudioStarted = false;
-    g_Instance->m_VideoStarted = false;
-    g_Instance->m_AudioSessionId = 0;
-    g_Instance->m_VideoSessionId = 0;
-  }
+  // Close the media source to prepare for the next stream
+  g_Instance->CloseMediaSource();
 
   return NULL;
+}
+
+void MoonlightInstance::CloseMediaSource() {
+  if (!m_Source) {
+    return;
+  }
+
+  {
+    std::unique_lock<std::mutex> lock(m_Mutex);
+    m_SourceClosed = false;
+  }
+
+  // Close the media source and release tracks to ensure WebKit garbage collection
+  m_Source->Close([](samsung::wasm::OperationResult err) {
+    g_Instance->m_AudioTrack = samsung::wasm::ElementaryMediaTrack();
+    g_Instance->m_VideoTrack = samsung::wasm::ElementaryMediaTrack();
+
+    std::unique_lock<std::mutex> lock(g_Instance->m_Mutex);
+    g_Instance->m_SourceClosed = true;
+    g_Instance->m_SourceClosedCV.notify_all();
+  });
+
+  // Synchronously wait for the source to close before returning, which prevents the
+  // next StartStream from stomping on our teardown. The wait is bounded, because the
+  // next StartStream waits for the teardown on the main thread, which would freeze
+  // the whole application if the source never reported that it closed.
+  std::unique_lock<std::mutex> lock(m_Mutex);
+  if (!m_SourceClosedCV.wait_for(lock, std::chrono::seconds(5), [this] {
+    return m_SourceClosed.load();
+  })) {
+    ClLogMessage("Timed out waiting for the media source to close\n");
+  }
+
+  // Reset EMSS state variables for the next stream
+  m_EmssReadyState = EmssReadyState::kDetached;
+  m_AudioStarted = false;
+  m_VideoStarted = false;
+  m_AudioSessionId = 0;
+  m_VideoSessionId = 0;
+  m_SourceAttached = false;
 }
 
 void* MoonlightInstance::InputThreadFunc(void* context) {
@@ -227,14 +257,23 @@ void* MoonlightInstance::ConnectionThreadFunc(void* context) {
     // render the longer frames that the RTSP negotiation may choose on low bitrate streams
     MoonlightInstance::s_ArCallbacks.capabilities |= CAPABILITY_SUPPORTS_ARBITRARY_AUDIO_DURATION;
     PostToJs("Selecting the audio renderer capabilities to: CAPABILITY_DIRECT_SUBMIT | CAPABILITY_SUPPORTS_ARBITRARY_AUDIO_DURATION");
-  } else { // EMSS
-    // The EMSS backend expects the fixed 5 ms frames that are negotiated without that capability
+  } else { // EMSS, or disabled audio output
+    // The EMSS backend expects the fixed 5 ms frames that are negotiated without that capability,
+    // and the frame duration doesn't matter when the audio output is disabled
     PostToJs("Selecting the audio renderer capabilities to: CAPABILITY_DIRECT_SUBMIT");
   }
 
   err = LiStartConnection(&serverInfo, &me->m_StreamConfig, &MoonlightInstance::s_ClCallbacks,
     &MoonlightInstance::s_DrCallbacks, &MoonlightInstance::s_ArCallbacks, NULL, 0, NULL, 0);
   if (err != 0) {
+    // If the connection failed on its own, no stop thread will be started to tear it down,
+    // so close the media source here. Otherwise it stays attached and the next stream can't
+    // set up its media pipeline. This is done before notifying the JS code, so that the
+    // next stream can't be started while the source is still closing.
+    if (!me->m_ConnectionCancelled && me->m_SourceAttached) {
+      me->CloseMediaSource();
+    }
+
     // Notify the JS code that the stream has ended!
     // NB: We pass error code 0 here to avoid triggering a "Connection terminated" warning message.
     if (me->m_ConnectionCancelled) {
@@ -261,9 +300,9 @@ static void HexStringToBytes(const char* str, char* output) {
 
 MessageResult MoonlightInstance::StartStream(std::string host, int httpPort, std::string width, std::string height, std::string fps, std::string bitrate,
   std::string rikey, std::string rikeyid, std::string appversion, std::string gfeversion, std::string rtspurl, int serverCodecModeSupport,
-  bool framePacing, bool optimizeGames, bool rumbleFeedback, bool mouseEmulation, bool flipABfaceButtons, bool flipXYfaceButtons,
-  std::string audioBackend, std::string audioConfig, bool audioSync, int audioJitterMs, bool playHostAudio, std::string videoCodec,
-  bool hdrMode, bool fullRange, bool gameMode, bool disableWarnings, bool performanceStats) {
+  bool framePacing, bool optimizeGames, bool swapMouseButtons, bool rumbleFeedback, bool mouseEmulation, bool flipABfaceButtons,
+  bool flipXYfaceButtons, std::string audioBackend, std::string audioConfig, bool audioSync, int audioJitterMs, bool playHostAudio,
+  bool decryptHostAudio, std::string videoCodec, bool hdrMode, bool fullRange, bool gameMode, bool disableWarnings, bool performanceStats) {
   
   if (m_StopThread != 0) {
     pthread_join(m_StopThread, NULL);
@@ -271,6 +310,8 @@ MessageResult MoonlightInstance::StartStream(std::string host, int httpPort, std
   }
   m_ConnectionCancelled = false;
   m_SourceClosed = false;
+  m_SourceAttached = false;
+  m_InputThread = 0;
 
   PostToJs("Setting the Host address to: " + host + ":" + std::to_string(httpPort));
   PostToJs("Setting the Video resolution to: " + width + "x" + height);
@@ -284,6 +325,7 @@ MessageResult MoonlightInstance::StartStream(std::string host, int httpPort, std
   PostToJs("Setting the Server codec mode support to: " + std::to_string(serverCodecModeSupport));
   PostToJs("Setting the Video frame pacing to: " + std::to_string(framePacing));
   PostToJs("Setting the Optimize game settings to: " + std::to_string(optimizeGames));
+  PostToJs("Setting the Swap mouse buttons to: " + std::to_string(swapMouseButtons));
   PostToJs("Setting the Rumble feedback to: " + std::to_string(rumbleFeedback));
   PostToJs("Setting the Mouse emulation to: " + std::to_string(mouseEmulation));
   PostToJs("Setting the Flip A/B face buttons to: " + std::to_string(flipABfaceButtons));
@@ -293,6 +335,7 @@ MessageResult MoonlightInstance::StartStream(std::string host, int httpPort, std
   PostToJs("Setting the Audio synchronization to: " + std::to_string(audioSync));
   PostToJs("Setting the Audio jitter buffer to: " + std::to_string(audioJitterMs) + " ms");
   PostToJs("Setting the Play host audio to: " + std::to_string(playHostAudio));
+  PostToJs("Setting the Decrypt host audio to: " + std::to_string(decryptHostAudio));
   PostToJs("Setting the Video codec to: " + videoCodec);
   PostToJs("Setting the Video HDR mode to: " + std::to_string(hdrMode));
   PostToJs("Setting the Full color range to: " + std::to_string(fullRange));
@@ -320,6 +363,10 @@ MessageResult MoonlightInstance::StartStream(std::string host, int httpPort, std
     // Apply the appropriate value for the Web Audio backend
     m_AudioBackend = AudioBackend::WebAudio;
     PostToJs("Selecting the audio backend to: AUDIO_BACKEND_WEB_AUDIO");
+  } else if (audioBackend == "Disabled") { // No audio output
+    // Apply the appropriate value when the audio output is disabled
+    m_AudioBackend = AudioBackend::Disabled;
+    PostToJs("Selecting the audio backend to: AUDIO_BACKEND_DISABLED");
   } else { // Unknown
     // Default case for unsupported audio backend selection
     ClLogMessage("Unsupported audio backend '%s' detected! Reverting to the default backend...\n", audioBackend.c_str());
@@ -380,20 +427,28 @@ MessageResult MoonlightInstance::StartStream(std::string host, int httpPort, std
     PostToJs("Selecting the fallback video format to: VIDEO_FORMAT_H264");
   }
 
+  // Initialize the color space with default value
+  m_StreamConfig.colorSpace = 0;
+  // Apply the desired color space ​based on the HDR toggle switch state.
+  // Uses Rec. 709 for standard HD video to prevent unwanted color shifts 
+  // caused by the SD-intended Rec. 601, and Rec. 2020 for HDR streams.
+  m_StreamConfig.colorSpace |= hdrMode ? COLORSPACE_REC_2020 : COLORSPACE_REC_709;
+
   // Initialize the color range with default value
   m_StreamConfig.colorRange = 0;
   // Apply the desired color range ​based on the toggle switch state
   m_StreamConfig.colorRange |= fullRange ? COLOR_RANGE_FULL : COLOR_RANGE_LIMITED;
 
-  // Limit encryption to devices that do not support AES instructions
-  m_StreamConfig.encryptionFlags = ENCFLG_NONE;
+  // Apply encryption audio only when decrypt host audio is enabled, otherwise disable encryption
+  m_StreamConfig.encryptionFlags = decryptHostAudio ? ENCFLG_AUDIO : ENCFLG_NONE;
 
   // Load the rikey and rikeyid into the stream configuration
   HexStringToBytes(rikey.c_str(), m_StreamConfig.remoteInputAesKey);
   int rikeyiv = htonl(stoi(rikeyid));
   memcpy(m_StreamConfig.remoteInputAesIv, &rikeyiv, sizeof(rikeyiv));
 
-  // Manage gamepad input states based on selected settings
+  // Apply the desired input and gamepad settings ​based on the toggle switch states
+  HandleInputSettings(swapMouseButtons);
   HandleGamepadInputState(rumbleFeedback, mouseEmulation, flipABfaceButtons, flipXYfaceButtons);
 
   // Apply the desired latency mode ​based on the toggle switch state
@@ -416,6 +471,7 @@ MessageResult MoonlightInstance::StartStream(std::string host, int httpPort, std
   m_ServerCodecModeSupport = serverCodecModeSupport;
   m_FramePacingEnabled = framePacing;
   m_OptimizeGamesEnabled = optimizeGames;
+  m_SwapMouseButtonsEnabled = swapMouseButtons;
   m_RumbleFeedbackEnabled = rumbleFeedback;
   m_MouseEmulationEnabled = mouseEmulation;
   m_FlipABfaceButtonsEnabled = flipABfaceButtons;
@@ -423,6 +479,7 @@ MessageResult MoonlightInstance::StartStream(std::string host, int httpPort, std
   m_AudioSyncEnabled = audioSync;
   m_AudioJitterMs = audioJitterMs;
   m_PlayHostAudioEnabled = playHostAudio;
+  m_DecryptHostAudioEnabled = decryptHostAudio;
   m_HdrModeEnabled = hdrMode;
   m_FullRangeEnabled = fullRange;
   m_GameModeEnabled = gameMode;
@@ -626,13 +683,13 @@ int main(int argc, char** argv) {
 
 MessageResult startStream(std::string host, int httpPort, std::string width, std::string height, std::string fps, std::string bitrate,
   std::string rikey, std::string rikeyid, std::string appversion, std::string gfeversion, std::string rtspurl, int serverCodecModeSupport,
-  bool framePacing, bool optimizeGames, bool rumbleFeedback, bool mouseEmulation, bool flipABfaceButtons, bool flipXYfaceButtons,
-  std::string audioBackend, std::string audioConfig, bool audioSync, int audioJitterMs, bool playHostAudio, std::string videoCodec,
-  bool hdrMode, bool fullRange, bool gameMode, bool disableWarnings, bool performanceStats) {
+  bool framePacing, bool optimizeGames, bool swapMouseButtons, bool rumbleFeedback, bool mouseEmulation, bool flipABfaceButtons,
+  bool flipXYfaceButtons, std::string audioBackend, std::string audioConfig, bool audioSync, int audioJitterMs, bool playHostAudio,
+  bool decryptHostAudio, std::string videoCodec, bool hdrMode, bool fullRange, bool gameMode, bool disableWarnings, bool performanceStats) {
   PostToJs("Starting the streaming session...");
   return g_Instance->StartStream(host, httpPort, width, height, fps, bitrate, rikey, rikeyid, appversion, gfeversion, rtspurl, serverCodecModeSupport,
-  framePacing, optimizeGames, rumbleFeedback, mouseEmulation, flipABfaceButtons, flipXYfaceButtons, audioBackend, audioConfig,
-  audioSync, audioJitterMs, playHostAudio, videoCodec, hdrMode, fullRange, gameMode, disableWarnings, performanceStats);
+  framePacing, optimizeGames, swapMouseButtons, rumbleFeedback, mouseEmulation, flipABfaceButtons, flipXYfaceButtons, audioBackend, audioConfig,
+  audioSync, audioJitterMs, playHostAudio, decryptHostAudio, videoCodec, hdrMode, fullRange, gameMode, disableWarnings, performanceStats);
 }
 
 MessageResult stopStream() {
